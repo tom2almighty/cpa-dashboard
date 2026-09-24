@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+data
+refer
+*.log
+*.local
+.env
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+.codex
+.claude
+.vscode

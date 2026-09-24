@@ -1,0 +1,23 @@
+services:
+  cli-proxy-api:
+    image: eceasy/cli-proxy-api:latest
+    container_name: cli-proxy-api
+    restart: unless-stopped
+    ports:
+      - "8317:8317"
+    volumes:
+      - ./cpa/config.yaml:/CLIProxyAPI/config.yaml
+      - ./cpa/auths:/root/.cli-proxy-api
+      - ./cpa/logs:/CLIProxyAPI/logs
+
+  cpa-dashboard:
+    image: ghcr.io/tom2almighty/cpa-dashboard:latest
+    container_name: cpa-dashboard
+    restart: unless-stopped
+    depends_on:
+      - cli-proxy-api
+    env_file: .env
+    ports:
+      - "8318:8318"
+    volumes:
+      - ./data:/data
