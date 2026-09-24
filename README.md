@@ -4,7 +4,11 @@
 
 - 用量统计：概览、趋势图，以及按模型、账号、API Key、提供商分组的统计和请求明细
 - 费用估算：启动时自动从 [LiteLLM](https://github.com/BerriAI/litellm) 同步模型价格，之后每天刷新
-- CPA 管理：账号（认证文件）的启用、停用、上传、删除，在线编辑 `config.yaml`
+- 账号：认证文件的启用、停用、上传、删除；查询 Codex、Claude、Antigravity、Kimi、xAI 账号的 5 小时、每周、每月额度
+- OAuth 登录：Codex、Claude、Antigravity、xAI、Devin、Kimi、Muse，CPA 部署在远程时可粘贴回调地址完成登录
+- 提供商：Gemini、Claude、Codex、OpenAI 兼容、Vertex、xAI 的 API Key 配置
+- 插件、日志：插件启停、配置与商店安装；运行日志实时查看，错误请求日志下载
+- 配置：常用设置图形化修改，`config.yaml` 带语法高亮的在线编辑
 
 ## CPA 配置要求
 
@@ -64,6 +68,7 @@ bun run dev            # 前端，Vite 会把 /api 和 /v0 代理到后端
 
 ```bash
 bun run check          # biome + tsc
+bun run test           # 单元测试
 bun run build          # 前端
 bun run build:server   # 后端打包成 build/server.js
 ```

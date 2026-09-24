@@ -11,6 +11,10 @@ const UsagePage = lazy(() => import("@/pages/usage").then((m) => ({ default: m.U
 const PricesPage = lazy(() => import("@/pages/prices").then((m) => ({ default: m.PricesPage })));
 const AccountsPage = lazy(() => import("@/pages/accounts").then((m) => ({ default: m.AccountsPage })));
 const ConfigPage = lazy(() => import("@/pages/config").then((m) => ({ default: m.ConfigPage })));
+const OAuthPage = lazy(() => import("@/pages/oauth").then((m) => ({ default: m.OAuthPage })));
+const ProvidersPage = lazy(() => import("@/pages/providers").then((m) => ({ default: m.ProvidersPage })));
+const PluginsPage = lazy(() => import("@/pages/plugins").then((m) => ({ default: m.PluginsPage })));
+const LogsPage = lazy(() => import("@/pages/logs").then((m) => ({ default: m.LogsPage })));
 
 export function App() {
   const session = useQuery({
@@ -44,6 +48,10 @@ export function App() {
         <Route path="usage" element={<UsagePage />} />
         <Route path="prices" element={<PricesPage />} />
         <Route path="accounts" element={<AccountsPage />} />
+        <Route path="oauth" element={<OAuthPage />} />
+        <Route path="providers" element={<ProvidersPage />} />
+        <Route path="plugins" element={<PluginsPage />} />
+        <Route path="logs" element={<LogsPage />} />
         <Route path="config" element={<ConfigPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

@@ -3,6 +3,7 @@ import { Search, Trash2, Upload } from "lucide-react";
 import { type ChangeEvent, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
+import { accountName, QuotaPanel } from "@/components/quota-panel";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import {
   AlertDialog,
@@ -20,15 +21,12 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { formatInteger, formatRelative } from "@/lib/format";
 import type { AuthFile } from "@/lib/types";
 
 const QUERY_KEY = ["cpa", "auth-files"];
-
-function accountName(file: AuthFile): string {
-  return file.email || file.label || file.account || file.name;
-}
 
 function StatusCell({ file }: { file: AuthFile }) {
   if (file.disabled) return <Badge variant="outline">已停用</Badge>;
@@ -144,78 +142,94 @@ export function AccountsPage() {
           读取账号失败：{error.message}
         </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>账号</TableHead>
-              <TableHead>提供商</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className="text-right">成功 / 失败</TableHead>
-              <TableHead>最近刷新</TableHead>
-              <TableHead className="w-24">启用</TableHead>
-              <TableHead className="w-12">
-                <span className="sr-only">操作</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isPending ? (
-              <SkeletonRows columns={7} />
-            ) : files.length === 0 ? (
-              <EmptyRow columns={7}>{keyword ? "没有匹配的账号" : "还没有认证文件，可以上传 JSON 文件添加。"}</EmptyRow>
-            ) : (
-              files.map((file) => (
-                <TableRow key={file.id || file.name} className={file.disabled ? "text-muted-foreground" : undefined}>
-                  <TableCell className="max-w-72">
-                    <div className="truncate font-medium" title={accountName(file)}>
-                      {accountName(file)}
-                    </div>
-                    {accountName(file) !== file.name && (
-                      <div className="truncate text-xs text-muted-foreground" title={file.name}>
-                        {file.name}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>{file.provider ? <Badge variant="secondary">{file.provider}</Badge> : "—"}</TableCell>
-                  <TableCell>
-                    <StatusCell file={file} />
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatInteger(file.success ?? 0)}
-                    <span className="text-muted-foreground"> / </span>
-                    <span className={file.failed ? "text-destructive" : undefined}>
-                      {formatInteger(file.failed ?? 0)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {file.last_refresh ? formatRelative(Date.parse(file.last_refresh)) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={!file.disabled}
-                      disabled={toggle.isPending && toggle.variables?.name === file.name}
-                      onCheckedChange={() => toggle.mutate(file)}
-                      aria-label={`${file.disabled ? "启用" : "停用"} ${accountName(file)}`}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {!file.runtime_only && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`删除 ${file.name}`}
-                        onClick={() => setDeleting(file)}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 />
-                      </Button>
-                    )}
-                  </TableCell>
+        <Tabs defaultValue="list">
+          <TabsList variant="line" className="mb-6">
+            <TabsTrigger value="list">列表</TabsTrigger>
+            <TabsTrigger value="quota">额度</TabsTrigger>
+          </TabsList>
+          <TabsContent value="quota">
+            <QuotaPanel files={files} />
+          </TabsContent>
+          <TabsContent value="list">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>账号</TableHead>
+                  <TableHead>提供商</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead className="text-right">成功 / 失败</TableHead>
+                  <TableHead>最近刷新</TableHead>
+                  <TableHead className="w-24">启用</TableHead>
+                  <TableHead className="w-12">
+                    <span className="sr-only">操作</span>
+                  </TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {isPending ? (
+                  <SkeletonRows columns={7} />
+                ) : files.length === 0 ? (
+                  <EmptyRow columns={7}>
+                    {keyword ? "没有匹配的账号" : "还没有认证文件，可以上传 JSON 文件添加。"}
+                  </EmptyRow>
+                ) : (
+                  files.map((file) => (
+                    <TableRow
+                      key={file.id || file.name}
+                      className={file.disabled ? "text-muted-foreground" : undefined}
+                    >
+                      <TableCell className="max-w-72">
+                        <div className="truncate font-medium" title={accountName(file)}>
+                          {accountName(file)}
+                        </div>
+                        {accountName(file) !== file.name && (
+                          <div className="truncate text-xs text-muted-foreground" title={file.name}>
+                            {file.name}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>{file.provider ? <Badge variant="secondary">{file.provider}</Badge> : "—"}</TableCell>
+                      <TableCell>
+                        <StatusCell file={file} />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatInteger(file.success ?? 0)}
+                        <span className="text-muted-foreground"> / </span>
+                        <span className={file.failed ? "text-destructive" : undefined}>
+                          {formatInteger(file.failed ?? 0)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {file.last_refresh ? formatRelative(Date.parse(file.last_refresh)) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={!file.disabled}
+                          disabled={toggle.isPending && toggle.variables?.name === file.name}
+                          onCheckedChange={() => toggle.mutate(file)}
+                          aria-label={`${file.disabled ? "启用" : "停用"} ${accountName(file)}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {!file.runtime_only && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`删除 ${file.name}`}
+                            onClick={() => setDeleting(file)}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TabsContent>
+        </Tabs>
       )}
 
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>

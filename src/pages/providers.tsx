@@ -1,0 +1,401 @@
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { type FormEvent, useState } from "react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
+import { EmptyRow, SkeletonRows } from "@/components/table-rows";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api";
+import {
+  type Form,
+  fromForm,
+  identity,
+  type Json,
+  KINDS,
+  type Kind,
+  list,
+  mask,
+  str,
+  toForm,
+  validate,
+} from "@/lib/provider-form";
+
+// 先取最新列表再整表写回,避免覆盖别处的改动
+async function mutateList(kind: Kind, change: (items: Json[]) => Json[]) {
+  const res = await api<Json>(`/v0/management/${kind.endpoint}`);
+  const items = list(res[kind.endpoint]).map(({ "auth-index": _, ...rest }) => rest);
+  await api(`/v0/management/${kind.endpoint}`, { method: "PUT", body: change(items) });
+}
+
+function findIndex(kind: Kind, items: Json[], target: Json): number {
+  const i = items.findIndex((x) => identity(kind, x) === identity(kind, target));
+  if (i < 0) throw new Error("该条目已被修改或删除，请刷新后重试");
+  return i;
+}
+
+function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function EditDialog({
+  kind,
+  target,
+  onClose,
+}: {
+  kind: Kind;
+  // null 表示新增
+  target: Json | null;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<Form>(() => toForm(target ?? {}));
+  const [error, setError] = useState<string | null>(null);
+  const update = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
+
+  const save = useMutation({
+    mutationFn: () =>
+      mutateList(kind, (items) => {
+        if (!target) return [...items, fromForm(kind, form, {})];
+        const i = findIndex(kind, items, target);
+        items[i] = fromForm(kind, form, items[i]);
+        return items;
+      }),
+    onSuccess: () => {
+      toast.success(target ? "已保存" : "已添加");
+      queryClient.invalidateQueries({ queryKey: ["cpa", "providers"] });
+      onClose();
+    },
+  });
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const message = validate(kind, form);
+    setError(message);
+    if (!message) save.mutate();
+  }
+
+  const p = kind.endpoint;
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>
+            {target ? "编辑" : "添加"} {kind.label}
+          </DialogTitle>
+        </DialogHeader>
+        <form id={`form-${p}`} onSubmit={submit} className="grid gap-4">
+          {kind.openai ? (
+            <>
+              <Field id={`${p}-name`} label="名称" hint="用于区分提供商，也会作为模型前缀">
+                <Input id={`${p}-name`} value={form.name} onChange={(e) => update({ name: e.target.value })} />
+              </Field>
+              <Field id={`${p}-keys`} label="API Key" hint="每行一个，请求时轮流使用">
+                <Textarea
+                  id={`${p}-keys`}
+                  value={form.keys}
+                  onChange={(e) => update({ keys: e.target.value })}
+                  className="min-h-20 font-mono text-sm"
+                />
+              </Field>
+            </>
+          ) : (
+            <Field id={`${p}-key`} label="API Key">
+              <Input
+                id={`${p}-key`}
+                value={form.apiKey}
+                onChange={(e) => update({ apiKey: e.target.value })}
+                className="font-mono"
+              />
+            </Field>
+          )}
+          <Field
+            id={`${p}-base`}
+            label="Base URL"
+            hint={kind.openai || kind.baseUrlRequired ? undefined : "留空使用官方地址"}
+          >
+            <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
+          </Field>
+          <Field id={`${p}-proxy`} label="代理" hint="留空使用全局代理">
+            <Input
+              id={`${p}-proxy`}
+              value={form.proxyUrl}
+              onChange={(e) => update({ proxyUrl: e.target.value })}
+              placeholder="socks5://127.0.0.1:1080"
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field id={`${p}-prefix`} label="模型前缀" hint="设置后用 前缀/模型名 访问">
+              <Input id={`${p}-prefix`} value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
+            </Field>
+            <Field id={`${p}-priority`} label="优先级" hint="数值越大越优先">
+              <Input
+                id={`${p}-priority`}
+                inputMode="numeric"
+                value={form.priority}
+                onChange={(e) => update({ priority: e.target.value })}
+              />
+            </Field>
+          </div>
+          <Field id={`${p}-models`} label="模型" hint="每行一个，起别名写成 上游模型 => 别名">
+            <Textarea
+              id={`${p}-models`}
+              value={form.models}
+              onChange={(e) => update({ models: e.target.value })}
+              className="min-h-20 font-mono text-sm"
+            />
+          </Field>
+          <Field id={`${p}-excluded`} label="排除的模型" hint="每行或逗号分隔一个，支持 * 通配">
+            <Textarea
+              id={`${p}-excluded`}
+              value={form.excluded}
+              onChange={(e) => update({ excluded: e.target.value })}
+              className="min-h-16 font-mono text-sm"
+            />
+          </Field>
+          <Field id={`${p}-headers`} label="额外请求头" hint="每行一个，格式为 名称: 值">
+            <Textarea
+              id={`${p}-headers`}
+              value={form.headers}
+              onChange={(e) => update({ headers: e.target.value })}
+              className="min-h-16 font-mono text-sm"
+            />
+          </Field>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+        </form>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            取消
+          </Button>
+          <Button type="submit" form={`form-${p}`} disabled={save.isPending}>
+            {save.isPending && <Spinner />}
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; isPending: boolean }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<Json | null | undefined>(undefined);
+  const [deleting, setDeleting] = useState<Json | null>(null);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["cpa", "providers"] });
+
+  const remove = useMutation({
+    mutationFn: (target: Json) =>
+      mutateList(kind, (all) => {
+        const i = findIndex(kind, all, target);
+        return all.filter((_, j) => j !== i);
+      }),
+    onSuccess: () => {
+      toast.success("已删除");
+      setDeleting(null);
+      refresh();
+    },
+  });
+
+  const toggle = useMutation({
+    mutationFn: (target: Json) =>
+      mutateList(kind, (all) => {
+        const i = findIndex(kind, all, target);
+        const next = { ...all[i] };
+        if (next.disabled) delete next.disabled;
+        else next.disabled = true;
+        all[i] = next;
+        return all;
+      }),
+    onSuccess: refresh,
+  });
+
+  const columns = kind.openai ? 6 : 5;
+  return (
+    <>
+      <div className="mb-3 flex justify-end">
+        <Button onClick={() => setEditing(null)}>
+          <Plus />
+          添加 {kind.label}
+        </Button>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{kind.openai ? "名称" : "API Key"}</TableHead>
+            <TableHead>Base URL</TableHead>
+            {kind.openai && <TableHead className="text-right">Key</TableHead>}
+            <TableHead className="text-right">模型</TableHead>
+            {kind.openai ? <TableHead className="w-20">启用</TableHead> : <TableHead>代理</TableHead>}
+            <TableHead className="w-24">
+              <span className="sr-only">操作</span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isPending ? (
+            <SkeletonRows columns={columns} />
+          ) : items.length === 0 ? (
+            <EmptyRow columns={columns}>还没有配置 {kind.label}</EmptyRow>
+          ) : (
+            items.map((item) => {
+              const title = kind.openai ? str(item.name) : mask(str(item["api-key"]));
+              return (
+                <TableRow key={identity(kind, item)} className={item.disabled ? "text-muted-foreground" : undefined}>
+                  <TableCell className={kind.openai ? "font-medium" : "font-mono text-sm"}>
+                    {title}
+                    {str(item.prefix) && (
+                      <Badge variant="outline" className="ml-2 font-sans">
+                        {str(item.prefix)}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-72 truncate text-muted-foreground" title={str(item["base-url"])}>
+                    {str(item["base-url"]) || "官方地址"}
+                  </TableCell>
+                  {kind.openai && (
+                    <TableCell className="text-right tabular-nums">{list(item["api-key-entries"]).length}</TableCell>
+                  )}
+                  <TableCell className="text-right tabular-nums">
+                    {list(item.models).length || "全部"}
+                    {list(item["excluded-models"]).length > 0 && (
+                      <span className="text-muted-foreground">，排除 {list(item["excluded-models"]).length}</span>
+                    )}
+                  </TableCell>
+                  {kind.openai ? (
+                    <TableCell>
+                      <Switch
+                        checked={!item.disabled}
+                        disabled={toggle.isPending}
+                        onCheckedChange={() => toggle.mutate(item)}
+                        aria-label={`${item.disabled ? "启用" : "停用"} ${title}`}
+                      />
+                    </TableCell>
+                  ) : (
+                    <TableCell className="max-w-48 truncate text-muted-foreground">
+                      {str(item["proxy-url"]) || "—"}
+                    </TableCell>
+                  )}
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`编辑 ${title}`}
+                      onClick={() => setEditing(item)}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`删除 ${title}`}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleting(item)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+
+      {editing !== undefined && <EditDialog kind={kind} target={editing} onClose={() => setEditing(undefined)} />}
+
+      <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除 {kind.label} 配置</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleting && (kind.openai ? str(deleting.name) : mask(str(deleting["api-key"])))} 会从 CPA 配置中移除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() => deleting && remove.mutate(deleting)}
+            >
+              {remove.isPending && <Spinner />}
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+export function ProvidersPage() {
+  const results = useQueries({
+    queries: KINDS.map((kind) => ({
+      queryKey: ["cpa", "providers", kind.endpoint],
+      queryFn: () => api<Json>(`/v0/management/${kind.endpoint}`),
+    })),
+  });
+
+  return (
+    <>
+      <PageHeader title="提供商" description="通过 API Key 接入的上游。OAuth 登录的账号在账号页管理。" />
+      <Tabs defaultValue={KINDS[0].endpoint}>
+        <TabsList variant="line" className="mb-6 flex-wrap">
+          {KINDS.map((kind, i) => (
+            <TabsTrigger key={kind.endpoint} value={kind.endpoint}>
+              {kind.label}
+              {list(results[i].data?.[kind.endpoint]).length > 0 && (
+                <span className="text-muted-foreground tabular-nums">
+                  {list(results[i].data?.[kind.endpoint]).length}
+                </span>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {KINDS.map((kind, i) => (
+          <TabsContent key={kind.endpoint} value={kind.endpoint}>
+            {results[i].isError ? (
+              <p role="alert" className="text-sm text-destructive">
+                读取失败：{results[i].error?.message}
+              </p>
+            ) : (
+              <ProviderTable
+                kind={kind}
+                items={list(results[i].data?.[kind.endpoint])}
+                isPending={results[i].isPending}
+              />
+            )}
+          </TabsContent>
+        ))}
+      </Tabs>
+    </>
+  );
+}

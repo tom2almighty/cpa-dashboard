@@ -1,5 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChartColumn, FileCog, LayoutDashboard, LogOut, Tags, Users } from "lucide-react";
+import {
+  ChartColumn,
+  FileCog,
+  KeySquare,
+  LayoutDashboard,
+  LogOut,
+  Network,
+  Puzzle,
+  ScrollText,
+  Tags,
+  Users,
+} from "lucide-react";
 import { Suspense } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -34,7 +45,11 @@ const USAGE_NAV = [
 
 const CPA_NAV = [
   { to: "/accounts", label: "账号", icon: Users },
-  { to: "/config", label: "配置文件", icon: FileCog },
+  { to: "/oauth", label: "OAuth 登录", icon: KeySquare },
+  { to: "/providers", label: "提供商", icon: Network },
+  { to: "/plugins", label: "插件", icon: Puzzle },
+  { to: "/logs", label: "日志", icon: ScrollText },
+  { to: "/config", label: "配置", icon: FileCog },
 ];
 
 function NavGroup({ label, items }: { label: string; items: typeof USAGE_NAV }) {
