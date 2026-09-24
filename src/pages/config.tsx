@@ -22,6 +22,8 @@ type Setting = {
   hint?: string;
   type: "bool" | "int" | "text" | "select";
   options?: { value: string; label: string }[];
+  // 配置里没写这一项时 CPA 使用的默认值
+  fallback?: string;
 };
 
 const GROUPS: { title: string; items: Setting[] }[] = [
@@ -55,6 +57,7 @@ const GROUPS: { title: string; items: Setting[] }[] = [
           { value: "round-robin", label: "轮询" },
           { value: "fill-first", label: "优先用满一个" },
         ],
+        fallback: "round-robin",
       },
       { endpoint: "request-retry", label: "请求重试轮数", hint: "所有凭据都失败后再重试的轮数", type: "int" },
       { endpoint: "max-retry-interval", label: "最大重试等待（秒）", type: "int" },
@@ -262,7 +265,7 @@ function SettingsForm() {
           <h2 className="font-medium">{group.title}</h2>
           <div className="divide-y">
             {group.items.map((s) => (
-              <SettingRow key={s.endpoint} setting={s} value={read(data, s.endpoint)} />
+              <SettingRow key={s.endpoint} setting={s} value={read(data, s.endpoint) ?? s.fallback} />
             ))}
           </div>
         </section>

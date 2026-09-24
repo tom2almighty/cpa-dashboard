@@ -15,3 +15,4 @@ jobs:
       - run: bun run check
       - run: bun run test
       - run: bun run build && bun run build:server
+      - run: bun run build:lite

@@ -1,5 +1,6 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { RangePicker } from "@/components/range-picker";
 import { displayKey } from "@/components/rank-list";
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type EventFilters, useBreakdown, useEvents } from "@/hooks/use-usage";
+import { ApiError, download } from "@/lib/api";
 import {
   formatCompact,
   formatCost,
@@ -181,13 +183,16 @@ function EventTable() {
             <TableHead className="text-right">耗时</TableHead>
             <TableHead className="text-right">费用</TableHead>
             <TableHead>状态</TableHead>
+            <TableHead className="w-10">
+              <span className="sr-only">请求日志</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isPending ? (
-            <SkeletonRows columns={10} />
+            <SkeletonRows columns={11} />
           ) : !data?.items.length ? (
-            <EmptyRow columns={10}>没有符合条件的请求</EmptyRow>
+            <EmptyRow columns={11}>没有符合条件的请求</EmptyRow>
           ) : (
             data.items.map((e) => (
               <TableRow key={e.id}>
@@ -209,6 +214,30 @@ function EventTable() {
                 <TableCell className={num}>{e.cost === null ? "—" : formatCost(e.cost)}</TableCell>
                 <TableCell>
                   {e.failed ? <Badge variant="destructive">失败</Badge> : <Badge variant="secondary">成功</Badge>}
+                </TableCell>
+                <TableCell>
+                  {e.requestId && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="下载这次请求的日志"
+                      title="下载这次请求的日志"
+                      onClick={() =>
+                        download(
+                          `/v0/management/request-log-by-id/${encodeURIComponent(e.requestId)}`,
+                          `request-${e.requestId}.log`,
+                        ).catch((error: Error) =>
+                          toast.error(
+                            error instanceof ApiError && error.status === 404
+                              ? "找不到这次请求的日志，需要在 CPA 中开启请求日志"
+                              : error.message,
+                          ),
+                        )
+                      }
+                    >
+                      <FileText />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))

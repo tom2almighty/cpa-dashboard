@@ -1,14 +1,22 @@
 export type Json = Record<string, unknown>;
 
-export type Kind = { endpoint: string; label: string; openai?: boolean; baseUrlRequired?: boolean };
+export type Kind = {
+  endpoint: string;
+  label: string;
+  openai?: boolean;
+  baseUrlRequired?: boolean;
+  // 支持走上游 WebSocket(Codex / xAI)
+  websockets?: boolean;
+};
 
 export const KINDS: Kind[] = [
   { endpoint: "gemini-api-key", label: "Gemini" },
   { endpoint: "claude-api-key", label: "Claude" },
-  { endpoint: "codex-api-key", label: "Codex", baseUrlRequired: true },
+  { endpoint: "codex-api-key", label: "Codex", baseUrlRequired: true, websockets: true },
   { endpoint: "openai-compatibility", label: "OpenAI 兼容", openai: true },
   { endpoint: "vertex-api-key", label: "Vertex" },
-  { endpoint: "xai-api-key", label: "xAI", baseUrlRequired: true },
+  { endpoint: "xai-api-key", label: "xAI", baseUrlRequired: true, websockets: true },
+  { endpoint: "interactions-api-key", label: "Interactions" },
 ];
 
 export type Form = {
@@ -23,6 +31,7 @@ export type Form = {
   models: string;
   excluded: string;
   disabled: boolean;
+  websockets: boolean;
 };
 
 type Model = { name: string; alias?: string } & Json;
@@ -70,6 +79,7 @@ export function toForm(item: Json): Form {
       .join("\n"),
     excluded: list<string>(item["excluded-models"]).join("\n"),
     disabled: item.disabled === true,
+    websockets: item.websockets === true,
   };
 }
 
@@ -125,6 +135,7 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
       }),
   );
   set("excluded-models", lines(form.excluded, true));
+  if (kind.websockets) set("websockets", form.websockets || undefined);
   return out;
 }
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Settings2, Trash2 } from "lucide-react";
+import { Download, ExternalLink, Settings2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/code-editor";
@@ -18,6 +18,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
@@ -25,13 +28,41 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 
+type ConfigField = { name: string; type?: string; enum_values?: string[] | null; description?: string };
+
 type Plugin = {
   id: string;
   registered?: boolean;
   enabled?: boolean;
   effective_enabled?: boolean;
-  metadata?: { name?: string; version?: string; author?: string; github_repository?: string };
+  config_fields?: ConfigField[] | null;
+  menus?: { path: string; menu?: string; description?: string }[] | null;
+  metadata?: {
+    name?: string;
+    version?: string;
+    author?: string;
+    github_repository?: string;
+    config_fields?: ConfigField[] | null;
+  };
 };
+
+// 插件资源页挂在 /v0/resource/plugins/<id>/ 下,菜单路径可能已带前缀
+function menuHref(pluginId: string, path: string): string {
+  if (path.startsWith("/v0/")) return path;
+  return `/v0/resource/plugins/${encodeURIComponent(pluginId)}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
+function fieldsOf(p: Plugin): ConfigField[] {
+  return (p.config_fields?.length ? p.config_fields : p.metadata?.config_fields) ?? [];
+}
+
+function kindOf(f: ConfigField): "bool" | "number" | "enum" | "text" {
+  if (f.enum_values?.length) return "enum";
+  const t = (f.type ?? "").toLowerCase();
+  if (t.startsWith("bool")) return "bool";
+  if (/int|float|number|double/.test(t)) return "number";
+  return "text";
+}
 
 type PluginsResponse = { plugins_enabled?: boolean; plugins_dir?: string; plugins?: Plugin[] };
 
@@ -53,8 +84,73 @@ type StoreResponse = { sources?: { id: string; name?: string; error?: string }[]
 
 const PLUGINS_KEY = ["cpa", "plugins"];
 
+function FieldControl({
+  field,
+  value,
+  onChange,
+}: {
+  field: ConfigField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const id = `plugin-field-${field.name}`;
+  const kind = kindOf(field);
+  let control: React.ReactNode;
+  if (kind === "bool") {
+    control = <Switch id={id} checked={value === true} onCheckedChange={onChange} />;
+  } else if (kind === "enum") {
+    const items = (field.enum_values ?? []).map((v) => ({ value: v, label: v }));
+    control = (
+      <Select
+        items={items}
+        value={value === undefined || value === null ? null : String(value)}
+        onValueChange={onChange}
+      >
+        <SelectTrigger id={id} className="w-48">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {items.map((i) => (
+            <SelectItem key={i.value} value={i.value}>
+              {i.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  } else {
+    control = (
+      <Input
+        id={id}
+        inputMode={kind === "number" ? "decimal" : undefined}
+        value={value === undefined || value === null ? "" : String(value)}
+        onChange={(e) => {
+          const raw = e.target.value;
+          onChange(kind === "number" && raw.trim() !== "" && Number.isFinite(Number(raw)) ? Number(raw) : raw);
+        }}
+        className={kind === "number" ? "w-32" : "w-full sm:w-72"}
+      />
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <Label htmlFor={id} className="font-mono text-sm">
+          {field.name}
+        </Label>
+        {field.description && <p className="mt-0.5 text-sm text-muted-foreground">{field.description}</p>}
+      </div>
+      <div className="shrink-0">{control}</div>
+    </div>
+  );
+}
+
 function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () => void }) {
   const [draft, setDraft] = useState("");
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const fields = plugin ? fieldsOf(plugin) : [];
+  const [asJson, setAsJson] = useState(false);
+  const useForm = fields.length > 0 && !asJson;
   const { data, isPending } = useQuery({
     queryKey: ["cpa", "plugin-config", plugin?.id],
     queryFn: () => api<unknown>(`/v0/management/plugins/${encodeURIComponent(plugin?.id ?? "")}/config`),
@@ -62,12 +158,14 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
     refetchOnWindowFocus: false,
   });
   useEffect(() => {
-    if (data !== undefined) setDraft(JSON.stringify(data, null, 2));
+    if (data === undefined) return;
+    setDraft(JSON.stringify(data, null, 2));
+    setValues(data && typeof data === "object" ? (data as Record<string, unknown>) : {});
   }, [data]);
 
   const save = useMutation({
     mutationFn: () => {
-      const value = JSON.parse(draft) as unknown;
+      const value = useForm ? values : (JSON.parse(draft) as unknown);
       if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("配置必须是 JSON 对象");
       return api(`/v0/management/plugins/${encodeURIComponent(plugin?.id ?? "")}/config`, {
         method: "PUT",
@@ -86,8 +184,41 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
         <DialogHeader>
           <DialogTitle>{plugin?.metadata?.name || plugin?.id} 配置</DialogTitle>
         </DialogHeader>
+        {fields.length > 0 && (
+          <div className="flex justify-end">
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0"
+              onClick={() => {
+                if (!asJson) setDraft(JSON.stringify(values, null, 2));
+                else {
+                  try {
+                    setValues(JSON.parse(draft) as Record<string, unknown>);
+                  } catch {
+                    return;
+                  }
+                }
+                setAsJson((v) => !v);
+              }}
+            >
+              {asJson ? "用表单编辑" : "编辑 JSON"}
+            </Button>
+          </div>
+        )}
         {isPending ? (
           <Skeleton className="h-80" />
+        ) : useForm ? (
+          <div className="max-h-[60svh] divide-y overflow-y-auto">
+            {fields.map((f) => (
+              <FieldControl
+                key={f.name}
+                field={f}
+                value={values[f.name]}
+                onChange={(v) => setValues((cur) => ({ ...cur, [f.name]: v }))}
+              />
+            ))}
+          </div>
         ) : (
           <CodeEditor
             label="插件配置"
@@ -182,6 +313,23 @@ function Installed() {
                     {p.id}
                     {p.metadata?.author && `，作者 ${p.metadata.author}`}
                   </div>
+                  {p.effective_enabled && (p.menus?.length ?? 0) > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                      {p.menus?.map((m) => (
+                        <a
+                          key={m.path}
+                          href={menuHref(p.id, m.path)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={m.description}
+                          className="inline-flex items-center gap-1 text-xs text-chart-1 hover:underline"
+                        >
+                          {m.menu || m.path}
+                          <ExternalLink className="size-3" aria-hidden />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="tabular-nums">{p.metadata?.version || "—"}</TableCell>
                 <TableCell>
@@ -221,7 +369,7 @@ function Installed() {
         </TableBody>
       </Table>
 
-      <ConfigDialog plugin={configuring} onClose={() => setConfiguring(null)} />
+      {configuring && <ConfigDialog plugin={configuring} onClose={() => setConfiguring(null)} />}
 
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>

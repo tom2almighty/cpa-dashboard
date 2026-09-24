@@ -1,10 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, clearKey } from "@/lib/api";
+import { LITE } from "@/lib/mode";
 
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api("/api/session", { method: "DELETE" }),
+    mutationFn: async () => {
+      if (LITE) clearKey();
+      else await api("/api/session", { method: "DELETE" });
+    },
     onSuccess: () => {
       queryClient.clear();
       queryClient.setQueryData(["session"], false);

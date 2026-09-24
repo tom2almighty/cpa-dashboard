@@ -154,6 +154,7 @@ export type EventFilter = Range & {
 type EventRow = {
   id: number;
   ts: number;
+  request_id: string;
   provider: string;
   model: string;
   alias: string;
@@ -193,7 +194,7 @@ export function events(filter: EventFilter) {
     0;
   const rows = db
     .query<EventRow, typeof params>(
-      `SELECT id, ts, provider, model, alias, source, api_key, endpoint, prompt_tokens, cache_read_tokens,
+      `SELECT id, ts, request_id, provider, model, alias, source, api_key, endpoint, prompt_tokens, cache_read_tokens,
         cache_creation_tokens, output_tokens, reasoning_tokens, total_tokens, latency_ms, failed
       FROM usage_events WHERE ${clause} ORDER BY ts DESC, id DESC LIMIT $limit OFFSET $offset`,
     )
@@ -204,6 +205,7 @@ export function events(filter: EventFilter) {
     return {
       id: r.id,
       ts: r.ts,
+      requestId: r.request_id,
       provider: r.provider,
       model: r.model,
       alias: r.alias,

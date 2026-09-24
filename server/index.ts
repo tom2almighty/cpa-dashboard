@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import type { Context, MiddlewareHandler } from "hono";
+import type { Context, Handler, MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { getConnInfo, serveStatic } from "hono/bun";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
@@ -218,9 +218,9 @@ app.all("/api/*", () => {
   throw new ApiError(404, "not_found", "接口不存在");
 });
 
-// ---------- CPA 管理接口转发 ----------
+// ---------- CPA 管理接口与插件资源页转发 ----------
 
-app.all("/v0/management/*", async (c) => {
+const proxyToCpa: Handler = async (c) => {
   const url = new URL(c.req.url);
   const headers = new Headers({ Authorization: `Bearer ${config.managementKey}` });
   for (const name of ["content-type", "accept"]) {
@@ -244,7 +244,10 @@ app.all("/v0/management/*", async (c) => {
   out.delete("content-encoding");
   out.delete("content-length");
   return new Response(res.body, { status: res.status, headers: out });
-});
+};
+
+app.all("/v0/management/*", proxyToCpa);
+app.all("/v0/resource/*", proxyToCpa);
 
 // ---------- 前端静态资源 ----------
 

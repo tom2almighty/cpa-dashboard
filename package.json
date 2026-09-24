@@ -8,6 +8,7 @@
     "dev:server": "bun --watch server/index.ts",
     "build": "tsc -b && vite build",
     "build:server": "bun build server/index.ts --target bun --outfile build/server.js",
+    "build:lite": "tsc -b && vite build --mode lite && mv dist-lite/index.html dist-lite/management.html",
     "check": "biome check . && tsc -b",
     "test": "bun test ./src",
     "format": "biome check --write ."
@@ -42,6 +43,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vite-plugin-singlefile": "^2.3.3"
   }
 }

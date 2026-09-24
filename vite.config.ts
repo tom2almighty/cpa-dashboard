@@ -2,20 +2,28 @@ import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { viteSingleFile } from "vite-plugin-singlefile";
 
-const backend = process.env.BACKEND_URL ?? "http://localhost:8318";
+export default defineConfig(({ mode }) => {
+  const lite = mode === "lite";
+  // 完整版开发时代理到本项目后端,精简版直接代理到 CPA
+  const target = lite
+    ? (process.env.CPA_URL ?? "http://localhost:8317")
+    : (process.env.BACKEND_URL ?? "http://localhost:8318");
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+  return {
+    plugins: [react(), tailwindcss(), lite && viteSingleFile()],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-  server: {
-    proxy: {
-      "/api": backend,
-      "/v0": backend,
+    build: lite ? { outDir: "dist-lite" } : {},
+    server: {
+      proxy: {
+        "/api": target,
+        "/v0": target,
+      },
     },
-  },
+  };
 });

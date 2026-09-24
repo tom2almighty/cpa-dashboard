@@ -1,8 +1,9 @@
-import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
+import { RequestSparkline } from "@/components/sparkline";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import {
   AlertDialog,
@@ -38,6 +39,36 @@ import {
   toForm,
   validate,
 } from "@/lib/provider-form";
+import type { RecentBucket } from "@/lib/types";
+
+type KeyUsage = { success: number; failed: number; recent_requests?: RecentBucket[] };
+
+// /api-key-usage 按 provider -> "base-url|api-key" 分组,这里摊平成一张表
+function useKeyUsage() {
+  return useQuery({
+    queryKey: ["cpa", "api-key-usage"],
+    queryFn: () => api<Record<string, Record<string, KeyUsage>>>("/v0/management/api-key-usage"),
+    select: (res) => new Map(Object.values(res ?? {}).flatMap((group) => Object.entries(group ?? {}))),
+    refetchInterval: 60_000,
+    retry: false,
+  });
+}
+
+// 一个条目可能有多个 Key(OpenAI 兼容),把它们的桶按位置相加
+function usageOf(kind: Kind, item: Json, usage: Map<string, KeyUsage> | undefined): RecentBucket[] {
+  if (!usage) return [];
+  const base = str(item["base-url"]);
+  const keys = kind.openai ? list(item["api-key-entries"]).map((e) => str(e["api-key"])) : [str(item["api-key"])];
+  const found = keys.map((k) => usage.get(`${base}|${k}`)).filter((u): u is KeyUsage => Boolean(u));
+  const buckets: RecentBucket[] = [];
+  for (const u of found) {
+    (u.recent_requests ?? []).forEach((b, i) => {
+      const acc = buckets[i] ?? { time: b.time, success: 0, failed: 0 };
+      buckets[i] = { time: acc.time, success: acc.success + b.success, failed: acc.failed + b.failed };
+    });
+  }
+  return buckets;
+}
 
 // 先取最新列表再整表写回,避免覆盖别处的改动
 async function mutateList(kind: Kind, change: (items: Json[]) => Json[]) {
@@ -161,6 +192,15 @@ function EditDialog({
               />
             </Field>
           </div>
+          {kind.websockets && (
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label htmlFor={`${p}-ws`}>使用 WebSocket</Label>
+                <p className="text-xs text-muted-foreground">上游支持时通过 WebSocket 发起请求</p>
+              </div>
+              <Switch id={`${p}-ws`} checked={form.websockets} onCheckedChange={(v) => update({ websockets: v })} />
+            </div>
+          )}
           <Field id={`${p}-models`} label="模型" hint="每行一个，起别名写成 上游模型 => 别名">
             <Textarea
               id={`${p}-models`}
@@ -207,6 +247,7 @@ function EditDialog({
 
 function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; isPending: boolean }) {
   const queryClient = useQueryClient();
+  const usage = useKeyUsage();
   const [editing, setEditing] = useState<Json | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Json | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["cpa", "providers"] });
@@ -237,7 +278,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
     onSuccess: refresh,
   });
 
-  const columns = kind.openai ? 6 : 5;
+  const columns = kind.openai ? 7 : 6;
   return (
     <>
       <div className="mb-3 flex justify-end">
@@ -253,7 +294,9 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
             <TableHead>Base URL</TableHead>
             {kind.openai && <TableHead className="text-right">Key</TableHead>}
             <TableHead className="text-right">模型</TableHead>
-            {kind.openai ? <TableHead className="w-20">启用</TableHead> : <TableHead>代理</TableHead>}
+            {!kind.openai && <TableHead>代理</TableHead>}
+            <TableHead>最近 200 分钟</TableHead>
+            {kind.openai && <TableHead className="w-20">启用</TableHead>}
             <TableHead className="w-24">
               <span className="sr-only">操作</span>
             </TableHead>
@@ -289,7 +332,15 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                       <span className="text-muted-foreground">，排除 {list(item["excluded-models"]).length}</span>
                     )}
                   </TableCell>
-                  {kind.openai ? (
+                  {!kind.openai && (
+                    <TableCell className="max-w-48 truncate text-muted-foreground">
+                      {str(item["proxy-url"]) || "—"}
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <RequestSparkline buckets={usageOf(kind, item, usage.data)} label={title} />
+                  </TableCell>
+                  {kind.openai && (
                     <TableCell>
                       <Switch
                         checked={!item.disabled}
@@ -297,10 +348,6 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                         onCheckedChange={() => toggle.mutate(item)}
                         aria-label={`${item.disabled ? "启用" : "停用"} ${title}`}
                       />
-                    </TableCell>
-                  ) : (
-                    <TableCell className="max-w-48 truncate text-muted-foreground">
-                      {str(item["proxy-url"]) || "—"}
                     </TableCell>
                   )}
                   <TableCell className="text-right">
