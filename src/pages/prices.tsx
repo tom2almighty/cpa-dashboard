@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, RefreshCw } from "lucide-react";
+import { Check, Copy, Pencil, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
+import { PriceBindDialog } from "@/components/price-bind-dialog";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatInteger, formatRelative, formatUnitPrice } from "@/lib/format";
 import { loadFrontendPriceSnapshot } from "@/lib/prices";
+import type { ModelPrice } from "@/lib/types";
 
 const num = "text-right tabular-nums";
 export function PricesPage() {
@@ -32,7 +34,7 @@ export function PricesPage() {
   const [search, setSearch] = useState("");
   const [onlyUsed, setOnlyUsed] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-
+  const [bindingTarget, setBindingTarget] = useState<ModelPrice | null>(null);
   const filteredModels = useMemo(() => {
     let list = data?.models ?? [];
     if (onlyUsed) list = list.filter((m) => m.requests > 0);
@@ -133,16 +135,45 @@ export function PricesPage() {
                 <TableCell className="font-mono text-sm font-medium">{m.model || "未知"}</TableCell>
                 <TableCell>
                   {m.price ? (
-                    <span className="text-muted-foreground">
-                      {m.price.matched}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-muted-foreground">{m.price.matched}</span>
+                      {m.source === "custom" && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-1 py-0 text-primary">
+                          自定义
+                        </Badge>
+                      )}
+                      {m.source === "mapped" && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 text-chart-1">
+                          已绑定
+                        </Badge>
+                      )}
                       {m.price.provider && m.price.provider !== m.price.matched.split("/")[0] && (
-                        <Badge variant="outline" className="ml-2">
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 py-0">
                           {m.price.provider}
                         </Badge>
                       )}
-                    </span>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="size-5 text-muted-foreground hover:text-foreground"
+                        aria-label={`调整单价：${m.model}`}
+                        title="调整或自定义单价"
+                        onClick={() => setBindingTarget(m)}
+                      >
+                        <Pencil className="size-3" />
+                      </Button>
+                    </div>
                   ) : (
-                    <Badge variant="destructive">未匹配</Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge
+                        variant="destructive"
+                        className="cursor-pointer hover:opacity-85 text-[11px]"
+                        title="点击智能匹配或自定义单价"
+                        onClick={() => setBindingTarget(m)}
+                      >
+                        未匹配 · 点击设置
+                      </Badge>
+                    </div>
                   )}
                 </TableCell>
                 <TableCell className={num}>
@@ -162,6 +193,16 @@ export function PricesPage() {
           )}
         </TableBody>
       </Table>
+
+      {bindingTarget && (
+        <PriceBindDialog
+          model={bindingTarget.model}
+          currentPrice={bindingTarget.price}
+          currentSource={bindingTarget.source}
+          onClose={() => setBindingTarget(null)}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["prices"] })}
+        />
+      )}
     </>
   );
 }

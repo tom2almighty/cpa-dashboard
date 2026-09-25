@@ -3,6 +3,7 @@ export type ModelPrice = {
   requests: number;
   lastUsedAt: number;
   ownedBy?: string;
+  source?: "custom" | "mapped" | "auto";
   price: {
     matched: string;
     provider: string;
