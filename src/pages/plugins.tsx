@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, Settings2, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Download, ExternalLink, Settings2, ShieldAlert, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/code-editor";
 import { PageHeader } from "@/components/page-header";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -396,6 +397,9 @@ function Installed() {
 
 function Store() {
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [installingTarget, setInstallingTarget] = useState<StorePlugin | null>(null);
+
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "plugin-store"],
     queryFn: () => api<StoreResponse>("/v0/management/plugin-store"),
@@ -411,8 +415,23 @@ function Store() {
       toast.success(`已安装 ${p.name || p.id} ${res.version ?? ""}${res.restart_required ? "，重启 CPA 后生效" : ""}`);
       queryClient.invalidateQueries({ queryKey: ["cpa", "plugin-store"] });
       queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
+      setInstallingTarget(null);
     },
   });
+
+  const sourceErrors = data?.sources?.filter((s) => s.error) ?? [];
+  const plugins = useMemo(() => {
+    const list = data?.plugins ?? [];
+    if (!search.trim()) return list;
+    const term = search.toLowerCase().trim();
+    return list.filter(
+      (p) =>
+        p.name?.toLowerCase().includes(term) ||
+        p.id.toLowerCase().includes(term) ||
+        p.description?.toLowerCase().includes(term) ||
+        p.author?.toLowerCase().includes(term),
+    );
+  }, [data?.plugins, search]);
 
   if (isError) {
     return (
@@ -422,8 +441,6 @@ function Store() {
     );
   }
 
-  const sourceErrors = data?.sources?.filter((s) => s.error) ?? [];
-
   return (
     <>
       {sourceErrors.map((s) => (
@@ -431,56 +448,144 @@ function Store() {
           商店源 {s.name || s.id} 读取失败：{s.error}
         </p>
       ))}
-      <p className="mb-4 text-sm text-muted-foreground">插件会以可执行文件的形式运行，只安装你信任的来源。</p>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>插件</TableHead>
-            <TableHead>来源</TableHead>
-            <TableHead>版本</TableHead>
-            <TableHead className="w-28">
-              <span className="sr-only">操作</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isPending ? (
-            <SkeletonRows columns={4} />
-          ) : !data?.plugins?.length ? (
-            <EmptyRow columns={4}>商店里没有插件</EmptyRow>
-          ) : (
-            data.plugins.map((p) => (
-              <TableRow key={p.store_id}>
-                <TableCell className="max-w-md">
-                  <div className="font-medium">{p.name || p.id}</div>
-                  {p.description && <div className="text-sm text-muted-foreground">{p.description}</div>}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{p.source_name || p.source_id}</TableCell>
-                <TableCell className="tabular-nums">
-                  {p.installed && p.installed_version && p.installed_version !== p.version
-                    ? `${p.installed_version} → ${p.version}`
-                    : p.version || "—"}
-                </TableCell>
-                <TableCell className="text-right">
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">插件会以宿主进程二进制形式运行，请仅从受信任的来源安装。</p>
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="搜索插件名称、描述或 ID..."
+          className="w-56 sm:w-64"
+        />
+      </div>
+
+      {isPending ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-44 rounded-xl" />
+          ))}
+        </div>
+      ) : plugins.length === 0 ? (
+        <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+          {search.trim() ? "未找到符合搜索条件的插件" : "商店里没有插件"}
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {plugins.map((p) => (
+            <Card
+              key={p.store_id}
+              className="flex flex-col justify-between transition-colors hover:border-foreground/20"
+            >
+              <CardHeader className="pb-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <CardTitle className="truncate text-base font-semibold" title={p.name || p.id}>
+                        {p.name || p.id}
+                      </CardTitle>
+                      {p.installed && !p.update_available && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                          已安装
+                        </Badge>
+                      )}
+                      {p.update_available && (
+                        <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4">
+                          可更新
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground truncate" title={p.id}>
+                      {p.id}
+                      {p.author && <span> · {p.author}</span>}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="flex-1 pb-3 text-sm text-muted-foreground">
+                <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap break-words text-xs sm:text-sm">
+                  {p.description || "暂无描述"}
+                </p>
+              </CardContent>
+
+              <CardFooter className="flex items-center justify-between border-t bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
+                <div className="flex flex-col gap-0.5">
+                  <span className="truncate max-w-[120px]" title={p.source_name || p.source_id}>
+                    {p.source_name || p.source_id}
+                  </span>
+                  <span className="font-mono text-[11px]">
+                    {p.installed && p.installed_version && p.installed_version !== p.version
+                      ? `${p.installed_version} → ${p.version}`
+                      : `v${p.version || "0.0.0"}`}
+                  </span>
+                </div>
+
+                <div>
                   {p.installed && !p.update_available ? (
-                    <span className="text-sm text-muted-foreground">已安装</span>
+                    <Button size="sm" variant="ghost" disabled className="h-8 text-xs text-muted-foreground">
+                      已安装
+                    </Button>
                   ) : (
                     <Button
                       size="sm"
                       variant={p.update_available ? "default" : "outline"}
                       disabled={install.isPending}
-                      onClick={() => install.mutate(p)}
+                      onClick={() => setInstallingTarget(p)}
                     >
-                      {install.isPending && install.variables?.store_id === p.store_id ? <Spinner /> : <Download />}
+                      {install.isPending && install.variables?.store_id === p.store_id ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <Download className="size-3.5" />
+                      )}
                       {p.update_available ? "更新" : "安装"}
                     </Button>
                   )}
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+                </div>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <AlertDialog open={installingTarget !== null} onOpenChange={(open) => !open && setInstallingTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-destructive">
+              <ShieldAlert className="size-5 shrink-0" />
+              <AlertDialogTitle>插件安装安全风险确认</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="space-y-3 pt-2 text-sm leading-relaxed">
+              <p>
+                您准备安装/更新插件：<strong>「{installingTarget?.name || installingTarget?.id}」</strong>（版本：
+                {installingTarget?.version || "未知"}，来源：
+                {installingTarget?.source_name || installingTarget?.source_id}）。
+              </p>
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-foreground/90 space-y-1.5">
+                <p className="font-semibold text-destructive">安全风险提示：</p>
+                <p className="text-muted-foreground">
+                  CPA 插件以本地动态链接库或二进制进程的形式执行，与 CPA
+                  拥有完全相同的系统权限，能够直接读取环境变量、所有账号认证密钥、请求报文并可发起任意网络通信。
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground font-medium">
+                请务必确保您完全信任该插件及其来源。是否确认继续安装？
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={install.isPending}
+              onClick={() => {
+                if (installingTarget) install.mutate(installingTarget);
+              }}
+            >
+              {install.isPending && <Spinner />}
+              信任并安装
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
