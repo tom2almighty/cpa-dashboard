@@ -4,10 +4,29 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
-export default defineConfig(() => {
-  const target = process.env.CPA_URL ?? "http://localhost:8317";
+async function resolveAppVersion(): Promise<string> {
+  if (process.env.GITHUB_REF_NAME) return process.env.GITHUB_REF_NAME;
+  if (process.env.APP_VERSION) return process.env.APP_VERSION;
+  try {
+    const res = await fetch("https://api.github.com/repos/tom2almighty/cpa-dashboard/releases/latest", {
+      headers: { "User-Agent": "cpa-dashboard" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { tag_name?: string };
+      if (data.tag_name) return data.tag_name;
+    }
+  } catch {}
+  return "";
+}
 
+export default defineConfig(async () => {
+  const target = process.env.CPA_URL ?? "http://localhost:8317";
+  const appVersion = await resolveAppVersion();
   return {
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+    },
     plugins: [react(), tailwindcss(), viteSingleFile()],
     resolve: {
       alias: {

@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Spinner } from "@/components/ui/spinner";
 import { request } from "@/lib/api";
 
-export const FRONTEND_VERSION = "v0.2.0";
+declare const __APP_VERSION__: string | undefined;
+export const FRONTEND_VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "";
 const GITHUB_REPO = "tom2almighty/cpa-dashboard";
 
 export function newer(latest: string, current: string): boolean {
@@ -64,7 +65,8 @@ export function useVersionData() {
   const cpaHasUpdate = Boolean(cpaLatest && newer(cpaLatest, cpaCurrent));
 
   const panelLatest = panelReleaseQuery.data?.tag_name;
-  const panelHasUpdate = Boolean(panelLatest && newer(panelLatest, FRONTEND_VERSION));
+  const currentVersion = FRONTEND_VERSION || panelLatest || "";
+  const panelHasUpdate = Boolean(panelLatest && currentVersion && newer(panelLatest, currentVersion));
 
   const hasAnyUpdate = cpaHasUpdate || panelHasUpdate;
 
@@ -76,6 +78,7 @@ export function useVersionData() {
     cpaHasUpdate,
     panelLatest,
     panelHasUpdate,
+    currentVersion,
     hasAnyUpdate,
   };
 }
@@ -83,7 +86,8 @@ export function useVersionData() {
 export function VersionCardContent() {
   const queryClient = useQueryClient();
   const [checking, setChecking] = useState(false);
-  const { panelReleaseQuery, cpaCurrent, cpaLatest, cpaHasUpdate, panelLatest, panelHasUpdate } = useVersionData();
+  const { panelReleaseQuery, cpaCurrent, cpaLatest, cpaHasUpdate, panelLatest, panelHasUpdate, currentVersion } =
+    useVersionData();
   const handleCheckUpdates = async () => {
     setChecking(true);
     await Promise.allSettled([
@@ -132,7 +136,7 @@ export function VersionCardContent() {
           <CardContent className="space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">当前运行版本:</span>
-              <span className="font-mono font-medium">{FRONTEND_VERSION}</span>
+              <span className="font-mono font-medium">{currentVersion || "未知"}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">最新发行版本:</span>

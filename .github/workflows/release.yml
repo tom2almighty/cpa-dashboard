@@ -17,6 +17,8 @@ jobs:
       - run: bun install --frozen-lockfile
       # 构建纯前端单文件面板: CPA 配置 panel-github-repository 后会自动拉取最新 Release 里名为 management.html 的资产
       - run: bun run build
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
       - name: 生成 SHA256 校验和
         run: |
           cd dist

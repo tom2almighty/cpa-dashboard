@@ -32,7 +32,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
-import { FRONTEND_VERSION, useVersionData, VersionDialog } from "@/components/version-dialog";
+import { useVersionData, VersionDialog } from "@/components/version-dialog";
 import { useLogout } from "@/hooks/use-logout";
 
 type NavItem = { to: string; label: string; icon: typeof Users };
@@ -82,7 +82,7 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
 export function Layout() {
   const logout = useLogout();
   const [openVersion, setOpenVersion] = useState(false);
-  const { cpaCurrent, hasAnyUpdate } = useVersionData();
+  const { cpaCurrent, currentVersion, hasAnyUpdate } = useVersionData();
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
@@ -113,7 +113,7 @@ export function Layout() {
                 <div className="flex items-center gap-2 min-w-0">
                   <Sparkles className="size-4 shrink-0 text-primary" />
                   <span className="truncate text-xs font-mono text-muted-foreground group-data-[collapsible=icon]:hidden">
-                    {FRONTEND_VERSION} · CPA {cpaCurrent}
+                    {currentVersion ? `面板 ${currentVersion}` : "面板"} · CPA {cpaCurrent}
                   </span>
                 </div>
                 {hasAnyUpdate && (
