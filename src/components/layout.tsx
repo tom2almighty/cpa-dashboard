@@ -9,7 +9,6 @@ import {
   Puzzle,
   ScrollText,
   Sparkles,
-  Tags,
   Users,
 } from "lucide-react";
 import { Suspense, useState } from "react";
@@ -47,10 +46,7 @@ const GATEWAY_NAV: NavItem[] = [
   { to: "/api-keys", label: "API Key", icon: KeyRound },
 ];
 
-const MODEL_NAV: NavItem[] = [
-  { to: "/models", label: "模型管理", icon: Boxes },
-  { to: "/prices", label: "模型价格", icon: Tags },
-];
+const MODEL_NAV: NavItem[] = [{ to: "/models", label: "可用模型", icon: Boxes }];
 
 const SYSTEM_NAV: NavItem[] = [
   { to: "/plugins", label: "插件", icon: Puzzle },
@@ -91,10 +87,14 @@ export function Layout() {
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarHeader>
-          <div className="flex h-8 items-center gap-2 px-2 font-semibold group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <NavLink
+            to="/"
+            className="flex h-8 items-center gap-2 px-2 font-semibold transition-opacity hover:opacity-80 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+            title="返回首页"
+          >
             <Logo className="size-5 shrink-0" />
             <span className="group-data-[collapsible=icon]:hidden">CPA Dashboard</span>
-          </div>
+          </NavLink>
         </SidebarHeader>
         <SidebarContent>
           <NavGroup label="概览" items={OVERVIEW_NAV} />
@@ -141,8 +141,10 @@ export function Layout() {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur md:hidden">
           <SidebarTrigger />
-          <Logo className="size-5" />
-          <span className="font-semibold">CPA Dashboard</span>
+          <NavLink to="/" className="flex items-center gap-2 font-semibold transition-opacity hover:opacity-80">
+            <Logo className="size-5" />
+            <span>CPA Dashboard</span>
+          </NavLink>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-8 md:py-8">
           <Suspense fallback={<Spinner className="mx-auto mt-24 size-6 text-muted-foreground" />}>

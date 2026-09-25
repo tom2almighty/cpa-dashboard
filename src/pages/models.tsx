@@ -3,7 +3,6 @@ import { Check, Copy, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
-import { PriceBindDialog } from "@/components/price-bind-dialog";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,9 +17,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import { formatUnitPrice } from "@/lib/format";
-import { loadFrontendPriceSnapshot } from "@/lib/prices";
-import type { PriceSnapshot } from "@/lib/types";
 
 // OAuth 渠道名,与认证文件的 provider 一致
 const CHANNELS = [
@@ -506,7 +502,6 @@ function AvailableModels() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
-  const [bindingTarget, setBindingTarget] = useState<PriceSnapshot["models"][number] | null>(null);
 
   const { data, isPending, isError, error, isRefetching } = useQuery({
     queryKey: ["cpa", "v1-models"],
@@ -523,19 +518,6 @@ function AvailableModels() {
     staleTime: 60_000,
   });
 
-  const pricesQuery = useQuery({
-    queryKey: ["prices"],
-    queryFn: () => loadFrontendPriceSnapshot(),
-    staleTime: 60_000,
-  });
-
-  const priceItemMap = useMemo(() => {
-    const map = new Map<string, PriceSnapshot["models"][number]>();
-    for (const m of pricesQuery.data?.models ?? []) {
-      map.set(m.model.toLowerCase(), m);
-    }
-    return map;
-  }, [pricesQuery.data]);
   const models = useMemo(() => {
     const list = data ?? [];
     if (!search.trim()) return list;
@@ -553,7 +535,6 @@ function AvailableModels() {
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["cpa", "v1-models"] });
-    queryClient.invalidateQueries({ queryKey: ["prices"] });
   };
 
   return (
@@ -594,77 +575,33 @@ function AvailableModels() {
           <TableRow>
             <TableHead>模型 ID</TableHead>
             <TableHead>提供方</TableHead>
-            <TableHead className="text-right">输入单价</TableHead>
-            <TableHead className="text-right">输出单价</TableHead>
-            <TableHead className="w-20 text-right">操作</TableHead>
+            <TableHead className="w-16 text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isPending ? (
-            <SkeletonRows columns={5} />
+            <SkeletonRows columns={3} />
           ) : isError ? (
-            <EmptyRow columns={5}>获取支持模型失败（{error.message}）</EmptyRow>
+            <EmptyRow columns={3}>获取支持模型失败（{error.message}）</EmptyRow>
           ) : models.length === 0 ? (
-            <EmptyRow columns={5}>
+            <EmptyRow columns={3}>
               {search.trim() ? "未找到匹配的模型" : "暂无可用的支持模型，请确认 CPA 账号或渠道配置正常"}
             </EmptyRow>
           ) : (
-            models.map((m) => {
-              const item = priceItemMap.get(m.id.toLowerCase());
-              const price = item?.price;
-              return (
-                <TableRow key={m.id}>
-                  <TableCell className="font-mono text-sm font-medium">{m.id}</TableCell>
-                  <TableCell className="text-muted-foreground">{m.owned_by || "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {price ? formatUnitPrice(price.input) : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {price ? formatUnitPrice(price.output) : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`调整单价 ${m.id}`}
-                        title={price ? "调整或自定义单价" : "未匹配单价，点击设置"}
-                        className={price ? "text-muted-foreground" : "text-destructive"}
-                        onClick={() =>
-                          setBindingTarget(
-                            item || {
-                              model: m.id,
-                              requests: 0,
-                              lastUsedAt: 0,
-                              ownedBy: m.owned_by,
-                              price: null,
-                            },
-                          )
-                        }
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button variant="ghost" size="icon-xs" aria-label={`复制 ${m.id}`} onClick={() => copy(m.id)}>
-                        {copied === m.id ? <Check className="text-primary" /> : <Copy />}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })
+            models.map((m) => (
+              <TableRow key={m.id}>
+                <TableCell className="font-mono text-sm font-medium">{m.id}</TableCell>
+                <TableCell className="text-muted-foreground">{m.owned_by || "—"}</TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="icon-xs" aria-label={`复制 ${m.id}`} onClick={() => copy(m.id)}>
+                    {copied === m.id ? <Check className="text-primary" /> : <Copy />}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))
           )}
         </TableBody>
       </Table>
-
-      {bindingTarget && (
-        <PriceBindDialog
-          model={bindingTarget.model}
-          currentPrice={bindingTarget.price}
-          currentSource={bindingTarget.source}
-          onClose={() => setBindingTarget(null)}
-          onSaved={() => queryClient.invalidateQueries({ queryKey: ["prices"] })}
-        />
-      )}
     </>
   );
 }

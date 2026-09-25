@@ -12,7 +12,6 @@ const ConfigPage = lazy(() => import("@/pages/config").then((m) => ({ default: m
 const OAuthPage = lazy(() => import("@/pages/oauth").then((m) => ({ default: m.OAuthPage })));
 const ProvidersPage = lazy(() => import("@/pages/providers").then((m) => ({ default: m.ProvidersPage })));
 const ModelsPage = lazy(() => import("@/pages/models").then((m) => ({ default: m.ModelsPage })));
-const PricesPage = lazy(() => import("@/pages/prices").then((m) => ({ default: m.PricesPage })));
 const PluginsPage = lazy(() => import("@/pages/plugins").then((m) => ({ default: m.PluginsPage })));
 const LogsPage = lazy(() => import("@/pages/logs").then((m) => ({ default: m.LogsPage })));
 const ApiKeysPage = lazy(() => import("@/pages/api-keys").then((m) => ({ default: m.ApiKeysPage })));
@@ -50,7 +49,6 @@ export function App() {
         <Route path="providers" element={<ProvidersPage />} />
         <Route path="api-keys" element={<ApiKeysPage />} />
         <Route path="models" element={<ModelsPage />} />
-        <Route path="prices" element={<PricesPage />} />
         <Route path="plugins" element={<PluginsPage />} />
         <Route path="logs" element={<LogsPage />} />
         <Route path="config" element={<ConfigPage />} />

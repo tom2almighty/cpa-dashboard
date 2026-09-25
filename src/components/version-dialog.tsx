@@ -139,27 +139,35 @@ export function VersionCardContent() {
               <span className="font-mono font-medium">{panelLatest || "检查中..."}</span>
             </div>
 
-            {panelHasUpdate && managementAsset && (
+            {panelHasUpdate && (
               <div className="mt-3 rounded-lg border border-chart-1/30 bg-chart-1/5 p-2.5 space-y-2">
                 <p className="font-medium text-chart-1">发现新版本 {panelLatest}！</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  若已在 CPA 的 <code className="text-foreground font-mono">config.yaml</code> 中配置了{" "}
+                  <code className="text-foreground font-mono">panel-github-repository</code>
+                  ，CPA 后台会自动定时静默拉取最新单文件并热生效，无需手动下载。若急需立即生效，重启 CPA
+                  服务即可触发即时同步。
+                </p>
+                <div className="flex flex-wrap gap-2 pt-0.5">
                   <Button
-                    size="xs"
-                    nativeButton={false}
-                    render={<a href={managementAsset.browser_download_url} download="management.html" />}
-                  >
-                    <Download className="size-3" />
-                    下载 management.html
-                  </Button>
-                  <Button
-                    variant="outline"
                     size="xs"
                     nativeButton={false}
                     render={<a href={panelReleaseQuery.data?.html_url} target="_blank" rel="noreferrer" />}
                   >
                     <ExternalLink className="size-3" />
-                    Release 页面
+                    查看 Release 更新日志
                   </Button>
+                  {managementAsset && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      nativeButton={false}
+                      render={<a href={managementAsset.browser_download_url} download="management.html" />}
+                    >
+                      <Download className="size-3" />
+                      手动下载备用
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
