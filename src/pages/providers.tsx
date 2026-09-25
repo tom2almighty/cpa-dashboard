@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Pencil, PencilLine, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -88,6 +89,9 @@ function findIndex(kind: Kind, items: Json[], target: Json): number {
 }
 
 type EditorRow = { id: string; name: string; alias: string; isCustom?: boolean };
+
+// 下拉宽度跟随最长的模型名,避免长名称被截断
+const MODEL_POPUP = "w-auto min-w-(--anchor-width) max-w-(--available-width)";
 
 function ModelMappingEditor({
   kind,
@@ -232,22 +236,30 @@ function ModelMappingEditor({
         <div className="grid gap-2.5">
           {fetchedModels.length > 0 ? (
             <div className="flex items-center gap-2">
-              <select
-                aria-label="选择模型添加到映射"
-                value=""
-                onChange={(e) => handleAddFromDropdown(e.target.value)}
-                className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <option value="" disabled>
-                  ➕ 选择模型添加到映射列表 (已获取 {fetchedModels.length} 个)...
-                </option>
-                {fetchedModels.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-                <option value="__custom__">✏️ 自定义输入模型名...</option>
-              </select>
+              <Select<string> value={null} onValueChange={(v) => v && handleAddFromDropdown(v)}>
+                <SelectTrigger className="min-w-0 flex-1 text-xs" aria-label="选择模型添加到映射">
+                  <SelectValue
+                    placeholder={
+                      <>
+                        <Plus className="size-3.5" />
+                        选择要添加的模型（共 {fetchedModels.length} 个）
+                      </>
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className={MODEL_POPUP}>
+                  {fetchedModels.map((m) => (
+                    <SelectItem key={m} value={m} className="font-mono text-xs">
+                      {m}
+                    </SelectItem>
+                  ))}
+                  <SelectSeparator />
+                  <SelectItem value="__custom__" className="text-xs">
+                    <PencilLine className="size-3.5" />
+                    自定义输入模型名
+                  </SelectItem>
+                </SelectContent>
+              </Select>
               <Button type="button" variant="outline" size="sm" onClick={handleAddAll} className="h-8 shrink-0 text-xs">
                 全部添加
               </Button>
@@ -286,27 +298,34 @@ function ModelMappingEditor({
                 {rows.map((r) => (
                   <div key={r.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
                     {fetchedModels.length > 0 && !r.isCustom ? (
-                      <select
-                        aria-label="上游模型"
-                        value={r.name}
-                        onChange={(e) => {
-                          if (e.target.value === "__custom__") {
-                            updateRow(r.id, { isCustom: true });
-                          } else {
-                            updateRow(r.id, { name: e.target.value });
-                          }
+                      <Select<string>
+                        value={r.name || null}
+                        onValueChange={(v) => {
+                          if (v === "__custom__") updateRow(r.id, { isCustom: true });
+                          else if (v) updateRow(r.id, { name: v });
                         }}
-                        className="h-8 w-full rounded-md border border-input bg-background px-2 py-1 font-mono text-xs shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
-                        {!r.name && <option value="">选择上游模型...</option>}
-                        {!fetchedModels.includes(r.name) && r.name && <option value={r.name}>{r.name}</option>}
-                        {fetchedModels.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                        <option value="__custom__">✏️ 自定义输入...</option>
-                      </select>
+                        <SelectTrigger className="w-full min-w-0 font-mono text-xs" aria-label="上游模型">
+                          <SelectValue placeholder="选择上游模型" />
+                        </SelectTrigger>
+                        <SelectContent className={MODEL_POPUP}>
+                          {r.name && !fetchedModels.includes(r.name) && (
+                            <SelectItem value={r.name} className="font-mono text-xs">
+                              {r.name}
+                            </SelectItem>
+                          )}
+                          {fetchedModels.map((m) => (
+                            <SelectItem key={m} value={m} className="font-mono text-xs">
+                              {m}
+                            </SelectItem>
+                          ))}
+                          <SelectSeparator />
+                          <SelectItem value="__custom__" className="text-xs">
+                            <PencilLine className="size-3.5" />
+                            自定义输入
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     ) : (
                       <Input
                         aria-label="上游模型"

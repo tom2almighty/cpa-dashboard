@@ -491,38 +491,35 @@ function Catalog() {
   );
 }
 
-type V1Model = {
-  id: string;
-  object?: string;
-  created?: number;
-  owned_by?: string;
-};
+type V1Model = { id: string };
+
+const byName = new Intl.Collator(undefined, { numeric: true }).compare;
 
 function AvailableModels() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
 
+  // /v1/models 按模型 ID 去重,owned_by 只是其中一个提供方,所以只列模型名
   const { data, isPending, isError, error, isRefetching } = useQuery({
     queryKey: ["cpa", "v1-models"],
     queryFn: async () => {
       const res = await api<{ data?: V1Model[]; models?: V1Model[] } | V1Model[]>("/v1/models");
-      return Array.isArray(res)
+      const list = Array.isArray(res)
         ? res
         : Array.isArray(res?.data)
           ? res.data
           : Array.isArray(res?.models)
             ? res.models
             : [];
+      return list.map((m) => m.id).sort(byName);
     },
     staleTime: 60_000,
   });
 
   const models = useMemo(() => {
-    const list = data ?? [];
-    if (!search.trim()) return list;
     const term = search.toLowerCase().trim();
-    return list.filter((m) => m.id.toLowerCase().includes(term) || m.owned_by?.toLowerCase().includes(term));
+    return term ? (data ?? []).filter((id) => id.toLowerCase().includes(term)) : (data ?? []);
   }, [data, search]);
 
   const copy = (id: string) => {
@@ -542,8 +539,8 @@ function AvailableModels() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">
-            CPA 实例通过 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">/v1/models</code>{" "}
-            对外提供的模型列表。
+            CPA 通过 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">/v1/models</code>{" "}
+            对外提供的模型，点击即可复制模型名。
           </p>
           {data && (
             <Badge variant="secondary" className="tabular-nums">
@@ -553,9 +550,11 @@ function AvailableModels() {
         </div>
         <div className="flex items-center gap-2">
           <Input
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索模型或提供方..."
+            placeholder="搜索模型"
+            aria-label="搜索模型"
             className="w-48 sm:w-64"
           />
           <Button
@@ -570,38 +569,38 @@ function AvailableModels() {
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>模型 ID</TableHead>
-            <TableHead>提供方</TableHead>
-            <TableHead className="w-16 text-right">操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isPending ? (
-            <SkeletonRows columns={3} />
-          ) : isError ? (
-            <EmptyRow columns={3}>获取支持模型失败（{error.message}）</EmptyRow>
-          ) : models.length === 0 ? (
-            <EmptyRow columns={3}>
-              {search.trim() ? "未找到匹配的模型" : "暂无可用的支持模型，请确认 CPA 账号或渠道配置正常"}
-            </EmptyRow>
-          ) : (
-            models.map((m) => (
-              <TableRow key={m.id}>
-                <TableCell className="font-mono text-sm font-medium">{m.id}</TableCell>
-                <TableCell className="text-muted-foreground">{m.owned_by || "—"}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon-xs" aria-label={`复制 ${m.id}`} onClick={() => copy(m.id)}>
-                    {copied === m.id ? <Check className="text-primary" /> : <Copy />}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+      {isPending ? (
+        <Skeleton className="h-40" />
+      ) : isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          获取可用模型失败：{error.message}
+        </p>
+      ) : models.length === 0 ? (
+        <p className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+          {search.trim() ? "没有匹配的模型" : "暂无可用模型，请确认账号或提供商配置正常"}
+        </p>
+      ) : (
+        <ul className="columns-xs gap-x-6">
+          {models.map((id) => (
+            <li key={id} className="break-inside-avoid">
+              <Button
+                variant="ghost"
+                title={id}
+                aria-label={`复制 ${id}`}
+                onClick={() => copy(id)}
+                className="w-full justify-between font-mono font-normal"
+              >
+                <span className="truncate">{id}</span>
+                {copied === id ? (
+                  <Check className="size-3.5 text-primary" />
+                ) : (
+                  <Copy className="size-3.5 text-muted-foreground opacity-0 group-hover/button:opacity-100 group-focus-visible/button:opacity-100" />
+                )}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 }

@@ -29,11 +29,6 @@ export function formatUnitPrice(n: number | null): string {
   return `$${Number(n.toPrecision(4))}`;
 }
 
-export function formatPercent(ratio: number): string {
-  if (!Number.isFinite(ratio)) return "—";
-  return `${(ratio * 100).toFixed(ratio >= 0.9995 || ratio === 0 ? 0 : 1)}%`;
-}
-
 export function formatLatency(ms: number | null): string {
   if (ms === null) return "—";
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)}s`;

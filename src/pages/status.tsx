@@ -1,45 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { CircleAlert } from "lucide-react";
 import { Link } from "react-router";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/page-header";
 import { accountName } from "@/components/quota-panel";
-import { RequestSparkline } from "@/components/sparkline";
 import { Badge } from "@/components/ui/badge";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import { formatInteger, formatPercent } from "@/lib/format";
-import type { AuthFile, RecentBucket } from "@/lib/types";
+import { formatInteger } from "@/lib/format";
+import { type Json, KINDS, list } from "@/lib/provider-form";
+import type { AuthFile } from "@/lib/types";
 
-type KeyUsage = { success: number; failed: number; recent_requests?: RecentBucket[] };
-
-const chartConfig = {
-  succeeded: { label: "成功", color: "var(--chart-1)" },
-  failed: { label: "失败", color: "var(--destructive)" },
-} satisfies ChartConfig;
-
-// CPA 各处的 recent_requests 都是同一时刻切出的 20 个 10 分钟桶,按位置相加即可
-function mergeBuckets(lists: RecentBucket[][]): RecentBucket[] {
-  const out: RecentBucket[] = [];
-  for (const list of lists) {
-    list.forEach((b, i) => {
-      const acc = out[i] ?? { time: b.time, success: 0, failed: 0 };
-      out[i] = { time: acc.time, success: acc.success + b.success, failed: acc.failed + b.failed };
-    });
-  }
-  return out;
-}
-
-function recentTotal(buckets: RecentBucket[] = []) {
-  return buckets.reduce((sum, b) => sum + b.success + b.failed, 0);
+function needsAttention(f: AuthFile): boolean {
+  return !f.disabled && Boolean(f.unavailable || (f.status && f.status !== "ready" && f.status !== "active"));
 }
 
 function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
@@ -59,18 +31,23 @@ export function StatusPage() {
     select: (res) => res.files ?? [],
     refetchInterval: 30_000,
   });
-  const keyUsage = useQuery({
-    queryKey: ["cpa", "api-key-usage"],
-    queryFn: () => api<Record<string, Record<string, KeyUsage>>>("/v0/management/api-key-usage"),
-    select: (res) => Object.values(res ?? {}).flatMap((group) => Object.values(group ?? {})),
-    refetchInterval: 30_000,
-    retry: false,
+  // 与提供商页、API Key 页共用缓存
+  const providers = useQueries({
+    queries: KINDS.map((kind) => ({
+      queryKey: ["cpa", "providers", kind.endpoint],
+      queryFn: () => api<Json>(`/v0/management/${kind.endpoint}`),
+    })),
+  });
+  const clientKeys = useQuery({
+    queryKey: ["cpa", "api-keys"],
+    queryFn: () => api<{ "api-keys": string[] }>("/v0/management/api-keys"),
+    select: (res) => res["api-keys"] ?? [],
   });
 
   if (!files.data) {
     return (
       <>
-        <PageHeader title="状态" />
+        <PageHeader title="运行概览" />
         {files.isError ? (
           <p role="alert" className="text-sm text-destructive">
             读取失败：{files.error.message}
@@ -83,108 +60,80 @@ export function StatusPage() {
   }
 
   const accounts = files.data;
-  const buckets = mergeBuckets([
-    ...accounts.map((f) => f.recent_requests ?? []),
-    ...(keyUsage.data ?? []).map((u) => u.recent_requests ?? []),
-  ]);
-  const success = buckets.reduce((s, b) => s + b.success, 0);
-  const failed = buckets.reduce((s, b) => s + b.failed, 0);
   const active = accounts.filter((f) => !f.disabled);
-  const attention = accounts.filter(
-    (f) => !f.disabled && (f.unavailable || (f.status && f.status !== "ready" && f.status !== "active")),
-  );
-  const busiest = [...active]
-    .sort((a, b) => recentTotal(b.recent_requests) - recentTotal(a.recent_requests))
-    .slice(0, 8);
-  const chartData = buckets.map((b) => ({
-    time: b.time,
-    label: b.time.split("-")[0],
-    succeeded: b.success,
-    failed: b.failed,
-  }));
+  const attention = accounts.filter(needsAttention);
+
+  const groups = new Map<string, { total: number; usable: number }>();
+  for (const f of accounts) {
+    const key = f.provider || "未知";
+    const g = groups.get(key) ?? { total: 0, usable: 0 };
+    g.total += 1;
+    if (!f.disabled && !needsAttention(f)) g.usable += 1;
+    groups.set(key, g);
+  }
+  const byProvider = [...groups].sort((a, b) => b[1].total - a[1].total);
+
+  const providersReady = providers.every((q) => !q.isPending);
+  const configured = KINDS.map((kind, i) => ({
+    label: kind.label,
+    count: list(providers[i].data?.[kind.endpoint]).length,
+  })).filter((p) => p.count > 0);
 
   return (
     <>
-      <PageHeader title="状态" description="数据来自 CPA 的运行时计数，CPA 重启后清零。" />
+      <PageHeader title="运行概览" />
 
       <section
         aria-label="运行概况"
         className="grid grid-cols-2 gap-x-4 gap-y-6 border-y py-6 sm:grid-cols-4 sm:gap-0 sm:divide-x"
       >
         <Stat
-          label="最近 200 分钟请求"
-          value={formatInteger(success + failed)}
-          detail={failed ? `失败 ${formatInteger(failed)}` : "没有失败"}
-        />
-        <Stat label="成功率" value={formatPercent(success + failed ? success / (success + failed) : Number.NaN)} />
-        <Stat
           label="可用账号"
           value={`${formatInteger(active.length - attention.length)} / ${formatInteger(accounts.length)}`}
           detail={attention.length ? `${attention.length} 个需要处理` : "全部正常"}
         />
         <Stat label="已停用账号" value={formatInteger(accounts.length - active.length)} />
-      </section>
-
-      <section aria-labelledby="traffic-title" className="mt-8">
-        <h2 id="traffic-title" className="mb-4 font-medium">
-          请求量（每 10 分钟）
-        </h2>
-        {chartData.length === 0 ? (
-          <p className="rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">还没有请求</p>
-        ) : (
-          <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
-            <BarChart data={chartData} margin={{ top: 8, left: 0, right: 0 }}>
-              <CartesianGrid vertical={false} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-              <YAxis tickLine={false} axisLine={false} width={36} allowDecimals={false} />
-              <ChartTooltip
-                cursor={{ fillOpacity: 0.5 }}
-                content={<ChartTooltipContent labelFormatter={(_, p) => p[0]?.payload?.time ?? null} />}
-              />
-              <ChartLegend content={<ChartLegendContent />} />
-              <Bar
-                dataKey="succeeded"
-                stackId="r"
-                fill="var(--color-succeeded)"
-                stroke="var(--background)"
-                strokeWidth={1}
-              />
-              <Bar
-                dataKey="failed"
-                stackId="r"
-                fill="var(--color-failed)"
-                stroke="var(--background)"
-                strokeWidth={1}
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ChartContainer>
-        )}
+        <Stat
+          label="API Key 提供商"
+          value={providersReady ? formatInteger(configured.reduce((sum, p) => sum + p.count, 0)) : "—"}
+          detail={
+            providersReady ? configured.map((p) => `${p.label} ${p.count}`).join("、") || "还没有配置" : undefined
+          }
+        />
+        <Stat
+          label="客户端 API Key"
+          value={clientKeys.data ? formatInteger(clientKeys.data.length) : "—"}
+          detail={clientKeys.data?.length === 0 ? "还没有配置" : undefined}
+        />
       </section>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-2">
-        <section aria-labelledby="busy-title">
+        <section aria-labelledby="distribution-title">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 id="busy-title" className="font-medium">
-              最忙的账号
+            <h2 id="distribution-title" className="font-medium">
+              账号分布
             </h2>
             <Link to="/accounts" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
               全部账号
             </Link>
           </div>
-          {busiest.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">还没有启用的账号</p>
+          {byProvider.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">还没有账号</p>
           ) : (
             <ul className="divide-y">
-              {busiest.map((f) => (
-                <li key={f.id || f.name} className="flex items-center gap-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{accountName(f)}</div>
-                    <div className="text-xs text-muted-foreground">{f.provider}</div>
+              {byProvider.map(([provider, g]) => (
+                <li key={provider} className="flex items-center gap-4 py-2.5">
+                  <span className="w-28 truncate text-sm font-medium" title={provider}>
+                    {provider}
+                  </span>
+                  <div aria-hidden className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-chart-1"
+                      style={{ width: `${(g.usable / g.total) * 100}%` }}
+                    />
                   </div>
-                  <RequestSparkline buckets={f.recent_requests ?? []} label={accountName(f)} />
-                  <span className="w-12 text-right text-sm tabular-nums">
-                    {formatInteger(recentTotal(f.recent_requests))}
+                  <span className="w-24 text-right text-sm tabular-nums">
+                    {formatInteger(g.usable)} / {formatInteger(g.total)} 可用
                   </span>
                 </li>
               ))}
