@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { Check, Copy, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { type FormEvent, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
@@ -17,6 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { formatUnitPrice } from "@/lib/format";
+import { LITE } from "@/lib/mode";
+import type { PriceSnapshot } from "@/lib/types";
 
 // OAuth 渠道名,与认证文件的 provider 一致
 const CHANNELS = ["codex", "claude", "gemini-cli", "antigravity", "vertex", "aistudio", "kimi", "xai", "qwen", "iflow"];
@@ -480,16 +483,169 @@ function Catalog() {
   );
 }
 
+type V1Model = {
+  id: string;
+  object?: string;
+  created?: number;
+  owned_by?: string;
+};
+
+function AvailableModels() {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const { data, isPending, isError, error, isRefetching } = useQuery({
+    queryKey: ["cpa", "v1-models"],
+    queryFn: async () => {
+      const res = await api<{ data?: V1Model[]; models?: V1Model[] } | V1Model[]>("/v1/models");
+      return Array.isArray(res)
+        ? res
+        : Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.models)
+            ? res.models
+            : [];
+    },
+    staleTime: 60_000,
+  });
+
+  const pricesQuery = useQuery({
+    queryKey: ["prices"],
+    queryFn: () => api<PriceSnapshot>("/api/prices"),
+    enabled: !LITE,
+    staleTime: 60_000,
+  });
+
+  const priceMap = useMemo(() => {
+    const map = new Map<string, NonNullable<PriceSnapshot["models"][number]["price"]>>();
+    for (const m of pricesQuery.data?.models ?? []) {
+      if (m.price) map.set(m.model.toLowerCase(), m.price);
+    }
+    return map;
+  }, [pricesQuery.data]);
+
+  const models = useMemo(() => {
+    const list = data ?? [];
+    if (!search.trim()) return list;
+    const term = search.toLowerCase().trim();
+    return list.filter((m) => m.id.toLowerCase().includes(term) || m.owned_by?.toLowerCase().includes(term));
+  }, [data, search]);
+
+  const copy = (id: string) => {
+    navigator.clipboard.writeText(id).then(() => {
+      setCopied(id);
+      toast.success(`已复制模型名：${id}`);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  };
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["cpa", "v1-models"] });
+    if (!LITE) queryClient.invalidateQueries({ queryKey: ["prices"] });
+  };
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">
+            CPA 实例通过 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">/v1/models</code>{" "}
+            对外提供的模型列表。
+          </p>
+          {data && (
+            <Badge variant="secondary" className="tabular-nums">
+              共 {data.length} 个模型
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="搜索模型或提供方..."
+            className="w-48 sm:w-64"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={refresh}
+            disabled={isPending || isRefetching}
+            aria-label="刷新"
+          >
+            {isPending || isRefetching ? <Spinner /> : <RefreshCw />}
+          </Button>
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>模型 ID</TableHead>
+            <TableHead>提供方</TableHead>
+            {!LITE && <TableHead className="text-right">输入单价</TableHead>}
+            {!LITE && <TableHead className="text-right">输出单价</TableHead>}
+            <TableHead className="w-20 text-right">操作</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isPending ? (
+            <SkeletonRows columns={LITE ? 3 : 5} />
+          ) : isError ? (
+            <EmptyRow columns={LITE ? 3 : 5}>获取支持模型失败（{error.message}）</EmptyRow>
+          ) : models.length === 0 ? (
+            <EmptyRow columns={LITE ? 3 : 5}>
+              {search.trim() ? "未找到匹配的模型" : "暂无可用的支持模型，请确认 CPA 账号或渠道配置正常"}
+            </EmptyRow>
+          ) : (
+            models.map((m) => {
+              const price = priceMap.get(m.id.toLowerCase());
+              return (
+                <TableRow key={m.id}>
+                  <TableCell className="font-mono text-sm font-medium">{m.id}</TableCell>
+                  <TableCell className="text-muted-foreground">{m.owned_by || "—"}</TableCell>
+                  {!LITE && (
+                    <TableCell className="text-right tabular-nums">
+                      {price ? formatUnitPrice(price.input) : "—"}
+                    </TableCell>
+                  )}
+                  {!LITE && (
+                    <TableCell className="text-right tabular-nums">
+                      {price ? formatUnitPrice(price.output) : "—"}
+                    </TableCell>
+                  )}
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon-xs" aria-label={`复制 ${m.id}`} onClick={() => copy(m.id)}>
+                      {copied === m.id ? <Check className="text-primary" /> : <Copy />}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+    </>
+  );
+}
+
 export function ModelsPage() {
   return (
     <>
-      <PageHeader title="模型" description="OAuth 账号的模型别名与屏蔽规则。API Key 提供商的模型在提供商页单独配置。" />
-      <Tabs defaultValue="alias">
+      <PageHeader
+        title="模型"
+        description="查看可用模型、OAuth 账号的模型别名与屏蔽规则。API Key 提供商的模型在提供商页单独配置。"
+      />
+      <Tabs defaultValue="available">
         <TabsList variant="line" className="mb-6">
+          <TabsTrigger value="available">可用模型</TabsTrigger>
           <TabsTrigger value="alias">别名</TabsTrigger>
           <TabsTrigger value="excluded">排除</TabsTrigger>
           <TabsTrigger value="catalog">内置目录</TabsTrigger>
         </TabsList>
+        <TabsContent value="available">
+          <AvailableModels />
+        </TabsContent>
         <TabsContent value="alias">
           <Aliases />
         </TabsContent>

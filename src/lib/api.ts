@@ -31,9 +31,24 @@ export function clearKey() {
 }
 
 // 完整版由后端代为携带管理密钥;精简版直接请求 CPA,需要自己带上
+let cachedClientKey = "";
+
+export function setClientKey(key: string) {
+  cachedClientKey = key;
+}
+
 function withAuth(path: string, headers?: HeadersInit): Headers {
   const out = new Headers(headers);
-  if (LITE && path.startsWith("/v0/management")) out.set("Authorization", `Bearer ${storedKey()}`);
+  if (LITE) {
+    if (path.startsWith("/v0/management")) {
+      out.set("Authorization", `Bearer ${storedKey()}`);
+    } else if (path.startsWith("/v1/")) {
+      if (!out.has("Authorization")) {
+        const token = cachedClientKey || storedKey();
+        if (token) out.set("Authorization", `Bearer ${token}`);
+      }
+    }
+  }
   return out;
 }
 

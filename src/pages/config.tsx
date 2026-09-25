@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, KeyRound, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { RotateCcw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/code-editor";
 import { PageHeader } from "@/components/page-header";
@@ -162,89 +163,6 @@ function SettingRow({ setting, value }: { setting: Setting; value: unknown }) {
   );
 }
 
-function randomKey(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  return `sk-${[...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
-}
-
-function ApiKeys() {
-  const queryClient = useQueryClient();
-  const [adding, setAdding] = useState("");
-  const { data } = useQuery({
-    queryKey: ["cpa", "api-keys"],
-    queryFn: () => api<{ "api-keys": string[] }>("/v0/management/api-keys"),
-    select: (res) => res["api-keys"] ?? [],
-  });
-  const save = useMutation({
-    mutationFn: (keys: string[]) => api("/v0/management/api-keys", { method: "PUT", body: keys }),
-    onSuccess: () => {
-      setAdding("");
-      queryClient.invalidateQueries({ queryKey: ["cpa", "api-keys"] });
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
-    },
-  });
-  const keys = data ?? [];
-
-  return (
-    <section aria-labelledby="api-keys-title" className="mt-10">
-      <h2 id="api-keys-title" className="font-medium">
-        客户端 API Key
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">客户端调用 CPA 的 /v1 接口时使用的密钥。</p>
-      <ul className="mt-4 divide-y border-y">
-        {keys.map((key) => (
-          <li key={key} className="flex items-center gap-3 py-2">
-            <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <code className="min-w-0 flex-1 truncate font-mono text-sm">{key}</code>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="复制"
-              onClick={() => navigator.clipboard.writeText(key).then(() => toast.success("已复制"))}
-            >
-              <Copy />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`删除 ${key}`}
-              className="text-muted-foreground hover:text-destructive"
-              disabled={save.isPending}
-              onClick={() => save.mutate(keys.filter((k) => k !== key))}
-            >
-              <Trash2 />
-            </Button>
-          </li>
-        ))}
-        {keys.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">还没有 API Key</li>}
-      </ul>
-      <form
-        className="mt-3 flex flex-wrap gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const key = adding.trim();
-          if (key && !keys.includes(key)) save.mutate([...keys, key]);
-        }}
-      >
-        <Input
-          value={adding}
-          onChange={(e) => setAdding(e.target.value)}
-          placeholder="输入或生成一个新的 Key"
-          aria-label="新的 API Key"
-          className="w-full font-mono sm:w-96"
-        />
-        <Button type="button" variant="outline" onClick={() => setAdding(randomKey())}>
-          随机生成
-        </Button>
-        <Button type="submit" disabled={!adding.trim() || save.isPending}>
-          <Plus />
-          添加
-        </Button>
-      </form>
-    </section>
-  );
-}
-
 function SettingsForm() {
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "config"],
@@ -270,7 +188,21 @@ function SettingsForm() {
           </div>
         </section>
       ))}
-      <ApiKeys />
+      <section aria-labelledby="api-keys-entry" className="mt-8 rounded-lg border bg-muted/30 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 id="api-keys-entry" className="font-medium">
+              客户端 API Key
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              客户端调用 CPA 的 /v1 接口密钥已移至侧边栏独立页面管理。
+            </p>
+          </div>
+          <Button variant="outline" size="sm" render={<Link to="/api-keys" />}>
+            前往管理 API Key
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }

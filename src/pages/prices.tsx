@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Check, Copy, RefreshCw } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
@@ -12,7 +16,6 @@ import { formatInteger, formatRelative, formatUnitPrice } from "@/lib/format";
 import type { PriceSnapshot } from "@/lib/types";
 
 const num = "text-right tabular-nums";
-
 export function PricesPage() {
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({
@@ -27,9 +30,32 @@ export function PricesPage() {
       toast.success(`已同步 ${formatInteger(snapshot.catalogSize)} 个模型的价格`);
     },
   });
+  const [search, setSearch] = useState("");
+  const [onlyUsed, setOnlyUsed] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const filteredModels = useMemo(() => {
+    let list = data?.models ?? [];
+    if (onlyUsed) list = list.filter((m) => m.requests > 0);
+    if (!search.trim()) return list;
+    const term = search.toLowerCase().trim();
+    return list.filter(
+      (m) =>
+        m.model.toLowerCase().includes(term) ||
+        m.price?.matched.toLowerCase().includes(term) ||
+        m.price?.provider.toLowerCase().includes(term),
+    );
+  }, [data?.models, search, onlyUsed]);
+
+  const copy = (name: string) => {
+    navigator.clipboard.writeText(name).then(() => {
+      setCopied(name);
+      toast.success(`已复制模型名：${name}`);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  };
 
   const unmatched = data?.models.filter((m) => !m.price).length ?? 0;
-
   return (
     <>
       <PageHeader
@@ -58,6 +84,30 @@ export function PricesPage() {
         </p>
       )}
 
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {data && (
+            <Badge variant="secondary" className="tabular-nums">
+              共 {data.models.length} 个模型
+            </Badge>
+          )}
+          {data?.models.some((m) => m.requests > 0) && (
+            <div className="flex items-center gap-2">
+              <Checkbox id="only-used" checked={onlyUsed} onCheckedChange={(c) => setOnlyUsed(Boolean(c))} />
+              <Label htmlFor="only-used" className="cursor-pointer text-sm text-muted-foreground select-none">
+                仅显示有请求记录 ({data.models.filter((m) => m.requests > 0).length})
+              </Label>
+            </div>
+          )}
+        </div>
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="搜索模型名称或提供商..."
+          className="w-48 sm:w-64"
+        />
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -68,17 +118,20 @@ export function PricesPage() {
             <TableHead className="text-right">输出</TableHead>
             <TableHead className="text-right">缓存读取</TableHead>
             <TableHead className="text-right">缓存写入</TableHead>
+            <TableHead className="w-16 text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isPending ? (
-            <SkeletonRows columns={7} />
+            <SkeletonRows columns={8} />
           ) : !data?.models.length ? (
-            <EmptyRow columns={7}>还没有请求记录，有请求后这里会列出用到的模型。</EmptyRow>
+            <EmptyRow columns={8}>暂未获取到支持的模型，请检查 CPA 服务运行状态与账号配置。</EmptyRow>
+          ) : filteredModels.length === 0 ? (
+            <EmptyRow columns={8}>未找到符合筛选条件的模型</EmptyRow>
           ) : (
-            data.models.map((m) => (
+            filteredModels.map((m) => (
               <TableRow key={m.model}>
-                <TableCell className="font-medium">{m.model || "未知"}</TableCell>
+                <TableCell className="font-mono text-sm font-medium">{m.model || "未知"}</TableCell>
                 <TableCell>
                   {m.price ? (
                     <span className="text-muted-foreground">
@@ -93,11 +146,18 @@ export function PricesPage() {
                     <Badge variant="destructive">未匹配</Badge>
                   )}
                 </TableCell>
-                <TableCell className={num}>{formatInteger(m.requests)}</TableCell>
+                <TableCell className={num}>
+                  {m.requests > 0 ? formatInteger(m.requests) : <span className="text-muted-foreground">0</span>}
+                </TableCell>
                 <TableCell className={num}>{m.price ? formatUnitPrice(m.price.input) : "—"}</TableCell>
                 <TableCell className={num}>{m.price ? formatUnitPrice(m.price.output) : "—"}</TableCell>
                 <TableCell className={num}>{m.price ? formatUnitPrice(m.price.cacheRead) : "—"}</TableCell>
                 <TableCell className={num}>{m.price ? formatUnitPrice(m.price.cacheCreation) : "—"}</TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="icon-xs" aria-label={`复制 ${m.model}`} onClick={() => copy(m.model)}>
+                    {copied === m.model ? <Check className="text-primary" /> : <Copy />}
+                  </Button>
+                </TableCell>
               </TableRow>
             ))
           )}

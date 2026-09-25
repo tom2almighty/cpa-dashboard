@@ -108,7 +108,7 @@ app.delete("/api/session", (c) => {
 
 app.use("/api/*", requireSession);
 app.use("/v0/*", requireSession);
-
+app.use("/v1/*", requireSession);
 // ---------- 用量 ----------
 
 function numberParam(c: Context, name: string): number | undefined {
@@ -164,13 +164,110 @@ app.get("/api/usage/events", (c) => {
 
 // ---------- 价格 ----------
 
-function priceSnapshot() {
-  const models = usedModels().map((m) => {
+let cachedApiKey: { key: string; expiresAt: number } | null = null;
+
+async function getCpaApiKey(): Promise<string> {
+  const now = Date.now();
+  if (cachedApiKey && cachedApiKey.expiresAt > now) {
+    return cachedApiKey.key;
+  }
+  try {
+    const res = await fetch(`${config.cpaUrl}/v0/management/api-keys`, {
+      headers: { Authorization: `Bearer ${config.managementKey}` },
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { "api-keys"?: string[] };
+      const key = data["api-keys"]?.[0] ?? "";
+      if (key) {
+        cachedApiKey = { key, expiresAt: now + 60_000 };
+        return key;
+      }
+    }
+  } catch {}
+  return config.managementKey;
+}
+
+type CpaModelItem = {
+  id: string;
+  owned_by?: string;
+  created?: number;
+  object?: string;
+  [k: string]: unknown;
+};
+
+let cachedCpaModels: { models: CpaModelItem[]; expiresAt: number } | null = null;
+
+async function fetchCpaModels(): Promise<CpaModelItem[]> {
+  const now = Date.now();
+  if (cachedCpaModels && cachedCpaModels.expiresAt > now) {
+    return cachedCpaModels.models;
+  }
+  try {
+    const key = await getCpaApiKey();
+    const headers = new Headers();
+    if (key) headers.set("Authorization", `Bearer ${key}`);
+    const res = await fetch(`${config.cpaUrl}/v1/models`, { headers });
+    if (res.ok) {
+      const data = (await res.json()) as { data?: CpaModelItem[]; models?: CpaModelItem[] } | CpaModelItem[];
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data.data)
+          ? data.data
+          : Array.isArray(data.models)
+            ? data.models
+            : [];
+      if (list.length > 0) {
+        cachedCpaModels = { models: list, expiresAt: now + 30_000 };
+        return list;
+      }
+    }
+  } catch (error) {
+    log("warn", "拉取 CPA v1/models 失败", { error: errorMessage(error) });
+  }
+  return [];
+}
+
+async function priceSnapshot() {
+  const [cpaModels, used] = await Promise.all([fetchCpaModels(), Promise.resolve(usedModels())]);
+  const usedMap = new Map(used.map((m) => [m.model, m]));
+  const modelMap = new Map<string, { model: string; requests: number; lastUsedAt: number; ownedBy?: string }>();
+
+  // 1. 优先加入 CPA v1/models 返回的支持模型
+  for (const m of cpaModels) {
+    if (!m.id) continue;
+    const u = usedMap.get(m.id);
+    modelMap.set(m.id, {
+      model: m.id,
+      requests: u?.requests ?? 0,
+      lastUsedAt: u?.last_ts ?? 0,
+      ownedBy: m.owned_by,
+    });
+  }
+
+  // 2. 追加有历史调用记录但未出现在 v1/models 中的模型
+  for (const u of used) {
+    if (!modelMap.has(u.model)) {
+      modelMap.set(u.model, {
+        model: u.model,
+        requests: u.requests,
+        lastUsedAt: u.last_ts,
+      });
+    }
+  }
+
+  // 3. 排序：有请求的按请求数降序排在前面，其余按名称字母升序
+  const sorted = [...modelMap.values()].sort((a, b) => {
+    if (a.requests !== b.requests) return b.requests - a.requests;
+    return a.model.localeCompare(b.model);
+  });
+
+  const models = sorted.map((m) => {
     const price = priceFor(m.model);
     return {
       model: m.model,
       requests: m.requests,
-      lastUsedAt: m.last_ts,
+      lastUsedAt: m.lastUsedAt,
+      ownedBy: m.ownedBy,
       price: price && {
         matched: price.model,
         provider: price.provider,
@@ -182,6 +279,7 @@ function priceSnapshot() {
       },
     };
   });
+
   return {
     syncedAt: pricesSyncedAt() || null,
     syncing: priceStatus.syncing,
@@ -191,14 +289,13 @@ function priceSnapshot() {
   };
 }
 
-app.get("/api/prices", (c) => c.json(priceSnapshot()));
+app.get("/api/prices", async (c) => c.json(await priceSnapshot()));
 
 app.post("/api/prices/sync", async (c) => {
   await syncPrices();
   if (priceStatus.lastError) throw new ApiError(502, "price_sync_failed", priceStatus.lastError);
-  return c.json(priceSnapshot());
+  return c.json(await priceSnapshot());
 });
-
 // ---------- 状态 ----------
 
 app.get("/api/status", (c) =>
@@ -222,7 +319,12 @@ app.all("/api/*", () => {
 
 const proxyToCpa: Handler = async (c) => {
   const url = new URL(c.req.url);
-  const headers = new Headers({ Authorization: `Bearer ${config.managementKey}` });
+  const clientAuth = c.req.header("authorization");
+  let authHeader = `Bearer ${config.managementKey}`;
+  if (url.pathname.startsWith("/v1/")) {
+    authHeader = clientAuth || `Bearer ${await getCpaApiKey()}`;
+  }
+  const headers = new Headers({ Authorization: authHeader });
   for (const name of ["content-type", "accept"]) {
     const value = c.req.header(name);
     if (value) headers.set(name, value);
@@ -248,7 +350,7 @@ const proxyToCpa: Handler = async (c) => {
 
 app.all("/v0/management/*", proxyToCpa);
 app.all("/v0/resource/*", proxyToCpa);
-
+app.all("/v1/*", proxyToCpa);
 // ---------- 前端静态资源 ----------
 
 app.use("/*", serveStatic({ root: config.staticDir }));

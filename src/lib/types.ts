@@ -42,6 +42,7 @@ export type ModelPrice = {
   model: string;
   requests: number;
   lastUsedAt: number;
+  ownedBy?: string;
   price: {
     matched: string;
     provider: string;

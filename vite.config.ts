@@ -23,6 +23,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": target,
         "/v0": target,
+        "/v1": target,
       },
     },
   };
