@@ -4,8 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && cp dist/index.html dist/management.html",
-    "build:lite": "bun run build",
+    "build": "tsc -b && vite build",
     "check": "biome check . && tsc -b",
     "test": "bun test ./src",
     "format": "biome check --write ."

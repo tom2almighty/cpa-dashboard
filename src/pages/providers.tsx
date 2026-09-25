@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, PencilLine, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -17,10 +17,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -88,10 +95,9 @@ function findIndex(kind: Kind, items: Json[], target: Json): number {
   return i;
 }
 
-type EditorRow = { id: string; name: string; alias: string; isCustom?: boolean };
+type EditorRow = { id: string; name: string; alias: string };
 
-// 下拉宽度跟随最长的模型名,避免长名称被截断
-const MODEL_POPUP = "w-auto min-w-(--anchor-width) max-w-(--available-width)";
+const newRow = (name: string, alias = ""): EditorRow => ({ id: Math.random().toString(36).slice(2), name, alias });
 
 function ModelMappingEditor({
   kind,
@@ -105,11 +111,8 @@ function ModelMappingEditor({
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [textMode, setTextMode] = useState(false);
-
-  const [rows, setRows] = useState<EditorRow[]>(() => {
-    const parsed = parseModelRows(form.models);
-    return parsed.length > 0 ? parsed.map((r, i) => ({ id: `${i}-${r.name}`, name: r.name, alias: r.alias })) : [];
-  });
+  const [query, setQuery] = useState("");
+  const [rows, setRows] = useState<EditorRow[]>(() => parseModelRows(form.models).map((r) => newRow(r.name, r.alias)));
 
   const syncToForm = (nextRows: EditorRow[]) => {
     setRows(nextRows);
@@ -126,7 +129,7 @@ function ModelMappingEditor({
       }
       const list = await fetchProviderModels(kind, form.baseUrl, key, form.headers);
       if (list.length === 0) {
-        toast.info("未获取到可用模型，请确认地址与密钥后重试，或手动添加");
+        toast.info("未获取到可用模型，请确认地址与密钥，或直接输入模型名");
       } else {
         setFetchedModels(list);
         toast.success(`成功获取 ${list.length} 个模型`);
@@ -138,53 +141,34 @@ function ModelMappingEditor({
     }
   };
 
-  const handleAddFromDropdown = (modelName: string) => {
-    if (!modelName) return;
-    if (modelName === "__custom__") {
-      const next = [...rows, { id: Math.random().toString(36).slice(2), name: "", alias: "", isCustom: true }];
-      syncToForm(next);
-      return;
-    }
-    if (rows.some((r) => r.name === modelName)) {
-      toast.info(`模型 ${modelName} 已在列表中`);
-      return;
-    }
-    const next = [...rows, { id: Math.random().toString(36).slice(2), name: modelName, alias: "" }];
-    syncToForm(next);
+  // 已添加的模型在下拉里打勾;输入的名字不在列表里时追加为一项,选中即作为自定义模型添加
+  const selected = [...new Set(rows.map((r) => r.name))];
+  const known = [...new Set([...fetchedModels, ...selected])];
+  const typed = query.trim();
+  const creatable = typed && !known.includes(typed) ? typed : "";
+  const items = creatable ? [...known, creatable] : known;
+
+  const select = (names: string[]) => {
+    const kept = rows.filter((r) => names.includes(r.name));
+    syncToForm([...kept, ...names.filter((n) => !kept.some((r) => r.name === n)).map((n) => newRow(n))]);
   };
 
   const handleAddAll = () => {
-    const existing = new Set(rows.map((r) => r.name));
-    const toAdd = fetchedModels.filter((m) => !existing.has(m));
-    if (toAdd.length === 0) {
-      toast.info("所有获取到的模型已在列表中");
-      return;
-    }
-    const next = [...rows, ...toAdd.map((m) => ({ id: Math.random().toString(36).slice(2), name: m, alias: "" }))];
-    syncToForm(next);
+    const toAdd = fetchedModels.filter((m) => !selected.includes(m));
+    select([...selected, ...toAdd]);
     toast.success(`已添加 ${toAdd.length} 个模型`);
   };
 
-  const updateRow = (id: string, patch: Partial<EditorRow>) => {
-    const next = rows.map((r) => (r.id === id ? { ...r, ...patch } : r));
-    syncToForm(next);
+  const setAlias = (id: string, alias: string) => {
+    syncToForm(rows.map((r) => (r.id === id ? { ...r, alias } : r)));
   };
 
   const removeRow = (id: string) => {
-    const next = rows.filter((r) => r.id !== id);
-    syncToForm(next);
-  };
-
-  const addManualRow = () => {
-    const next = [...rows, { id: Math.random().toString(36).slice(2), name: "", alias: "", isCustom: true }];
-    syncToForm(next);
+    syncToForm(rows.filter((r) => r.id !== id));
   };
 
   const handleToggleMode = () => {
-    if (textMode) {
-      const parsed = parseModelRows(form.models);
-      setRows(parsed.map((r, i) => ({ id: `${i}-${r.name}`, name: r.name, alias: r.alias })));
-    }
+    if (textMode) setRows(parseModelRows(form.models).map((r) => newRow(r.name, r.alias)));
     setTextMode(!textMode);
   };
 
@@ -192,12 +176,12 @@ function ModelMappingEditor({
 
   return (
     <div className="grid gap-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <Label htmlFor={`${p}-models`}>模型与映射</Label>
-          <p className="text-xs text-muted-foreground">通过下拉框选择模型并可设置自定义映射别名</p>
+          <p className="text-xs text-muted-foreground">不添加则使用全部默认模型，客户端按别名请求时转发到上游模型</p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <Button
             type="button"
             variant="outline"
@@ -216,7 +200,7 @@ function ModelMappingEditor({
             onClick={handleToggleMode}
             className="h-7 text-xs text-muted-foreground"
           >
-            {textMode ? "表格选择" : "文本编辑"}
+            {textMode ? "列表编辑" : "文本编辑"}
           </Button>
         </div>
       </div>
@@ -233,113 +217,83 @@ function ModelMappingEditor({
           <p className="text-xs text-muted-foreground">每行一个，起别名写成 上游模型 =&gt; 别名</p>
         </>
       ) : (
-        <div className="grid gap-2.5">
-          {fetchedModels.length > 0 ? (
-            <div className="flex items-center gap-2">
-              <Select<string> value={null} onValueChange={(v) => v && handleAddFromDropdown(v)}>
-                <SelectTrigger className="min-w-0 flex-1 text-xs" aria-label="选择模型添加到映射">
-                  <SelectValue
-                    placeholder={
-                      <>
-                        <Plus className="size-3.5" />
-                        选择要添加的模型（共 {fetchedModels.length} 个）
-                      </>
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent className={MODEL_POPUP}>
-                  {fetchedModels.map((m) => (
-                    <SelectItem key={m} value={m} className="font-mono text-xs">
-                      {m}
-                    </SelectItem>
-                  ))}
-                  <SelectSeparator />
-                  <SelectItem value="__custom__" className="text-xs">
-                    <PencilLine className="size-3.5" />
-                    自定义输入模型名
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="button" variant="outline" size="sm" onClick={handleAddAll} className="h-8 shrink-0 text-xs">
+        <>
+          <div className="flex items-center gap-2">
+            <Combobox
+              multiple
+              autoHighlight
+              items={items}
+              // 默认过滤不去空格,粘贴的模型名常带尾随空格
+              filter={(m: string, q) => m.toLowerCase().includes(q.trim().toLowerCase())}
+              value={selected}
+              onValueChange={select}
+              inputValue={query}
+              onInputValueChange={setQuery}
+              onOpenChange={(open, details) => {
+                // 勾选后不收起,方便连续选多个
+                if (!open && details.reason === "item-press") details.cancel();
+              }}
+            >
+              <ComboboxInput
+                id={`${p}-models`}
+                placeholder={
+                  fetchedModels.length > 0 ? `搜索 ${fetchedModels.length} 个模型，或输入模型名` : "输入模型名添加"
+                }
+                className="flex-1"
+                onKeyDown={(e) => {
+                  // 没有高亮项时回车会提交外层表单
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) e.preventDefault();
+                }}
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>点击「获取模型」拉取上游模型，或直接输入模型名</ComboboxEmpty>
+                <ComboboxList>
+                  {(m: string) => (
+                    <ComboboxItem key={m} value={m} className="font-mono text-xs">
+                      {m === creatable ? (
+                        <>
+                          <Plus className="size-3.5" />
+                          添加「{m}」
+                        </>
+                      ) : (
+                        m
+                      )}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+            {fetchedModels.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAddAll}
+                disabled={fetchedModels.every((m) => selected.includes(m))}
+                className="shrink-0"
+              >
                 全部添加
               </Button>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              可点击右上角「获取模型」自动拉取上游模型，然后通过下拉框快速配置映射。
-            </p>
-          )}
+            )}
+          </div>
 
-          {rows.length === 0 ? (
-            <div className="rounded-md border border-dashed py-5 text-center text-xs text-muted-foreground">
-              {fetchedModels.length > 0 ? (
-                <>请从上方下拉框选择模型加入映射，或点击「全部添加」</>
-              ) : (
-                <>
-                  暂未添加模型（留空表示支持全部默认模型）。
-                  <button
-                    type="button"
-                    onClick={addManualRow}
-                    className="ml-1 text-primary underline underline-offset-2 hover:opacity-80"
-                  >
-                    手动添加一行
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="grid gap-2">
-              <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1 text-xs text-muted-foreground font-medium">
+          {rows.length > 0 && (
+            <div className="grid gap-1.5">
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1 text-xs font-medium text-muted-foreground">
                 <span>上游模型</span>
-                <span>自定义映射别名（可选）</span>
-                <span className="w-7" />
+                <span>映射别名</span>
+                <span className="w-6" />
               </div>
-              <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+              <ul className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
                 {rows.map((r) => (
-                  <div key={r.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
-                    {fetchedModels.length > 0 && !r.isCustom ? (
-                      <Select<string>
-                        value={r.name || null}
-                        onValueChange={(v) => {
-                          if (v === "__custom__") updateRow(r.id, { isCustom: true });
-                          else if (v) updateRow(r.id, { name: v });
-                        }}
-                      >
-                        <SelectTrigger className="w-full min-w-0 font-mono text-xs" aria-label="上游模型">
-                          <SelectValue placeholder="选择上游模型" />
-                        </SelectTrigger>
-                        <SelectContent className={MODEL_POPUP}>
-                          {r.name && !fetchedModels.includes(r.name) && (
-                            <SelectItem value={r.name} className="font-mono text-xs">
-                              {r.name}
-                            </SelectItem>
-                          )}
-                          {fetchedModels.map((m) => (
-                            <SelectItem key={m} value={m} className="font-mono text-xs">
-                              {m}
-                            </SelectItem>
-                          ))}
-                          <SelectSeparator />
-                          <SelectItem value="__custom__" className="text-xs">
-                            <PencilLine className="size-3.5" />
-                            自定义输入
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        aria-label="上游模型"
-                        value={r.name}
-                        placeholder="上游模型名"
-                        onChange={(e) => updateRow(r.id, { name: e.target.value })}
-                        className="h-8 font-mono text-xs"
-                      />
-                    )}
+                  <li key={r.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                    <span className="truncate px-1 font-mono text-xs" title={r.name}>
+                      {r.name}
+                    </span>
                     <Input
-                      aria-label="自定义映射别名"
+                      aria-label={`${r.name} 的映射别名`}
                       value={r.alias}
-                      placeholder="映射别名（留空同名）"
-                      onChange={(e) => updateRow(r.id, { alias: e.target.value })}
+                      placeholder="留空保持原名"
+                      onChange={(e) => setAlias(r.id, e.target.value)}
                       className="h-8 font-mono text-xs"
                     />
                     <Button
@@ -348,25 +302,16 @@ function ModelMappingEditor({
                       size="icon-xs"
                       onClick={() => removeRow(r.id)}
                       className="text-muted-foreground hover:text-destructive"
-                      aria-label="删除"
+                      aria-label={`移除 ${r.name}`}
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
-                  </div>
+                  </li>
                 ))}
-              </div>
-              <div className="flex items-center justify-between pt-1">
-                <Button type="button" variant="outline" size="sm" onClick={addManualRow} className="h-7 text-xs">
-                  <Plus className="size-3" />
-                  添加模型
-                </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  客户端请求别名时将转发至上游模型；留空别名则保持原名。
-                </p>
-              </div>
+              </ul>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

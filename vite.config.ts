@@ -33,6 +33,12 @@ export default defineConfig(async () => {
         "@": path.resolve(import.meta.dirname, "./src"),
       },
     },
+    // 入口即 CPA 拉取的资产名,直接产出 dist/management.html
+    build: {
+      rolldownOptions: {
+        input: path.resolve(import.meta.dirname, "management.html"),
+      },
+    },
     server: {
       proxy: {
         "/v0": target,

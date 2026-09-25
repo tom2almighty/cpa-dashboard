@@ -15,7 +15,7 @@ const ModelsPage = lazy(() => import("@/pages/models").then((m) => ({ default: m
 const PluginsPage = lazy(() => import("@/pages/plugins").then((m) => ({ default: m.PluginsPage })));
 const LogsPage = lazy(() => import("@/pages/logs").then((m) => ({ default: m.LogsPage })));
 const ApiKeysPage = lazy(() => import("@/pages/api-keys").then((m) => ({ default: m.ApiKeysPage })));
-// 完整版检查后端会话;精简版用保存的管理密钥试探一次 CPA
+// 用保存的管理密钥试探一次 CPA
 async function checkSession(): Promise<boolean> {
   if (!storedKey()) return false;
   try {

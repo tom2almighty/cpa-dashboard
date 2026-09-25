@@ -2,13 +2,12 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@ta
 import { ThemeProvider } from "next-themes";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, HashRouter } from "react-router";
+import { HashRouter } from "react-router";
 import { toast } from "sonner";
 import { App } from "@/App";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { isUnauthorized } from "@/lib/api";
-import { LITE } from "@/lib/mode";
 import "./index.css";
 
 // 登录失效时把会话标记为未登录,App 会切回登录页
@@ -30,9 +29,7 @@ const queryClient = new QueryClient({
   },
 });
 
-// 精简版由 CPA 以 /management.html 提供,刷新时只能靠 hash 保留路由
-const Router = LITE ? HashRouter : BrowserRouter;
-
+// 面板由 CPA 以 /management.html 提供,刷新时只能靠 hash 保留路由
 const root = document.getElementById("root");
 if (!root) throw new Error("缺少 #root 节点");
 
@@ -41,9 +38,9 @@ createRoot(root).render(
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Router>
+          <HashRouter>
             <App />
-          </Router>
+          </HashRouter>
           <Toaster position="top-center" />
         </TooltipProvider>
       </QueryClientProvider>

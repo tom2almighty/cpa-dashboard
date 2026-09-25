@@ -48,6 +48,8 @@ bun install
 bun run dev             # 启动 Vite 开发服务器，/v0 和 /v1 会自动代理到 CPA（默认 http://localhost:8317）
 ```
 
+开发服务器启动后访问 `http://localhost:5173/management.html`。
+
 环境变量：
 - `CPA_URL`：指定本地开发时代理的 CPA 服务地址，例如 `CPA_URL=http://127.0.0.1:8317 bun run dev`
 
@@ -57,7 +59,6 @@ bun run dev             # 启动 Vite 开发服务器，/v0 和 /v1 会自动代
 bun run check           # 代码规范与 TypeScript 类型检查
 bun run test            # 单元测试
 bun run build           # 编译生成单文件 dist/management.html
-bun run build:lite      # 生成 dist-lite/management.html
 ```
 
 推送 `v*` 标签后，GitHub Actions 会自动构建并创建 Release，发布单文件 `management.html` 资产。

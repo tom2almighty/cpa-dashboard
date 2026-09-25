@@ -55,7 +55,7 @@ const HEADERS = {
   },
 } satisfies Record<string, Record<string, string>>;
 
-export const QUOTA_PROVIDERS = new Set(["codex", "claude", "antigravity", "kimi", "xai"]);
+const QUOTA_PROVIDERS = new Set(["codex", "claude", "antigravity", "kimi", "xai"]);
 
 export function supportsQuota(file: AuthFile): boolean {
   return QUOTA_PROVIDERS.has((file.provider ?? "").toLowerCase()) && Boolean(file.auth_index);
@@ -86,7 +86,7 @@ function pick(record: Json | null, ...keys: string[]): unknown {
 }
 
 // 时间戳可能是 ISO 字符串、秒或毫秒
-export function toMs(value: unknown): number | null {
+function toMs(value: unknown): number | null {
   if (typeof value === "string" && !/^\d+(\.\d+)?$/.test(value.trim())) {
     const t = Date.parse(value);
     return Number.isFinite(t) ? t : null;

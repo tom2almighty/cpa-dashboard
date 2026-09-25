@@ -1,27 +1,3 @@
-export type ModelPrice = {
-  model: string;
-  requests: number;
-  lastUsedAt: number;
-  ownedBy?: string;
-  source?: "custom" | "mapped" | "auto";
-  price: {
-    matched: string;
-    provider: string;
-    input: number;
-    output: number;
-    cacheRead: number | null;
-    cacheCreation: number | null;
-  } | null;
-};
-
-export type PriceSnapshot = {
-  syncedAt: number | null;
-  syncing: boolean;
-  lastError: string | null;
-  catalogSize: number;
-  models: ModelPrice[];
-};
-
 // CPA GET /v0/management/auth-files
 export type RecentBucket = { time: string; success: number; failed: number };
 

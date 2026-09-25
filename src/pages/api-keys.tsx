@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, Terminal, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, setClientKey } from "@/lib/api";
+import { api } from "@/lib/api";
 
 function randomKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -78,12 +78,6 @@ export function ApiKeysPage() {
   });
 
   const keys = data ?? [];
-
-  useEffect(() => {
-    if (keys.length > 0) {
-      setClientKey(keys[0]);
-    }
-  }, [keys]);
 
   const copy = (text: string, isKey = true) => {
     navigator.clipboard.writeText(text).then(() => {

@@ -10,10 +10,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { request } from "@/lib/api";
 
 declare const __APP_VERSION__: string | undefined;
-export const FRONTEND_VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "";
+const FRONTEND_VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "";
 const GITHUB_REPO = "tom2almighty/cpa-dashboard";
 
-export function newer(latest: string, current: string): boolean {
+function newer(latest: string, current: string): boolean {
   const parse = (v: string) => v.replace(/^v/, "").split(/[.-]/).map(Number);
   const [a, b] = [parse(latest), parse(current)];
   for (let i = 0; i < 3; i++) {
@@ -22,7 +22,7 @@ export function newer(latest: string, current: string): boolean {
   return false;
 }
 
-export type GitHubRelease = {
+type GitHubRelease = {
   tag_name: string;
   name?: string;
   body?: string;
