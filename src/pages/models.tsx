@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { formatUnitPrice } from "@/lib/format";
-import { LITE } from "@/lib/mode";
+import { loadFrontendPriceSnapshot } from "@/lib/prices";
 import type { PriceSnapshot } from "@/lib/types";
 
 // OAuth 渠道名,与认证文件的 provider 一致
@@ -523,8 +523,7 @@ function AvailableModels() {
 
   const pricesQuery = useQuery({
     queryKey: ["prices"],
-    queryFn: () => api<PriceSnapshot>("/api/prices"),
-    enabled: !LITE,
+    queryFn: () => loadFrontendPriceSnapshot(),
     staleTime: 60_000,
   });
 
@@ -553,7 +552,7 @@ function AvailableModels() {
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["cpa", "v1-models"] });
-    if (!LITE) queryClient.invalidateQueries({ queryKey: ["prices"] });
+    queryClient.invalidateQueries({ queryKey: ["prices"] });
   };
 
   return (
@@ -594,18 +593,18 @@ function AvailableModels() {
           <TableRow>
             <TableHead>模型 ID</TableHead>
             <TableHead>提供方</TableHead>
-            {!LITE && <TableHead className="text-right">输入单价</TableHead>}
-            {!LITE && <TableHead className="text-right">输出单价</TableHead>}
+            <TableHead className="text-right">输入单价</TableHead>
+            <TableHead className="text-right">输出单价</TableHead>
             <TableHead className="w-20 text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isPending ? (
-            <SkeletonRows columns={LITE ? 3 : 5} />
+            <SkeletonRows columns={5} />
           ) : isError ? (
-            <EmptyRow columns={LITE ? 3 : 5}>获取支持模型失败（{error.message}）</EmptyRow>
+            <EmptyRow columns={5}>获取支持模型失败（{error.message}）</EmptyRow>
           ) : models.length === 0 ? (
-            <EmptyRow columns={LITE ? 3 : 5}>
+            <EmptyRow columns={5}>
               {search.trim() ? "未找到匹配的模型" : "暂无可用的支持模型，请确认 CPA 账号或渠道配置正常"}
             </EmptyRow>
           ) : (
@@ -615,16 +614,12 @@ function AvailableModels() {
                 <TableRow key={m.id}>
                   <TableCell className="font-mono text-sm font-medium">{m.id}</TableCell>
                   <TableCell className="text-muted-foreground">{m.owned_by || "—"}</TableCell>
-                  {!LITE && (
-                    <TableCell className="text-right tabular-nums">
-                      {price ? formatUnitPrice(price.input) : "—"}
-                    </TableCell>
-                  )}
-                  {!LITE && (
-                    <TableCell className="text-right tabular-nums">
-                      {price ? formatUnitPrice(price.output) : "—"}
-                    </TableCell>
-                  )}
+                  <TableCell className="text-right tabular-nums">
+                    {price ? formatUnitPrice(price.input) : "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {price ? formatUnitPrice(price.output) : "—"}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon-xs" aria-label={`复制 ${m.id}`} onClick={() => copy(m.id)}>
                       {copied === m.id ? <Check className="text-primary" /> : <Copy />}

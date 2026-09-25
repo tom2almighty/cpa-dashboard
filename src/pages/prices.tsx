@@ -11,22 +11,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { api } from "@/lib/api";
 import { formatInteger, formatRelative, formatUnitPrice } from "@/lib/format";
-import type { PriceSnapshot } from "@/lib/types";
+import { loadFrontendPriceSnapshot } from "@/lib/prices";
 
 const num = "text-right tabular-nums";
 export function PricesPage() {
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({
     queryKey: ["prices"],
-    queryFn: () => api<PriceSnapshot>("/api/prices"),
+    queryFn: () => loadFrontendPriceSnapshot(),
+    staleTime: 60_000,
   });
   const sync = useMutation({
-    mutationFn: () => api<PriceSnapshot>("/api/prices/sync", { method: "POST" }),
+    mutationFn: () => loadFrontendPriceSnapshot(true),
     onSuccess: (snapshot) => {
       queryClient.setQueryData(["prices"], snapshot);
-      queryClient.invalidateQueries({ queryKey: ["usage"] });
       toast.success(`已同步 ${formatInteger(snapshot.catalogSize)} 个模型的价格`);
     },
   });
