@@ -22,8 +22,19 @@ import { LITE } from "@/lib/mode";
 import type { PriceSnapshot } from "@/lib/types";
 
 // OAuth 渠道名,与认证文件的 provider 一致
-const CHANNELS = ["codex", "claude", "gemini-cli", "antigravity", "vertex", "aistudio", "kimi", "xai", "qwen", "iflow"];
-
+const CHANNELS = [
+  "codex",
+  "claude",
+  "gemini-cli",
+  "antigravity",
+  "vertex",
+  "aistudio",
+  "kimi",
+  "xai",
+  "meta",
+  "qwen",
+  "iflow",
+];
 type Alias = { name: string; alias: string; fork?: boolean; "display-name"?: string; "force-mapping"?: boolean };
 type AliasMap = Record<string, Alias[]>;
 type CatalogModel = { id: string; display_name?: string; owned_by?: string; context_length?: number };

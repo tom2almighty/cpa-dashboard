@@ -16,6 +16,7 @@ export const KINDS: Kind[] = [
   { endpoint: "openai-compatibility", label: "OpenAI 兼容", openai: true },
   { endpoint: "vertex-api-key", label: "Vertex" },
   { endpoint: "xai-api-key", label: "xAI", baseUrlRequired: true, websockets: true },
+  { endpoint: "meta-api-key", label: "Meta", websockets: true },
   { endpoint: "interactions-api-key", label: "Interactions" },
 ];
 

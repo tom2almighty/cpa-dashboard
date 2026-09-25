@@ -18,7 +18,8 @@ const PROVIDERS: Provider[] = [
   { id: "antigravity", name: "Antigravity", hint: "使用 Google 账号登录", callback: true },
   { id: "xai", name: "xAI Grok", hint: "使用 Grok 账号登录", callback: true },
   { id: "devin", name: "Devin", hint: "需要 CPA 7.3.1 或更高版本，请在 5 分钟内完成授权", callback: true },
-  { id: "kimi", name: "Kimi", hint: "设备码登录", callback: false },
+  { id: "kimi", name: "Kimi", hint: "使用 Kimi 国内账号登录（kimi.com，设备码）", callback: false },
+  { id: "kimi-ai", name: "Kimi.ai", hint: "使用 Kimi 国际账号登录（kimi.ai，设备码）", callback: false },
   { id: "meta", name: "Muse (Meta)", hint: "设备码登录", callback: false },
 ];
 
