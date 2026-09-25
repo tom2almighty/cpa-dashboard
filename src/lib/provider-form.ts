@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+
 export type Json = Record<string, unknown>;
 
 export type Kind = {
@@ -45,11 +47,121 @@ export function list<T = Json>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function lines(text: string, splitComma = false): string[] {
+export function lines(text: string, splitComma = false): string[] {
   return text
     .split(splitComma ? /[\n,]/ : /\n/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+export type ModelRow = { name: string; alias: string };
+
+export function parseModelRows(text: string): ModelRow[] {
+  return lines(text)
+    .map((line) => {
+      const parts = line.split("=>").map((part) => part.trim());
+      return { name: parts[0] ?? "", alias: parts[1] ?? "" };
+    })
+    .filter((r) => r.name);
+}
+
+export function formatModelRows(rows: ModelRow[]): string {
+  return rows
+    .filter((r) => r.name.trim())
+    .map((r) => {
+      const name = r.name.trim();
+      const alias = r.alias.trim();
+      return alias && alias !== name ? `${name} => ${alias}` : name;
+    })
+    .join("\n");
+}
+
+const KIND_CHANNEL_MAP: Record<string, string[]> = {
+  "claude-api-key": ["claude"],
+  "codex-api-key": ["codex"],
+  "gemini-api-key": ["gemini-cli", "aistudio"],
+  "vertex-api-key": ["vertex"],
+  "xai-api-key": ["xai"],
+  "meta-api-key": ["meta"],
+};
+
+export async function fetchProviderModels(
+  kind: Kind,
+  baseUrl: string,
+  apiKey: string,
+  headersText = "",
+): Promise<string[]> {
+  const models = new Set<string>();
+  let fetchError: Error | null = null;
+  const cleanBase = baseUrl.trim().replace(/\/+$/, "");
+
+  // 1. 若填写了 Base URL，向上游标准 /models 或 /v1/models 获取
+  if (cleanBase) {
+    const customHeaders: Record<string, string> = {};
+    for (const line of lines(headersText)) {
+      const i = line.indexOf(":");
+      if (i > 0) customHeaders[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    }
+    if (apiKey.trim()) {
+      customHeaders.Authorization = `Bearer ${apiKey.trim()}`;
+    }
+
+    const candidateUrls = cleanBase.endsWith("/v1")
+      ? [`${cleanBase}/models`]
+      : [`${cleanBase}/models`, `${cleanBase}/v1/models`];
+
+    for (const url of candidateUrls) {
+      try {
+        const res = await fetch(url, { headers: customHeaders, signal: AbortSignal.timeout(8000) });
+        if (res.ok) {
+          const json = await res.json();
+          const items = Array.isArray(json)
+            ? json
+            : Array.isArray(json?.data)
+              ? json.data
+              : Array.isArray(json?.models)
+                ? json.models
+                : [];
+          for (const item of items) {
+            const id = typeof item === "string" ? item : item?.id || item?.name;
+            if (typeof id === "string" && id) models.add(id);
+          }
+          if (models.size > 0) break;
+        } else {
+          fetchError = new Error(`上游返回 HTTP ${res.status}`);
+        }
+      } catch (err) {
+        fetchError = err as Error;
+      }
+    }
+  }
+
+  // 2. 匹配 CPA 内置渠道定义
+  for (const ch of KIND_CHANNEL_MAP[kind.endpoint] ?? []) {
+    try {
+      const res = await api<{ models?: { id: string }[] }>(`/v0/management/model-definitions/${encodeURIComponent(ch)}`);
+      for (const m of res.models ?? []) {
+        if (m.id) models.add(m.id);
+      }
+    } catch {}
+  }
+
+  // 3. 兜底获取 CPA 实例已有的 /v1/models
+  if (models.size === 0) {
+    try {
+      const res = await api<{ data?: { id: string }[]; models?: { id: string }[] } | { id: string }[]>("/v1/models");
+      const list = Array.isArray(res) ? res : res?.data ?? res?.models ?? [];
+      for (const m of list) {
+        if (m.id) models.add(m.id);
+      }
+    } catch {}
+  }
+
+  const result = Array.from(models).sort();
+  if (result.length === 0 && fetchError) {
+    throw new Error(`获取上游模型失败：${fetchError.message}`);
+  }
+  return result;
 }
 
 export function mask(key: string): string {

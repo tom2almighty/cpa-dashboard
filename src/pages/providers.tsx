@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -27,14 +27,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import {
+  fetchProviderModels,
   type Form,
+  formatModelRows,
   fromForm,
   identity,
   type Json,
   KINDS,
   type Kind,
+  lines,
   list,
   mask,
+  parseModelRows,
   str,
   toForm,
   validate,
@@ -81,6 +85,291 @@ function findIndex(kind: Kind, items: Json[], target: Json): number {
   const i = items.findIndex((x) => identity(kind, x) === identity(kind, target));
   if (i < 0) throw new Error("该条目已被修改或删除，请刷新后重试");
   return i;
+}
+
+type EditorRow = { id: string; name: string; alias: string; isCustom?: boolean };
+
+function ModelMappingEditor({
+  kind,
+  form,
+  update,
+}: {
+  kind: Kind;
+  form: Form;
+  update: (patch: Partial<Form>) => void;
+}) {
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
+  const [textMode, setTextMode] = useState(false);
+
+  const [rows, setRows] = useState<EditorRow[]>(() => {
+    const parsed = parseModelRows(form.models);
+    return parsed.length > 0
+      ? parsed.map((r, i) => ({ id: `${i}-${r.name}`, name: r.name, alias: r.alias }))
+      : [];
+  });
+
+  const syncToForm = (nextRows: EditorRow[]) => {
+    setRows(nextRows);
+    update({ models: formatModelRows(nextRows) });
+  };
+
+  const handleFetch = async () => {
+    setIsFetching(true);
+    try {
+      const key = kind.openai ? lines(form.keys)[0] || "" : form.apiKey.trim();
+      if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) {
+        toast.error("请先填写 Base URL");
+        return;
+      }
+      const list = await fetchProviderModels(kind, form.baseUrl, key, form.headers);
+      if (list.length === 0) {
+        toast.info("未获取到可用模型，请确认地址与密钥后重试，或手动添加");
+      } else {
+        setFetchedModels(list);
+        toast.success(`成功获取 ${list.length} 个模型`);
+      }
+    } catch (err) {
+      toast.error((err as Error).message || "获取模型失败");
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  const handleAddFromDropdown = (modelName: string) => {
+    if (!modelName) return;
+    if (modelName === "__custom__") {
+      const next = [...rows, { id: Math.random().toString(36).slice(2), name: "", alias: "", isCustom: true }];
+      syncToForm(next);
+      return;
+    }
+    if (rows.some((r) => r.name === modelName)) {
+      toast.info(`模型 ${modelName} 已在列表中`);
+      return;
+    }
+    const next = [...rows, { id: Math.random().toString(36).slice(2), name: modelName, alias: "" }];
+    syncToForm(next);
+  };
+
+  const handleAddAll = () => {
+    const existing = new Set(rows.map((r) => r.name));
+    const toAdd = fetchedModels.filter((m) => !existing.has(m));
+    if (toAdd.length === 0) {
+      toast.info("所有获取到的模型已在列表中");
+      return;
+    }
+    const next = [
+      ...rows,
+      ...toAdd.map((m) => ({ id: Math.random().toString(36).slice(2), name: m, alias: "" })),
+    ];
+    syncToForm(next);
+    toast.success(`已添加 ${toAdd.length} 个模型`);
+  };
+
+  const updateRow = (id: string, patch: Partial<EditorRow>) => {
+    const next = rows.map((r) => (r.id === id ? { ...r, ...patch } : r));
+    syncToForm(next);
+  };
+
+  const removeRow = (id: string) => {
+    const next = rows.filter((r) => r.id !== id);
+    syncToForm(next);
+  };
+
+  const addManualRow = () => {
+    const next = [...rows, { id: Math.random().toString(36).slice(2), name: "", alias: "", isCustom: true }];
+    syncToForm(next);
+  };
+
+  const handleToggleMode = () => {
+    if (textMode) {
+      const parsed = parseModelRows(form.models);
+      setRows(parsed.map((r, i) => ({ id: `${i}-${r.name}`, name: r.name, alias: r.alias })));
+    }
+    setTextMode(!textMode);
+  };
+
+  const p = kind.endpoint;
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <Label htmlFor={`${p}-models`}>模型与映射</Label>
+          <p className="text-xs text-muted-foreground">通过下拉框选择模型并可设置自定义映射别名</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleFetch}
+            disabled={isFetching}
+            className="h-7 text-xs"
+          >
+            {isFetching ? <Spinner className="size-3" /> : <RefreshCw className="size-3" />}
+            {fetchedModels.length > 0 ? `重新获取 (${fetchedModels.length})` : "获取模型"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleToggleMode}
+            className="h-7 text-xs text-muted-foreground"
+          >
+            {textMode ? "表格选择" : "文本编辑"}
+          </Button>
+        </div>
+      </div>
+
+      {textMode ? (
+        <>
+          <Textarea
+            id={`${p}-models`}
+            value={form.models}
+            onChange={(e) => update({ models: e.target.value })}
+            className="min-h-24 font-mono text-sm"
+            placeholder={"gpt-4o => 4o\ngpt-4o-mini"}
+          />
+          <p className="text-xs text-muted-foreground">每行一个，起别名写成 上游模型 =&gt; 别名</p>
+        </>
+      ) : (
+        <div className="grid gap-2.5">
+          {fetchedModels.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <select
+                aria-label="选择模型添加到映射"
+                value=""
+                onChange={(e) => handleAddFromDropdown(e.target.value)}
+                className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <option value="" disabled>
+                  ➕ 选择模型添加到映射列表 (已获取 {fetchedModels.length} 个)...
+                </option>
+                {fetchedModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+                <option value="__custom__">✏️ 自定义输入模型名...</option>
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddAll}
+                className="h-8 shrink-0 text-xs"
+              >
+                全部添加
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              可点击右上角「获取模型」自动拉取上游模型，然后通过下拉框快速配置映射。
+            </p>
+          )}
+
+          {rows.length === 0 ? (
+            <div className="rounded-md border border-dashed py-5 text-center text-xs text-muted-foreground">
+              {fetchedModels.length > 0 ? (
+                <>请从上方下拉框选择模型加入映射，或点击「全部添加」</>
+              ) : (
+                <>
+                  暂未添加模型（留空表示支持全部默认模型）。
+                  <button
+                    type="button"
+                    onClick={addManualRow}
+                    className="ml-1 text-primary underline underline-offset-2 hover:opacity-80"
+                  >
+                    手动添加一行
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1 text-xs text-muted-foreground font-medium">
+                <span>上游模型</span>
+                <span>自定义映射别名（可选）</span>
+                <span className="w-7" />
+              </div>
+              <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                {rows.map((r) => (
+                  <div key={r.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                    {fetchedModels.length > 0 && !r.isCustom ? (
+                      <select
+                        aria-label="上游模型"
+                        value={r.name}
+                        onChange={(e) => {
+                          if (e.target.value === "__custom__") {
+                            updateRow(r.id, { isCustom: true });
+                          } else {
+                            updateRow(r.id, { name: e.target.value });
+                          }
+                        }}
+                        className="h-8 w-full rounded-md border border-input bg-background px-2 py-1 font-mono text-xs shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        {!r.name && <option value="">选择上游模型...</option>}
+                        {!fetchedModels.includes(r.name) && r.name && (
+                          <option value={r.name}>{r.name}</option>
+                        )}
+                        {fetchedModels.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                        <option value="__custom__">✏️ 自定义输入...</option>
+                      </select>
+                    ) : (
+                      <Input
+                        aria-label="上游模型"
+                        value={r.name}
+                        placeholder="上游模型名"
+                        onChange={(e) => updateRow(r.id, { name: e.target.value })}
+                        className="h-8 font-mono text-xs"
+                      />
+                    )}
+                    <Input
+                      aria-label="自定义映射别名"
+                      value={r.alias}
+                      placeholder="映射别名（留空同名）"
+                      onChange={(e) => updateRow(r.id, { alias: e.target.value })}
+                      className="h-8 font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => removeRow(r.id)}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="删除"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addManualRow}
+                  className="h-7 text-xs"
+                >
+                  <Plus className="size-3" />
+                  添加模型
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  客户端请求别名时将转发至上游模型；留空别名则保持原名。
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
@@ -201,14 +490,7 @@ function EditDialog({
               <Switch id={`${p}-ws`} checked={form.websockets} onCheckedChange={(v) => update({ websockets: v })} />
             </div>
           )}
-          <Field id={`${p}-models`} label="模型" hint="每行一个，起别名写成 上游模型 => 别名">
-            <Textarea
-              id={`${p}-models`}
-              value={form.models}
-              onChange={(e) => update({ models: e.target.value })}
-              className="min-h-20 font-mono text-sm"
-            />
-          </Field>
+          <ModelMappingEditor kind={kind} form={form} update={update} />
           <Field id={`${p}-excluded`} label="排除的模型" hint="每行或逗号分隔一个，支持 * 通配">
             <Textarea
               id={`${p}-excluded`}
