@@ -3,8 +3,27 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "refer/**"
+      - ".github/**"
+      - ".gitignore"
+      - ".dockerignore"
+      - ".env.example"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - "LICENSE"
   pull_request:
-
+    paths-ignore:
+      - "**.md"
+      - "refer/**"
+      - ".github/**"
+      - ".gitignore"
+      - ".dockerignore"
+      - ".env.example"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - "LICENSE"
 jobs:
   check:
     runs-on: ubuntu-latest
