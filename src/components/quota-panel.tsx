@@ -24,6 +24,8 @@ const BAR = { ok: "bg-chart-1", warn: "bg-warning", danger: "bg-destructive" };
 function Meter({ window: w }: { window: QuotaWindow }) {
   const state = level(w.usedPercent);
   const used = w.usedPercent === null ? null : Math.round(w.usedPercent);
+  // 反转为剩余额度：满额度(used=0)对应满进度条(100%), 用尽(used=100)对应空进度条(0%)
+  const remaining = used === null ? null : Math.max(0, Math.min(100, 100 - used));
   return (
     <li className="grid gap-1.5">
       <div className="flex items-baseline justify-between gap-3 text-sm">
@@ -33,19 +35,19 @@ function Meter({ window: w }: { window: QuotaWindow }) {
         <span className="flex shrink-0 items-center gap-1 tabular-nums">
           {state === "danger" && <OctagonAlert className="size-3.5 text-destructive" aria-hidden />}
           {state === "warn" && <CircleAlert className="size-3.5 text-warning" aria-hidden />}
-          {used === null ? "—" : `已用 ${used}%`}
+          {remaining === null ? "—" : `剩余 ${remaining}%`}
           {state === "danger" && <span className="sr-only">，即将用尽</span>}
         </span>
       </div>
       <div
         role="progressbar"
-        aria-label={`${w.label}已用额度`}
+        aria-label={`${w.label}剩余额度`}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={used ?? undefined}
+        aria-valuenow={remaining ?? undefined}
         className="h-2 overflow-hidden rounded-full bg-muted"
       >
-        <div className={`h-full rounded-full ${BAR[state]}`} style={{ width: `${used ?? 0}%` }} />
+        <div className={`h-full rounded-full ${BAR[state]}`} style={{ width: `${remaining ?? 0}%` }} />
       </div>
       {(w.resetAt || w.detail) && (
         <div className="flex justify-between gap-3 text-xs text-muted-foreground">

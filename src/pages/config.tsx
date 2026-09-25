@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCcw, Save } from "lucide-react";
+import { FileCode, Layers, RotateCcw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/code-editor";
 import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,7 +31,7 @@ type Setting = {
 
 const GROUPS: { title: string; items: Setting[] }[] = [
   {
-    title: "基础",
+    title: "基础与代理",
     items: [
       {
         endpoint: "proxy-url",
@@ -37,7 +39,7 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         hint: "上游请求走的代理，例如 socks5://127.0.0.1:1080，留空表示直连",
         type: "text",
       },
-      { endpoint: "debug", label: "调试模式", hint: "输出更详细的日志", type: "bool" },
+      { endpoint: "debug", label: "调试模式", hint: "输出更详细的调试日志", type: "bool" },
       {
         endpoint: "force-model-prefix",
         label: "强制模型前缀",
@@ -45,6 +47,31 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         type: "bool",
       },
       { endpoint: "ws-auth", label: "WebSocket 鉴权", hint: "/ws 路由要求携带 API Key", type: "bool" },
+      {
+        endpoint: "commercial-mode",
+        label: "高并发模式（Commercial Mode）",
+        hint: "关闭高开销日志以最小化内存占用，适合高并发生产环境",
+        type: "bool",
+      },
+      {
+        endpoint: "disable-claude-cloak-mode",
+        label: "禁用 Claude 伪装",
+        hint: "不伪装 Claude Code 客户端指纹和系统提示词，原样透传",
+        type: "bool",
+      },
+      {
+        endpoint: "disable-image-generation",
+        label: "生图行为控制",
+        hint: "控制模型图片生成行为",
+        type: "select",
+        options: [
+          { value: "false", label: "允许生图（默认）" },
+          { value: "true", label: "全局禁用生图" },
+          { value: "chat", label: "仅允许独立生图接口" },
+          { value: "passthrough", label: "原样透传" },
+        ],
+        fallback: "false",
+      },
     ],
   },
   {
@@ -55,23 +82,67 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         label: "凭据选择策略",
         type: "select",
         options: [
-          { value: "round-robin", label: "轮询" },
-          { value: "fill-first", label: "优先用满一个" },
+          { value: "round-robin", label: "轮询 (round-robin)" },
+          { value: "weighted-round-robin", label: "加权轮询 (weighted-round-robin)" },
+          { value: "fill-first", label: "优先用满一个 (fill-first)" },
         ],
         fallback: "round-robin",
       },
+      {
+        endpoint: "routing/session-affinity",
+        label: "会话粘性路由 (Session Affinity)",
+        hint: "针对同一会话固定路由到同一账号/凭据，最大化 Prompt Cache 命中率",
+        type: "bool",
+      },
+      {
+        endpoint: "routing/session-affinity-ttl",
+        label: "会话粘性保留时长",
+        hint: "例如 1h、30m",
+        type: "text",
+        fallback: "1h",
+      },
       { endpoint: "request-retry", label: "请求重试轮数", hint: "所有凭据都失败后再重试的轮数", type: "int" },
+      { endpoint: "max-retry-credentials", label: "每轮最大重试凭据数", hint: "0 表示尝试所有可用凭据", type: "int" },
       { endpoint: "max-retry-interval", label: "最大重试等待（秒）", type: "int" },
+      {
+        endpoint: "disable-cooling",
+        label: "全局禁用冷却",
+        hint: "禁用凭据或模型失败后的拉黑冷却机制",
+        type: "bool",
+      },
+      {
+        endpoint: "transient-error-cooldown-seconds",
+        label: "瞬态错误冷却（秒）",
+        hint: "408/500/502/503/504 等临时网络错误的冷却秒数，0 为默认（60秒），-1 为禁用",
+        type: "int",
+      },
       { endpoint: "quota-exceeded/switch-project", label: "超额时切换项目", type: "bool" },
       { endpoint: "quota-exceeded/switch-preview-model", label: "超额时切换预览模型", type: "bool" },
+      {
+        endpoint: "quota-exceeded/antigravity-credits",
+        label: "Antigravity 超额使用 Credits",
+        hint: "当所有免费账号额度耗尽时，允许使用付费积分兜底",
+        type: "bool",
+      },
     ],
   },
   {
     title: "日志与统计",
     items: [
-      { endpoint: "usage-statistics-enabled", label: "用量统计", hint: "关闭后本面板不会再记录新的请求", type: "bool" },
-      { endpoint: "logging-to-file", label: "日志写入文件", hint: "日志页需要开启", type: "bool" },
-      { endpoint: "request-log", label: "请求日志", hint: "记录完整的请求和响应，排查问题时再开", type: "bool" },
+      {
+        endpoint: "usage-statistics-enabled",
+        label: "用量统计",
+        hint: "开启后 CPA 会将请求推入用量队列供面板采集；若关闭则面板无法统计用量",
+        type: "bool",
+      },
+      {
+        endpoint: "redis-usage-queue-retention-seconds",
+        label: "用量队列内存保留时间（秒）",
+        hint: "用量记录在内存队列中的保留时限，最大 3600 秒",
+        type: "int",
+      },
+      { endpoint: "logging-to-file", label: "日志写入文件", hint: "日志页查看日志需要开启", type: "bool" },
+      { endpoint: "request-log", label: "请求日志", hint: "记录完整的请求和响应体，排查问题时再开启", type: "bool" },
       { endpoint: "logs-max-total-size-mb", label: "日志总大小上限（MB）", hint: "0 表示不限制", type: "int" },
       { endpoint: "error-logs-max-files", label: "错误日志保留个数", type: "int" },
     ],
@@ -271,17 +342,174 @@ function YamlEditor() {
   );
 }
 
+type PayloadRuleItem = {
+  models?: { name: string; protocol?: string; headers?: Record<string, string> }[];
+  params?: Record<string, unknown> | string[];
+};
+
+type PayloadConfig = {
+  default?: PayloadRuleItem[];
+  "default-raw"?: PayloadRuleItem[];
+  override?: PayloadRuleItem[];
+  "override-raw"?: PayloadRuleItem[];
+  filter?: PayloadRuleItem[];
+};
+
+function RuleCard({
+  title,
+  description,
+  badge,
+  rules,
+}: {
+  title: string;
+  description: string;
+  badge: string;
+  rules: PayloadRuleItem[] | undefined;
+}) {
+  if (!rules?.length) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <Badge variant="outline">{badge}</Badge>
+        </div>
+        <CardDescription className="text-xs">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {rules.map((rule) => {
+          const ruleKey = `${rule.models?.map((m) => `${m.name}:${m.protocol ?? ""}`).join("|") || "all"}-${JSON.stringify(rule.params)}`;
+          return (
+            <div key={ruleKey} className="rounded-lg border bg-muted/20 p-3 text-xs space-y-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-muted-foreground font-medium">目标模型:</span>
+                {rule.models?.length ? (
+                  rule.models.map((m) => (
+                    <Badge key={`${m.name}-${m.protocol ?? ""}`} variant="secondary" className="font-mono text-xs">
+                      {m.name}
+                      {m.protocol && <span className="ml-1 opacity-70">({m.protocol})</span>}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground">全部匹配</span>
+                )}
+              </div>
+
+              {rule.params && (
+                <div>
+                  <span className="text-muted-foreground font-medium">参数规则:</span>
+                  <pre className="mt-1 overflow-x-auto rounded bg-muted/50 p-2 font-mono text-xs text-foreground">
+                    {typeof rule.params === "object" ? JSON.stringify(rule.params, null, 2) : String(rule.params)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
+  const { data, isPending } = useQuery({
+    queryKey: ["cpa", "config"],
+    queryFn: () => api<Json>("/v0/management/config"),
+  });
+
+  const payload = (data?.payload as PayloadConfig | undefined) ?? {};
+  const hasRules = Boolean(
+    payload.default?.length ||
+      payload["default-raw"]?.length ||
+      payload.override?.length ||
+      payload["override-raw"]?.length ||
+      payload.filter?.length,
+  );
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-medium">请求 Payload 规则可视化</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            控制 CPA 在向上游转发请求时自动缺省注入（Default）、强行覆盖（Override）或移除指定参数（Filter）。
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onGoYaml}>
+          <FileCode />
+          在源文件中编辑 Payload
+        </Button>
+      </div>
+
+      {isPending ? (
+        <Skeleton className="h-48 w-full" />
+      ) : !hasRules ? (
+        <Card className="border-dashed p-8 text-center">
+          <Layers className="mx-auto size-8 text-muted-foreground" />
+          <h3 className="mt-3 text-sm font-medium">尚未配置 Payload 规则</h3>
+          <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
+            通过配置 Payload 规则，可以给指定模型默认开启思考预算（thinkingBudget）、设定温度、或者移除客户端私有字段。
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={onGoYaml}>
+              前往源文件添加规则
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          <RuleCard
+            title="缺省参数规则 (Default)"
+            description="当客户端请求中缺失该参数时自动注入。"
+            badge="Default"
+            rules={payload.default}
+          />
+          <RuleCard
+            title="原始 JSON 缺省规则 (Default Raw)"
+            description="以原始 JSON 格式缺省注入复杂参数。"
+            badge="Default Raw"
+            rules={payload["default-raw"]}
+          />
+          <RuleCard
+            title="强行覆盖规则 (Override)"
+            description="始终覆盖客户端传参，强行指定对应参数值。"
+            badge="Override"
+            rules={payload.override}
+          />
+          <RuleCard
+            title="原始 JSON 覆盖规则 (Override Raw)"
+            description="以原始 JSON 强行覆盖客户端复杂参数。"
+            badge="Override Raw"
+            rules={payload["override-raw"]}
+          />
+          <RuleCard
+            title="参数过滤移除 (Filter)"
+            description="将客户端请求中的指定 JSON 路径字段剔除。"
+            badge="Filter"
+            rules={payload.filter}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ConfigPage() {
+  const [tab, setTab] = useState("settings");
   return (
     <>
       <PageHeader title="配置" description="修改会写回 CPA 的 config.yaml 并立即生效。" />
-      <Tabs defaultValue="settings">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList variant="line" className="mb-6">
           <TabsTrigger value="settings">常用设置</TabsTrigger>
+          <TabsTrigger value="payload">Payload 规则</TabsTrigger>
           <TabsTrigger value="yaml">源文件</TabsTrigger>
         </TabsList>
         <TabsContent value="settings">
           <SettingsForm />
+        </TabsContent>
+        <TabsContent value="payload">
+          <PayloadRules onGoYaml={() => setTab("yaml")} />
         </TabsContent>
         <TabsContent value="yaml">
           <YamlEditor />
