@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileCode, Pencil, Plus, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
 import { toast } from "sonner";
 import YAML from "yaml";
 import { CodeEditor } from "@/components/code-editor";
@@ -256,7 +255,7 @@ function SettingRow({ setting, value }: { setting: Setting; value: unknown }) {
   );
 }
 
-function SettingsForm() {
+function SettingsGroup({ groupIndex }: { groupIndex: number }) {
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "config"],
     queryFn: () => api<Json>("/v0/management/config"),
@@ -269,33 +268,15 @@ function SettingsForm() {
     );
   }
   if (isPending) return <Skeleton className="h-96" />;
+  const group = GROUPS[groupIndex];
+  if (!group) return null;
   return (
     <div className="max-w-3xl">
-      {GROUPS.map((group) => (
-        <section key={group.title} aria-label={group.title} className="mb-8">
-          <h2 className="font-medium">{group.title}</h2>
-          <div className="divide-y">
-            {group.items.map((s) => (
-              <SettingRow key={s.endpoint} setting={s} value={read(data, s.endpoint) ?? s.fallback} />
-            ))}
-          </div>
-        </section>
-      ))}
-      <section aria-labelledby="api-keys-entry" className="mt-8 rounded-lg border bg-muted/30 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 id="api-keys-entry" className="font-medium">
-              客户端 API Key
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              客户端调用 CPA 的 /v1 接口密钥已移至侧边栏独立页面管理。
-            </p>
-          </div>
-          <Button variant="outline" size="sm" render={<Link to="/api-keys" />}>
-            前往管理 API Key
-          </Button>
-        </div>
-      </section>
+      <div className="divide-y">
+        {group.items.map((s) => (
+          <SettingRow key={s.endpoint} setting={s} value={read(data, s.endpoint) ?? s.fallback} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -924,17 +905,26 @@ function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
 }
 
 export function ConfigPage() {
-  const [tab, setTab] = useState("settings");
+  const [tab, setTab] = useState("basic");
   return (
     <>
       <PageHeader title="配置" description="修改会写回 CPA 的 config.yaml 并立即生效。" />
       <Tabs value={tab} onValueChange={(v) => v && setTab(v)}>
-        <TabsList variant="line" className="mb-6">
-          <TabsTrigger value="settings">常用设置</TabsTrigger>
+        <TabsList variant="line" className="mb-6 flex-wrap">
+          <TabsTrigger value="basic">基础与代理</TabsTrigger>
+          <TabsTrigger value="routing">重试与路由</TabsTrigger>
+          <TabsTrigger value="logging">日志与统计</TabsTrigger>
           <TabsTrigger value="payload">Payload 规则</TabsTrigger>
+          <TabsTrigger value="yaml">源文件</TabsTrigger>
         </TabsList>
-        <TabsContent value="settings">
-          <SettingsForm />
+        <TabsContent value="basic">
+          <SettingsGroup groupIndex={0} />
+        </TabsContent>
+        <TabsContent value="routing">
+          <SettingsGroup groupIndex={1} />
+        </TabsContent>
+        <TabsContent value="logging">
+          <SettingsGroup groupIndex={2} />
         </TabsContent>
         <TabsContent value="payload">
           <PayloadRules onGoYaml={() => setTab("yaml")} />
