@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { VersionCardContent } from "@/components/version-dialog";
 import { api } from "@/lib/api";
 
 type Json = Record<string, unknown>;
@@ -916,6 +917,7 @@ export function ConfigPage() {
           <TabsTrigger value="logging">日志与统计</TabsTrigger>
           <TabsTrigger value="payload">Payload 规则</TabsTrigger>
           <TabsTrigger value="yaml">源文件</TabsTrigger>
+          <TabsTrigger value="about">关于与更新</TabsTrigger>
         </TabsList>
         <TabsContent value="basic">
           <SettingsGroup groupIndex={0} />
@@ -931,6 +933,11 @@ export function ConfigPage() {
         </TabsContent>
         <TabsContent value="yaml">
           <YamlEditor />
+        </TabsContent>
+        <TabsContent value="about">
+          <div className="max-w-3xl">
+            <VersionCardContent />
+          </div>
         </TabsContent>
       </Tabs>
     </>

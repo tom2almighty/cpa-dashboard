@@ -1,7 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
-  ArrowUpCircle,
   Boxes,
   FileCog,
   KeyRound,
@@ -10,13 +8,15 @@ import {
   Network,
   Puzzle,
   ScrollText,
+  Sparkles,
   Tags,
   Users,
 } from "lucide-react";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -33,8 +33,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
+import { FRONTEND_VERSION, useVersionData, VersionDialog } from "@/components/version-dialog";
 import { useLogout } from "@/hooks/use-logout";
-import { request } from "@/lib/api";
 
 type NavItem = { to: string; label: string; icon: typeof Users };
 
@@ -83,63 +83,10 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
   );
 }
 
-const FRONTEND_VERSION = "v0.1.0";
-
-function newer(latest: string, current: string): boolean {
-  const parse = (v: string) => v.replace(/^v/, "").split(/[.-]/).map(Number);
-  const [a, b] = [parse(latest), parse(current)];
-  for (let i = 0; i < 3; i++) {
-    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
-  }
-  return false;
-}
-// 管理接口响应带 X-CPA-VERSION; latest-version 由 CPA 查询
-function VersionInfo() {
-  const { data } = useQuery({
-    queryKey: ["cpa", "version"],
-    queryFn: async () => {
-      const res = await request("/v0/management/latest-version");
-      const body = res.ok ? ((await res.json().catch(() => ({}))) as { "latest-version"?: string }) : {};
-      return {
-        current: res.headers.get("x-cpa-version") || "未知",
-        latest: body["latest-version"] ?? null,
-      };
-    },
-    staleTime: 3_600_000,
-    refetchOnWindowFocus: false,
-  });
-
-  const cpaUpdate = data?.current && data.latest && newer(data.latest, data.current) ? data.latest : null;
-
-  return (
-    <div className="space-y-1 px-2 py-1.5 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-      <div className="flex items-center justify-between gap-1">
-        <span>面板版本</span>
-        <span className="font-mono text-foreground">{FRONTEND_VERSION}</span>
-      </div>
-      <div className="flex items-center justify-between gap-1">
-        <span>CPA 版本</span>
-        {cpaUpdate ? (
-          <a
-            href="https://github.com/router-for-me/CLIProxyAPI/releases/latest"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1 font-mono text-chart-1 hover:underline"
-            title={`可更新到 ${cpaUpdate}`}
-          >
-            <ArrowUpCircle className="size-3" />
-            {data?.current} → {cpaUpdate}
-          </a>
-        ) : (
-          <span className="font-mono text-foreground">{data?.current || "—"}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function Layout() {
   const logout = useLogout();
+  const [openVersion, setOpenVersion] = useState(false);
+  const { cpaCurrent, hasAnyUpdate } = useVersionData();
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
@@ -156,8 +103,29 @@ export function Layout() {
           <NavGroup label="系统运维" items={SYSTEM_NAV} />
         </SidebarContent>
         <SidebarFooter>
-          <VersionInfo />
           <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="版本与更新中心"
+                onClick={() => setOpenVersion(true)}
+                className="justify-between group-data-[collapsible=icon]:justify-center"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Sparkles className="size-4 shrink-0 text-primary" />
+                  <span className="truncate text-xs font-mono text-muted-foreground group-data-[collapsible=icon]:hidden">
+                    {FRONTEND_VERSION} · CPA {cpaCurrent}
+                  </span>
+                </div>
+                {hasAnyUpdate && (
+                  <Badge
+                    variant="default"
+                    className="text-[10px] px-1 py-0 h-4 bg-chart-1 group-data-[collapsible=icon]:hidden"
+                  >
+                    更新
+                  </Badge>
+                )}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <ThemeToggle />
             </SidebarMenuItem>
@@ -182,6 +150,7 @@ export function Layout() {
           </Suspense>
         </main>
       </SidebarInset>
+      <VersionDialog open={openVersion} onOpenChange={setOpenVersion} />
     </SidebarProvider>
   );
 }
