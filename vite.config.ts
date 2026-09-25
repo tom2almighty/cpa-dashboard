@@ -4,17 +4,16 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(() => {
   const target = process.env.CPA_URL ?? "http://localhost:8317";
 
   return {
     plugins: [react(), tailwindcss(), viteSingleFile()],
     resolve: {
       alias: {
-        "@": path.resolve(__dirname, "./src"),
+        "@": path.resolve(import.meta.dirname, "./src"),
       },
     },
-    build: mode === "lite" ? { outDir: "dist-lite" } : {},
     server: {
       proxy: {
         "/v0": target,

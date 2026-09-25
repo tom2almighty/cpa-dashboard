@@ -9,13 +9,6 @@ on:
       - ".github/**"
       - ".gitignore"
       - "LICENSE"
-  pull_request:
-    paths-ignore:
-      - "**.md"
-      - "refer/**"
-      - ".github/**"
-      - ".gitignore"
-      - "LICENSE"
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -26,4 +19,3 @@ jobs:
       - run: bun run check
       - run: bun run test
       - run: bun run build
-      - run: bun run build:lite
