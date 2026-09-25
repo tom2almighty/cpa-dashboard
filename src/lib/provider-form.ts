@@ -139,7 +139,9 @@ export async function fetchProviderModels(
   // 2. 匹配 CPA 内置渠道定义
   for (const ch of KIND_CHANNEL_MAP[kind.endpoint] ?? []) {
     try {
-      const res = await api<{ models?: { id: string }[] }>(`/v0/management/model-definitions/${encodeURIComponent(ch)}`);
+      const res = await api<{ models?: { id: string }[] }>(
+        `/v0/management/model-definitions/${encodeURIComponent(ch)}`,
+      );
       for (const m of res.models ?? []) {
         if (m.id) models.add(m.id);
       }
@@ -150,7 +152,7 @@ export async function fetchProviderModels(
   if (models.size === 0) {
     try {
       const res = await api<{ data?: { id: string }[]; models?: { id: string }[] } | { id: string }[]>("/v1/models");
-      const list = Array.isArray(res) ? res : res?.data ?? res?.models ?? [];
+      const list = Array.isArray(res) ? res : (res?.data ?? res?.models ?? []);
       for (const m of list) {
         if (m.id) models.add(m.id);
       }

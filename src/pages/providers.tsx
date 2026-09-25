@@ -27,8 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import {
-  fetchProviderModels,
   type Form,
+  fetchProviderModels,
   formatModelRows,
   fromForm,
   identity,
@@ -104,9 +104,7 @@ function ModelMappingEditor({
 
   const [rows, setRows] = useState<EditorRow[]>(() => {
     const parsed = parseModelRows(form.models);
-    return parsed.length > 0
-      ? parsed.map((r, i) => ({ id: `${i}-${r.name}`, name: r.name, alias: r.alias }))
-      : [];
+    return parsed.length > 0 ? parsed.map((r, i) => ({ id: `${i}-${r.name}`, name: r.name, alias: r.alias })) : [];
   });
 
   const syncToForm = (nextRows: EditorRow[]) => {
@@ -158,10 +156,7 @@ function ModelMappingEditor({
       toast.info("所有获取到的模型已在列表中");
       return;
     }
-    const next = [
-      ...rows,
-      ...toAdd.map((m) => ({ id: Math.random().toString(36).slice(2), name: m, alias: "" })),
-    ];
+    const next = [...rows, ...toAdd.map((m) => ({ id: Math.random().toString(36).slice(2), name: m, alias: "" }))];
     syncToForm(next);
     toast.success(`已添加 ${toAdd.length} 个模型`);
   };
@@ -253,13 +248,7 @@ function ModelMappingEditor({
                 ))}
                 <option value="__custom__">✏️ 自定义输入模型名...</option>
               </select>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddAll}
-                className="h-8 shrink-0 text-xs"
-              >
+              <Button type="button" variant="outline" size="sm" onClick={handleAddAll} className="h-8 shrink-0 text-xs">
                 全部添加
               </Button>
             </div>
@@ -310,9 +299,7 @@ function ModelMappingEditor({
                         className="h-8 w-full rounded-md border border-input bg-background px-2 py-1 font-mono text-xs shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
                         {!r.name && <option value="">选择上游模型...</option>}
-                        {!fetchedModels.includes(r.name) && r.name && (
-                          <option value={r.name}>{r.name}</option>
-                        )}
+                        {!fetchedModels.includes(r.name) && r.name && <option value={r.name}>{r.name}</option>}
                         {fetchedModels.map((m) => (
                           <option key={m} value={m}>
                             {m}
@@ -350,13 +337,7 @@ function ModelMappingEditor({
                 ))}
               </div>
               <div className="flex items-center justify-between pt-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addManualRow}
-                  className="h-7 text-xs"
-                >
+                <Button type="button" variant="outline" size="sm" onClick={addManualRow} className="h-7 text-xs">
                   <Plus className="size-3" />
                   添加模型
                 </Button>

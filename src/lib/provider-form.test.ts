@@ -52,5 +52,10 @@ test("解析与格式化模型行", () => {
   // 别名与原名相同时应省略 =>
   expect(formatModelRows([{ name: "gpt-4o", alias: "gpt-4o" }])).toBe("gpt-4o");
   // 空行或空名称过滤
-  expect(formatModelRows([{ name: "", alias: "x" }, { name: "model-a", alias: "" }])).toBe("model-a");
+  expect(
+    formatModelRows([
+      { name: "", alias: "x" },
+      { name: "model-a", alias: "" },
+    ]),
+  ).toBe("model-a");
 });
