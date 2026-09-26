@@ -1,5 +1,15 @@
 import { useQueries } from "@tanstack/react-query";
-import { AlertTriangle, ArrowUpDown, CheckCircle2, Clock, Gauge, OctagonAlert, RefreshCw, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpDown,
+  CheckCircle2,
+  Clock,
+  Gauge,
+  OctagonAlert,
+  RefreshCw,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -47,9 +57,9 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
   const remaining = used === null ? null : Math.max(0, Math.min(100, 100 - used));
 
   return (
-    <div className="grid gap-1.5">
-      <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="truncate font-medium" title={w.label}>
+    <div className="flex w-full min-w-0 flex-col gap-1.5">
+      <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-sm">
+        <span className="truncate text-xs font-medium sm:text-sm" title={w.label}>
           {w.label}
         </span>
         <span className="flex shrink-0 items-center gap-1.5 tabular-nums text-xs">
@@ -68,7 +78,7 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={remaining ?? undefined}
-        className="h-2 overflow-hidden rounded-full bg-muted"
+        className="relative h-2 w-full min-w-0 overflow-hidden rounded-full bg-muted"
       >
         <div
           className={`h-full rounded-full transition-all duration-300 ${BAR_COLOR[state]}`}
@@ -76,7 +86,7 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
         />
       </div>
       {(w.resetAt || w.detail) && (
-        <div className="flex justify-between gap-3 text-xs text-muted-foreground">
+        <div className="flex w-full min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground">
           <span title={w.resetAt ? formatDateTime(w.resetAt) : undefined}>
             {w.resetAt ? `${formatCountdown(w.resetAt)}后重置` : ""}
           </span>
@@ -88,6 +98,7 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
 }
 
 export function QuotaPanel({ files }: { files: AuthFile[] }) {
+  const [subView, setSubView] = useState<"cards" | "schedule">("cards");
   const [selectedChannel, setSelectedChannel] = useState("all");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -187,7 +198,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
         }
       }
     }
-    return list.sort((a, b) => a.resetAt - b.resetAt).slice(0, 6);
+    return list.sort((a, b) => a.resetAt - b.resetAt).slice(0, 8);
   }, [items]);
 
   const filtered = useMemo(() => {
@@ -238,11 +249,52 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 概览统计卡片与操作 */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-medium">额度使用监控概览</div>
+    <div className="space-y-4">
+      {/* 顶部二级子导航与操作栏 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+        <Tabs value={subView} onValueChange={(v) => setSubView(v as typeof subView)}>
+          <TabsList variant="line" className="h-8">
+            <TabsTrigger value="cards" className="gap-1.5 text-xs">
+              <Gauge className="size-3.5" />
+              账号额度卡片
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="gap-1.5 text-xs">
+              <Clock className="size-3.5" />
+              恢复计划与监控
+              {upcomingResets.length > 0 && (
+                <span className="rounded-full bg-chart-1/15 px-1.5 py-0.2 text-[10px] font-semibold text-chart-1">
+                  {upcomingResets.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex items-center gap-2">
+          {/* 紧凑健康状态小徽标 */}
+          <div className="hidden items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground sm:flex">
+            <span>
+              总计 <strong className="font-semibold text-foreground">{metrics.total}</strong>
+            </span>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1 text-chart-1 font-medium">
+              <span className="size-1.5 rounded-full bg-chart-1" />
+              {metrics.healthy} 充裕
+            </span>
+            {metrics.warning > 0 && (
+              <span className="flex items-center gap-1 text-warning font-medium">
+                <span className="size-1.5 rounded-full bg-warning" />
+                {metrics.warning} 紧张
+              </span>
+            )}
+            {metrics.exhausted > 0 && (
+              <span className="flex items-center gap-1 text-destructive font-medium">
+                <span className="size-1.5 rounded-full bg-destructive" />
+                {metrics.exhausted} 用尽
+              </span>
+            )}
+          </div>
+
           <Button
             variant="outline"
             size="sm"
@@ -251,214 +303,260 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
             className="h-8 text-xs"
           >
             <RefreshCw className={isRefreshingAll ? "animate-spin" : undefined} />
-            {isRefreshingAll ? "正在刷新…" : "刷新全部额度"}
+            {isRefreshingAll ? "正在刷新…" : "刷新全部"}
           </Button>
         </div>
-
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">总监控账号</span>
-              <Gauge className="size-4 text-muted-foreground" />
-            </div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums">{metrics.total}</div>
-            <p className="mt-1 text-xs text-muted-foreground">OAuth 凭据数</p>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">额度充足</span>
-              <CheckCircle2 className="size-4 text-chart-1" />
-            </div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums text-chart-1">{metrics.healthy}</div>
-            <p className="mt-1 text-xs text-muted-foreground">剩余 &gt; 20%</p>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">用量紧张</span>
-              <AlertTriangle className="size-4 text-warning" />
-            </div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums text-warning">{metrics.warning}</div>
-            <p className="mt-1 text-xs text-muted-foreground">剩余 &le; 20%</p>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">额度用尽</span>
-              <OctagonAlert className="size-4 text-destructive" />
-            </div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums text-destructive">{metrics.exhausted}</div>
-            <p className="mt-1 text-xs text-muted-foreground">等待窗口重置</p>
-          </Card>
-        </div>
       </div>
 
-      {/* 即将重置时间线（有明确的独立卡片与上下间距） */}
-      {upcomingResets.length > 0 && (
-        <Card className="p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Clock className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">即将恢复额度窗口</h3>
-          </div>
-          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {upcomingResets.map((r) => (
-              <div
-                key={`${r.accountName}-${r.provider}-${r.label}-${r.resetAt}`}
-                className="flex items-center justify-between rounded-md border p-2.5 text-xs"
-              >
-                <div className="min-w-0 pr-2">
-                  <div className="flex items-center gap-1.5 truncate font-medium">
-                    <Badge variant="outline" className="px-1 py-0 text-[10px]">
-                      {r.provider}
-                    </Badge>
-                    <span className="truncate">{r.accountName}</span>
-                  </div>
-                  <span className="text-muted-foreground">{r.label}</span>
-                </div>
-                <div className="shrink-0 text-right">
-                  <span className="font-semibold text-primary">{formatCountdown(r.resetAt)}后</span>
-                  {r.remaining !== null && (
-                    <div className="text-[11px] text-muted-foreground">当前余 {r.remaining}%</div>
-                  )}
-                </div>
+      {/* 视图一：账号额度卡片（默认首屏直达，无需下拉） */}
+      {subView === "cards" && (
+        <div className="space-y-4">
+          {/* 快速提示条（如果有即将重置的窗口） */}
+          {upcomingResets.length > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-chart-1/25 bg-chart-1/5 px-3 py-2 text-xs text-foreground">
+              <div className="flex items-center gap-2 truncate">
+                <Sparkles className="size-3.5 shrink-0 text-chart-1" />
+                <span className="truncate">
+                  最早将在{" "}
+                  <strong className="font-semibold text-chart-1">{formatCountdown(upcomingResets[0].resetAt)}后</strong>{" "}
+                  恢复{" "}
+                  <span className="font-medium text-foreground">
+                    {upcomingResets[0].accountName}（{upcomingResets[0].label}）
+                  </span>{" "}
+                  额度
+                </span>
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* 渠道 Tabs 和检索栏 */}
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Tabs value={selectedChannel} onValueChange={setSelectedChannel} className="w-full sm:w-auto">
-            <TabsList className="h-9 flex-wrap">
-              {CHANNELS.map((ch) => {
-                const count = channelCounts[ch.id] || 0;
-                return (
-                  <TabsTrigger key={ch.id} value={ch.id} className="gap-1.5 text-xs">
-                    {ch.label}
-                    {count > 0 && (
-                      <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 text-[10px] font-semibold">
-                        {count}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-          </Tabs>
-
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 sm:w-48 sm:flex-none">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索账号或套餐…"
-                className="h-8 pl-8 text-xs"
-              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSubView("schedule")}
+                className="h-6 shrink-0 px-2 text-xs text-chart-1 hover:bg-chart-1/10"
+              >
+                查看恢复计划 &rarr;
+              </Button>
             </div>
+          )}
 
-            <Select value={sortMode} onValueChange={(v) => setSortMode(v as typeof sortMode)}>
-              <SelectTrigger className="h-8 w-32 text-xs">
-                <ArrowUpDown className="mr-1.5 size-3" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                <SelectItem value="lowest">用尽/低额优先</SelectItem>
-                <SelectItem value="earliest_reset">最早重置优先</SelectItem>
-                <SelectItem value="name">名称排序</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* 渠道 Tabs 和检索栏 */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Tabs value={selectedChannel} onValueChange={setSelectedChannel} className="w-full sm:w-auto">
+              <TabsList className="h-9 flex-wrap">
+                {CHANNELS.map((ch) => {
+                  const count = channelCounts[ch.id] || 0;
+                  return (
+                    <TabsTrigger key={ch.id} value={ch.id} className="gap-1.5 text-xs">
+                      {ch.label}
+                      {count > 0 && (
+                        <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 text-[10px] font-semibold">
+                          {count}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </Tabs>
 
-            <Button
-              variant={warningOnly ? "default" : "outline"}
-              size="sm"
-              onClick={() => setWarningOnly(!warningOnly)}
-              className="h-8 text-xs"
-            >
-              仅看告警
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 sm:w-48 sm:flex-none">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索账号或套餐…"
+                  className="h-8 pl-8 text-xs"
+                />
+              </div>
+
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as typeof sortMode)}>
+                <SelectTrigger className="h-8 w-32 text-xs">
+                  <ArrowUpDown className="mr-1.5 size-3" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="lowest">用尽/低额优先</SelectItem>
+                  <SelectItem value="earliest_reset">最早重置优先</SelectItem>
+                  <SelectItem value="name">名称排序</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant={warningOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setWarningOnly(!warningOnly)}
+                className="h-8 text-xs"
+              >
+                仅看告警
+              </Button>
+            </div>
           </div>
-        </div>
 
-        {/* 卡片网格 */}
-        {filtered.length === 0 ? (
-          <Card className="grid place-items-center py-12 text-center text-sm text-muted-foreground">
-            没有找到符合当前筛选条件的账号额度信息
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((item) => {
-              const q = item.query;
-              return (
-                <Card key={item.file.auth_index} className="flex flex-col justify-between p-5">
-                  <div>
-                    <div className="mb-4 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-sm font-medium" title={item.name}>
-                          {item.name}
-                        </h3>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                          <Badge variant="secondary" className="text-[11px] font-normal uppercase">
-                            {item.file.provider}
-                          </Badge>
-                          {item.plan && (
-                            <Badge variant="outline" className="text-[11px] font-normal">
-                              {item.plan}
+          {/* 账号额度卡片网格 */}
+          {filtered.length === 0 ? (
+            <Card className="grid place-items-center py-12 text-center text-sm text-muted-foreground">
+              没有找到符合当前筛选条件的账号额度信息
+            </Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map((item) => {
+                const q = item.query;
+                return (
+                  <Card
+                    key={item.file.auth_index}
+                    className="box-border flex w-full min-w-0 flex-col justify-between overflow-hidden p-4 sm:p-5"
+                  >
+                    <div className="w-full min-w-0">
+                      <div className="mb-4 flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate text-sm font-medium" title={item.name}>
+                            {item.name}
+                          </h3>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <Badge variant="secondary" className="text-[11px] font-normal uppercase">
+                              {item.file.provider}
                             </Badge>
-                          )}
-                          {q && q.dataUpdatedAt > 0 && <span>{formatRelative(q.dataUpdatedAt)}更新</span>}
+                            {item.plan && (
+                              <Badge variant="outline" className="text-[11px] font-normal">
+                                {item.plan}
+                              </Badge>
+                            )}
+                            {q && q.dataUpdatedAt > 0 && <span>{formatRelative(q.dataUpdatedAt)}更新</span>}
+                          </div>
                         </div>
-                      </div>
 
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`刷新 ${item.name} 的额度`}
-                        disabled={q?.isFetching}
-                        onClick={() => q?.refetch()}
-                      >
-                        <RefreshCw className={q?.isFetching ? "animate-spin" : undefined} />
-                      </Button>
-                    </div>
-
-                    {q?.isPending ? (
-                      <Skeleton className="h-20 w-full" />
-                    ) : q?.isError ? (
-                      <div className="rounded-md bg-destructive/10 p-3 text-xs text-destructive">
-                        <p className="font-medium">查询额度失败</p>
-                        <p className="mt-1 break-words opacity-90">{q.error.message}</p>
                         <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-2 h-6 text-xs text-destructive hover:bg-destructive/15"
-                          onClick={() => q.refetch()}
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`刷新 ${item.name} 的额度`}
+                          disabled={q?.isFetching}
+                          onClick={() => q?.refetch()}
                         >
-                          重试
+                          <RefreshCw className={q?.isFetching ? "animate-spin" : undefined} />
                         </Button>
                       </div>
-                    ) : (q?.data?.windows ?? []).length === 0 ? (
-                      <p className="py-4 text-center text-xs text-muted-foreground">上游未返回额度明细</p>
-                    ) : (
-                      <div className="grid gap-3.5">
-                        {q?.data?.windows.map((w) => (
-                          <MeterRow key={w.id} window={w} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
 
-                  {q?.data && q.data.notes.length > 0 && (
-                    <div className="mt-4 border-t pt-3 text-xs text-muted-foreground">{q.data.notes.join("，")}</div>
-                  )}
-                </Card>
-              );
-            })}
+                      {q?.isPending ? (
+                        <Skeleton className="h-20 w-full" />
+                      ) : q?.isError ? (
+                        <div className="rounded-md bg-destructive/10 p-3 text-xs text-destructive">
+                          <p className="font-medium">查询额度失败</p>
+                          <p className="mt-1 break-words opacity-90">{q.error.message}</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 h-6 text-xs text-destructive hover:bg-destructive/15"
+                            onClick={() => q?.refetch()}
+                          >
+                            重试
+                          </Button>
+                        </div>
+                      ) : (q?.data?.windows ?? []).length === 0 ? (
+                        <p className="py-4 text-center text-xs text-muted-foreground">上游未返回额度明细</p>
+                      ) : (
+                        <div className="flex w-full min-w-0 flex-col gap-3.5">
+                          {q?.data?.windows.map((w) => (
+                            <MeterRow key={w.id} window={w} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {q?.data && q.data.notes.length > 0 && (
+                      <div className="mt-4 border-t pt-3 text-xs text-muted-foreground">{q.data.notes.join("，")}</div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 视图二：恢复计划与大盘监控（完整统计与时间线） */}
+      {subView === "schedule" && (
+        <div className="space-y-6">
+          {/* 大盘指标统计卡片 */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">总监控账号</span>
+                <Gauge className="size-4 text-muted-foreground" />
+              </div>
+              <div className="mt-2 text-2xl font-semibold tabular-nums">{metrics.total}</div>
+              <p className="mt-1 text-xs text-muted-foreground">支持额度查询的凭据数</p>
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">额度充裕</span>
+                <CheckCircle2 className="size-4 text-chart-1" />
+              </div>
+              <div className="mt-2 text-2xl font-semibold tabular-nums text-chart-1">{metrics.healthy}</div>
+              <p className="mt-1 text-xs text-muted-foreground">剩余用量 &gt; 20%</p>
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">用量紧张</span>
+                <AlertTriangle className="size-4 text-warning" />
+              </div>
+              <div className="mt-2 text-2xl font-semibold tabular-nums text-warning">{metrics.warning}</div>
+              <p className="mt-1 text-xs text-muted-foreground">剩余用量 &le; 20%</p>
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">额度用尽</span>
+                <OctagonAlert className="size-4 text-destructive" />
+              </div>
+              <div className="mt-2 text-2xl font-semibold tabular-nums text-destructive">{metrics.exhausted}</div>
+              <p className="mt-1 text-xs text-muted-foreground">当前等待窗口刷新</p>
+            </Card>
           </div>
-        )}
-      </div>
+
+          {/* 即将恢复额度窗口卡片 */}
+          <Card className="p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="size-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">近期配额恢复时间线</h3>
+              </div>
+              <span className="text-xs text-muted-foreground">按恢复时间升序</span>
+            </div>
+
+            {upcomingResets.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">
+                当前暂无明确重置时间戳的窗口，或额度处于充裕状态。
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {upcomingResets.map((r) => (
+                  <div
+                    key={`${r.accountName}-${r.provider}-${r.label}-${r.resetAt}`}
+                    className="flex items-center justify-between rounded-md border p-3 text-xs"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5 truncate font-medium">
+                        <Badge variant="outline" className="px-1 py-0 text-[10px]">
+                          {r.provider}
+                        </Badge>
+                        <span className="truncate">{r.accountName}</span>
+                      </div>
+                      <span className="text-muted-foreground">{r.label}</span>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="font-semibold text-chart-1">{formatCountdown(r.resetAt)}后</span>
+                      {r.remaining !== null && (
+                        <div className="text-[11px] text-muted-foreground">当前余 {r.remaining}%</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
