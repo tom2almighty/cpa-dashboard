@@ -51,8 +51,8 @@ export function ApiKeysPage() {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState("");
   const [addingNote, setAddingNote] = useState("");
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [copiedUrl, setCopiedUrl] = useState(false);
+  // 记录刚复制的内容,用于把对应按钮切换成对勾
+  const [copied, setCopied] = useState<string | null>(null);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [showAll, setShowAll] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>(() => loadNotes());
@@ -93,22 +93,20 @@ export function ApiKeysPage() {
 
   const keys = data ?? [];
 
-  const copy = (text: string, isKey = true) => {
-    navigator.clipboard.writeText(text).then(() => {
-      if (isKey) {
-        setCopiedKey(text);
-        toast.success("已复制 API Key");
-        setTimeout(() => setCopiedKey(null), 2000);
-      } else {
-        setCopiedUrl(true);
-        toast.success("已复制接口地址");
-        setTimeout(() => setCopiedUrl(false), 2000);
-      }
-    });
+  const copy = (text: string, message: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setCopied(text);
+        toast.success(message);
+        setTimeout(() => setCopied(null), 2000);
+      },
+      () => toast.error("复制失败，请手动选择复制"),
+    );
   };
 
   const cpaBaseUrl = getClientApiUrl();
   const firstKey = keys[0] || "sk-your-api-key";
+  const curl = `curl ${cpaBaseUrl}/models \\\n  -H "Authorization: Bearer ${firstKey}"`;
 
   return (
     <>
@@ -186,8 +184,13 @@ export function ApiKeysPage() {
                       >
                         {visibleKeys[key] ? <EyeOff /> : <Eye />}
                       </Button>
-                      <Button variant="ghost" size="icon-xs" aria-label="复制 Key" onClick={() => copy(key)}>
-                        {copiedKey === key ? <Check className="text-primary" /> : <Copy />}
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="复制 Key"
+                        onClick={() => copy(key, "已复制 API Key")}
+                      >
+                        {copied === key ? <Check className="text-primary" /> : <Copy />}
                       </Button>
                       <Button
                         variant="ghost"
@@ -287,19 +290,30 @@ export function ApiKeysPage() {
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    onClick={() => copy(cpaBaseUrl, false)}
+                    onClick={() => copy(cpaBaseUrl, "已复制接口地址")}
                     aria-label="复制接口地址"
                   >
-                    {copiedUrl ? <Check className="text-primary" /> : <Copy />}
+                    {copied === cpaBaseUrl ? <Check className="text-primary" /> : <Copy />}
                   </Button>
                 </div>
               </div>
 
               <div>
                 <span className="text-xs font-medium text-muted-foreground">测试接口连通性 (cURL)</span>
-                <pre className="mt-1 overflow-x-auto rounded-md border bg-muted/50 p-2.5 font-mono text-xs text-muted-foreground">
-                  <code>{`curl ${cpaBaseUrl}/models \\\n  -H "Authorization: Bearer ${firstKey}"`}</code>
-                </pre>
+                <div className="relative mt-1">
+                  <pre className="overflow-x-auto rounded-md border bg-muted/50 p-2.5 pr-10 font-mono text-xs text-muted-foreground">
+                    <code>{curl}</code>
+                  </pre>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="absolute top-1.5 right-1.5"
+                    onClick={() => copy(curl, "已复制测试命令")}
+                    aria-label="复制测试命令"
+                  >
+                    {copied === curl ? <Check className="text-primary" /> : <Copy />}
+                  </Button>
+                </div>
               </div>
 
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
