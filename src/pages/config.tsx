@@ -33,9 +33,16 @@ type Setting = {
   fallback?: string;
 };
 
-const GROUPS: { title: string; items: Setting[] }[] = [
+type ConfigGroup = {
+  id: string;
+  title: string;
+  items: Setting[];
+};
+
+const GROUPS: ConfigGroup[] = [
   {
-    title: "基础与服务",
+    id: "connectivity",
+    title: "服务与连接",
     items: [
       {
         endpoint: "host",
@@ -58,57 +65,6 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         type: "text",
         fallback: "~/.cli-proxy-api",
       },
-      {
-        endpoint: "proxy-url",
-        label: "全局代理",
-        hint: "上游请求走的代理，例如 socks5://127.0.0.1:1080，留空表示直连",
-        type: "text",
-      },
-      { endpoint: "debug", label: "调试模式", hint: "输出更详细的调试日志", type: "bool" },
-      {
-        endpoint: "force-model-prefix",
-        label: "强制模型前缀",
-        hint: "只允许用带前缀的模型名访问配置了前缀的凭据",
-        type: "bool",
-      },
-      { endpoint: "ws-auth", label: "WebSocket 鉴权", hint: "/ws 路由要求携带 API Key", type: "bool" },
-      {
-        endpoint: "commercial-mode",
-        label: "高并发模式（Commercial Mode）",
-        hint: "关闭高开销日志以最小化内存占用，适合高并发生产环境",
-        type: "bool",
-      },
-      {
-        endpoint: "disable-claude-cloak-mode",
-        label: "禁用 Claude 伪装",
-        hint: "不伪装 Claude Code 客户端指纹和系统提示词，原样透传",
-        type: "bool",
-      },
-      {
-        endpoint: "disable-image-generation",
-        label: "生图行为控制",
-        hint: "控制模型图片生成行为",
-        type: "select",
-        options: [
-          { value: "false", label: "允许生图（默认）" },
-          { value: "true", label: "全局禁用生图" },
-          { value: "chat", label: "仅允许独立生图接口" },
-          { value: "passthrough", label: "原样透传" },
-        ],
-        fallback: "false",
-      },
-      {
-        endpoint: "video-result-auth-cache-ttl",
-        label: "视频凭据绑定缓存时效",
-        hint: "视频 ID 与创建凭据的绑定时长，默认 3h",
-        type: "text",
-        fallback: "3h",
-      },
-    ],
-  },
-  {
-    title: "远程管理",
-    items: [
       {
         endpoint: "remote-management/allow-remote",
         label: "允许远程管理",
@@ -139,11 +95,6 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         hint: "管理面板发布的 GitHub 仓库地址，用于自动拉取更新",
         type: "text",
       },
-    ],
-  },
-  {
-    title: "TLS 与安全传输",
-    items: [
       {
         endpoint: "tls/enable",
         label: "启用 HTTPS (TLS)",
@@ -152,21 +103,35 @@ const GROUPS: { title: string; items: Setting[] }[] = [
       },
       {
         endpoint: "tls/cert",
-        label: "TLS 证书文件路径",
+        label: "TLS 证书路径",
         hint: "服务器 SSL/TLS 证书路径（.crt 或 .pem）",
         type: "text",
       },
       {
         endpoint: "tls/key",
-        label: "TLS 私钥文件路径",
+        label: "TLS 私钥路径",
         hint: "服务器 SSL/TLS 私钥路径（.key）",
         type: "text",
       },
     ],
   },
   {
-    title: "重试与路由",
+    id: "network",
+    title: "网络与路由",
     items: [
+      {
+        endpoint: "proxy-url",
+        label: "全局代理",
+        hint: "上游请求走的代理，例如 socks5://127.0.0.1:1080，留空表示直连",
+        type: "text",
+      },
+      {
+        endpoint: "force-model-prefix",
+        label: "强制模型前缀",
+        hint: "只允许用带前缀的模型名访问配置了前缀的凭据",
+        type: "bool",
+      },
+      { endpoint: "ws-auth", label: "WebSocket 鉴权", hint: "/ws 路由要求携带 API Key", type: "bool" },
       {
         endpoint: "routing/strategy",
         label: "凭据选择策略",
@@ -214,17 +179,25 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         type: "bool",
       },
       {
+        endpoint: "disable-image-generation",
+        label: "生图行为控制",
+        hint: "控制模型图片生成行为",
+        type: "select",
+        options: [
+          { value: "false", label: "允许生图（默认）" },
+          { value: "true", label: "全局禁用生图" },
+          { value: "chat", label: "仅允许独立生图接口" },
+          { value: "passthrough", label: "原样透传" },
+        ],
+        fallback: "false",
+      },
+      {
         endpoint: "gpt-image-2-base-model",
         label: "生图转基础模型",
         hint: "例如 gpt-5.4-mini，该模型用于解析与理解生图指令",
         type: "text",
       },
-      {
-        endpoint: "disable-cooling",
-        label: "全局禁用冷却",
-        hint: "禁用凭据或模型失败后的拉黑冷却机制",
-        type: "bool",
-      },
+      { endpoint: "disable-cooling", label: "全局禁用冷却", hint: "禁用凭据或模型失败后的拉黑冷却机制", type: "bool" },
       {
         endpoint: "save-cooldown-status",
         label: "持久化冷却状态",
@@ -249,10 +222,31 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         hint: "使用 fill-first 或会话粘性时，按选定凭据重映射 Codex 缓存和安装标识",
         type: "bool",
       },
+      { endpoint: "debug", label: "调试模式", hint: "输出更详细的调试日志", type: "bool" },
+      {
+        endpoint: "commercial-mode",
+        label: "高并发模式（Commercial Mode）",
+        hint: "关闭高开销日志以最小化内存占用，适合高并发生产环境",
+        type: "bool",
+      },
+      {
+        endpoint: "disable-claude-cloak-mode",
+        label: "禁用 Claude 伪装",
+        hint: "不伪装 Claude Code 客户端指纹和系统提示词，原样透传",
+        type: "bool",
+      },
+      {
+        endpoint: "video-result-auth-cache-ttl",
+        label: "视频凭据绑定缓存时效",
+        hint: "视频 ID 与创建凭据的绑定时长，默认 3h",
+        type: "text",
+        fallback: "3h",
+      },
     ],
   },
   {
-    title: "配额回退策略",
+    id: "quota",
+    title: "配额回退",
     items: [
       {
         endpoint: "quota-exceeded/switch-project",
@@ -275,7 +269,8 @@ const GROUPS: { title: string; items: Setting[] }[] = [
     ],
   },
   {
-    title: "流式传输与保活",
+    id: "streaming",
+    title: "流式保活",
     items: [
       {
         endpoint: "streaming/keepalive-seconds",
@@ -298,6 +293,7 @@ const GROUPS: { title: string; items: Setting[] }[] = [
     ],
   },
   {
+    id: "logging",
     title: "日志与性能",
     items: [
       {
@@ -342,7 +338,8 @@ const GROUPS: { title: string; items: Setting[] }[] = [
     ],
   },
   {
-    title: "高级与默认请求头",
+    id: "advanced",
+    title: "高级与默认头",
     items: [
       {
         endpoint: "plugins/enabled",
@@ -511,7 +508,7 @@ function SettingRow({ setting, value }: { setting: Setting; value: unknown }) {
   );
 }
 
-function SettingsGroup({ groupIndex }: { groupIndex: number }) {
+function SettingsGroup({ groupId }: { groupId: string }) {
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "config"],
     queryFn: () => api<Json>("/v0/management/config"),
@@ -524,7 +521,7 @@ function SettingsGroup({ groupIndex }: { groupIndex: number }) {
     );
   }
   if (isPending) return <Skeleton className="h-96" />;
-  const group = GROUPS[groupIndex];
+  const group = GROUPS.find((g) => g.id === groupId);
   if (!group) return null;
   return (
     <div className="max-w-3xl">
@@ -1161,28 +1158,27 @@ function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
 }
 
 export function ConfigPage() {
-  const [tab, setTab] = useState("basic");
+  const [tab, setTab] = useState(GROUPS[0].id);
   return (
     <>
       <PageHeader title="配置" description="修改会写回 CPA 的 config.yaml 并立即生效。" />
       <Tabs value={tab} onValueChange={(v) => v && setTab(v)}>
         <TabsList variant="line" className="mb-6 flex-wrap">
-          <TabsTrigger value="basic">基础与代理</TabsTrigger>
-          <TabsTrigger value="routing">重试与路由</TabsTrigger>
-          <TabsTrigger value="logging">日志与统计</TabsTrigger>
+          {GROUPS.map((g) => (
+            <TabsTrigger key={g.id} value={g.id}>
+              {g.title}
+            </TabsTrigger>
+          ))}
           <TabsTrigger value="payload">Payload 规则</TabsTrigger>
           <TabsTrigger value="yaml">源文件</TabsTrigger>
           <TabsTrigger value="about">关于与更新</TabsTrigger>
         </TabsList>
-        <TabsContent value="basic">
-          <SettingsGroup groupIndex={0} />
-        </TabsContent>
-        <TabsContent value="routing">
-          <SettingsGroup groupIndex={1} />
-        </TabsContent>
-        <TabsContent value="logging">
-          <SettingsGroup groupIndex={2} />
-        </TabsContent>
+
+        {GROUPS.map((g) => (
+          <TabsContent key={g.id} value={g.id}>
+            <SettingsGroup groupId={g.id} />
+          </TabsContent>
+        ))}
         <TabsContent value="payload">
           <PayloadRules onGoYaml={() => setTab("yaml")} />
         </TabsContent>
