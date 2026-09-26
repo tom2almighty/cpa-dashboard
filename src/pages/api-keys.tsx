@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api";
+import { api, storedBaseUrl } from "@/lib/api";
 
 function randomKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -25,6 +25,20 @@ function loadNotes(): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+function getClientApiUrl(): string {
+  const custom = storedBaseUrl();
+  if (custom) return `${custom.replace(/\/+$/, "")}/v1`;
+
+  const { protocol, hostname, port } = window.location;
+  if (protocol === "https:") {
+    const portSuffix = port && port !== "443" ? `:${port}` : "";
+    return `https://${hostname}${portSuffix}/v1`;
+  }
+
+  const portSuffix = port && port !== "80" ? `:${port}` : "";
+  return `http://${hostname}${portSuffix}/v1`;
 }
 
 function saveNotes(notes: Record<string, string>) {
@@ -93,7 +107,7 @@ export function ApiKeysPage() {
     });
   };
 
-  const cpaBaseUrl = `${window.location.protocol}//${window.location.hostname}:8317/v1`;
+  const cpaBaseUrl = getClientApiUrl();
   const firstKey = keys[0] || "sk-your-api-key";
 
   return (
