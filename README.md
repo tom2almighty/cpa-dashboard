@@ -5,8 +5,7 @@
 ## 特性
 
 - **网关接入**：
-  - **额度查询**：独立配额中心看板，实时监控 Codex、Claude、Devin、Kimi、Meta、xAI、Antigravity 等各平台账号的配额用量、剩余百分比进度条与各窗口重置时间倒计时；支持渠道过滤、用量告警与一键批量刷新
-  - **账号**：认证文件上传、启停、下载、删除、复选框多选批量删除；冷却状态倒计时与明细展示、重置冷却；OAuth 凭证手动刷新；查看可用模型与凭据详细元数据；Vertex 服务账号导入
+  - **账号与额度**：认证文件上传、启停、下载、删除、复选框多选批量删除；冷却状态倒计时与明细展示、重置冷却；OAuth 凭证手动刷新；查看可用模型与凭据详细元数据；Vertex 服务账号导入；**内置配额中心**实时监控 Codex、Claude、Devin、Kimi、Meta、xAI、Antigravity 等各平台账号的配额用量、剩余百分比进度条与各窗口重置时间倒计时，支持渠道过滤、用量告警与一键批量刷新
   - **OAuth 登录**：Codex、Claude、Antigravity、xAI、Devin、Kimi（国内版）、Kimi.ai（国际版）、Meta 等，支持网页授权与设备码，远程部署时可直接粘贴回调地址完成认证
   - **提供商**：Gemini、Claude、Codex、xAI、Meta、Vertex、Interactions 及 OpenAI 兼容的 API Key 管理与连通性探针测试；全量提供商快捷启用/禁用开关；模型发现走代理解决 CORS 限制
   - **API Key**：客户端调用 `/v1` 接口所需的密钥管理与快速接入指南
