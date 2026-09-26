@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Activity, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -48,6 +48,7 @@ import {
   mask,
   parseModelRows,
   str,
+  testProviderConnectivity,
   toForm,
   validate,
 } from "@/lib/provider-form";
@@ -341,7 +342,24 @@ function EditDialog({
   const [form, setForm] = useState<Form>(() => toForm(target ?? {}));
   const [error, setError] = useState<string | null>(null);
   const update = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await testProviderConnectivity(kind, form);
+      setTestResult(res);
+      if (res.ok) toast.success(`连通性测试通过：${res.message}`);
+      else toast.error(`连通性测试失败：${res.message}`);
+    } catch (err: unknown) {
+      setTestResult({ ok: false, message: (err as Error).message });
+      toast.error((err as Error).message);
+    } finally {
+      setTesting(false);
+    }
+  };
   const save = useMutation({
     mutationFn: () =>
       mutateList(kind, (items) => {
@@ -458,14 +476,37 @@ function EditDialog({
             </p>
           )}
         </form>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            取消
-          </Button>
-          <Button type="submit" form={`form-${p}`} disabled={save.isPending}>
-            {save.isPending && <Spinner />}
-            保存
-          </Button>
+        <DialogFooter className="flex-row items-center justify-between sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={testing}
+              onClick={handleTest}
+              className="h-8 text-xs"
+            >
+              {testing ? <Spinner className="size-3" /> : <Activity className="size-3" />}
+              测试连通性
+            </Button>
+            {testResult && (
+              <span
+                className={`max-w-44 truncate text-[11px] ${testResult.ok ? "text-success" : "text-destructive"}`}
+                title={testResult.message}
+              >
+                {testResult.message}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={onClose}>
+              取消
+            </Button>
+            <Button type="submit" form={`form-${p}`} disabled={save.isPending}>
+              {save.isPending && <Spinner />}
+              保存
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -477,8 +518,23 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
   const usage = useKeyUsage();
   const [editing, setEditing] = useState<Json | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Json | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["cpa", "providers"] });
 
+  const handleTestItem = async (item: Json) => {
+    const id = identity(kind, item);
+    setTestingId(id);
+    try {
+      const f = toForm(item);
+      const res = await testProviderConnectivity(kind, f);
+      if (res.ok) toast.success(`连通性测试通过：${res.message}`);
+      else toast.error(`连通性测试失败：${res.message}`);
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "连通性测试失败");
+    } finally {
+      setTestingId(null);
+    }
+  };
   const remove = useMutation({
     mutationFn: (target: Json) =>
       mutateList(kind, (all) => {
@@ -505,7 +561,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
     onSuccess: refresh,
   });
 
-  const columns = kind.openai ? 7 : 6;
+  const columns = kind.openai ? 8 : 7;
   return (
     <>
       <div className="mb-3 flex justify-end">
@@ -523,8 +579,8 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
             <TableHead className="text-right">模型</TableHead>
             {!kind.openai && <TableHead>代理</TableHead>}
             <TableHead>最近 200 分钟</TableHead>
-            {kind.openai && <TableHead className="w-20">启用</TableHead>}
-            <TableHead className="w-24">
+            <TableHead className="w-16">启用</TableHead>
+            <TableHead className="w-28">
               <span className="sr-only">操作</span>
             </TableHead>
           </TableRow>
@@ -567,17 +623,29 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                   <TableCell>
                     <RequestSparkline buckets={usageOf(kind, item, usage.data)} label={title} />
                   </TableCell>
-                  {kind.openai && (
-                    <TableCell>
-                      <Switch
-                        checked={!item.disabled}
-                        disabled={toggle.isPending}
-                        onCheckedChange={() => toggle.mutate(item)}
-                        aria-label={`${item.disabled ? "启用" : "停用"} ${title}`}
-                      />
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    <Switch
+                      checked={!item.disabled}
+                      disabled={toggle.isPending}
+                      onCheckedChange={() => toggle.mutate(item)}
+                      aria-label={`${item.disabled ? "启用" : "停用"} ${title}`}
+                    />
+                  </TableCell>
                   <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`测试 ${title} 的连通性`}
+                      title="测试连通性"
+                      disabled={testingId === identity(kind, item)}
+                      onClick={() => handleTestItem(item)}
+                    >
+                      {testingId === identity(kind, item) ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <Activity className="size-3.5" />
+                      )}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon-sm"

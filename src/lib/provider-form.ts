@@ -125,16 +125,24 @@ export async function fetchProviderModels(
 
     let fetchError: Error | null = null;
     for (const url of candidateUrls) {
+      // 优先通过 CPA 后端 /api-call 代理请求，避开前端浏览器 CORS 跨域限制
       try {
-        const res = await fetch(url, { headers: customHeaders, signal: AbortSignal.timeout(8000) });
-        if (res.ok) {
-          const json = await res.json();
-          const items = Array.isArray(json)
-            ? json
-            : Array.isArray(json?.data)
-              ? json.data
-              : Array.isArray(json?.models)
-                ? json.models
+        const res = await api<{ status_code: number; body?: unknown }>("/v0/management/api-call", {
+          method: "POST",
+          body: {
+            method: "GET",
+            url,
+            header: customHeaders,
+          },
+        });
+        if (res.status_code >= 200 && res.status_code < 300) {
+          const bodyObj = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+          const items = Array.isArray(bodyObj)
+            ? bodyObj
+            : Array.isArray(bodyObj?.data)
+              ? bodyObj.data
+              : Array.isArray(bodyObj?.models)
+                ? bodyObj.models
                 : [];
           for (const item of items) {
             const id = typeof item === "string" ? item : item?.id || item?.name;
@@ -142,14 +150,35 @@ export async function fetchProviderModels(
           }
           if (models.size > 0) break;
         } else {
-          fetchError = new Error(`上游返回 HTTP ${res.status}`);
+          fetchError = new Error(`上游返回 HTTP ${res.status_code}`);
         }
-      } catch (err) {
-        const msg = (err as Error)?.message || String(err);
-        fetchError = new Error(msg === "Failed to fetch" ? "网络请求失败（可能是跨域限制 CORS 或网络不可达）" : msg);
+      } catch {
+        // api-call 失败时降级尝试前端直接 fetch
+        try {
+          const res = await fetch(url, { headers: customHeaders, signal: AbortSignal.timeout(8000) });
+          if (res.ok) {
+            const json = await res.json();
+            const items = Array.isArray(json)
+              ? json
+              : Array.isArray(json?.data)
+                ? json.data
+                : Array.isArray(json?.models)
+                  ? json.models
+                  : [];
+            for (const item of items) {
+              const id = typeof item === "string" ? item : item?.id || item?.name;
+              if (typeof id === "string" && id) models.add(id);
+            }
+            if (models.size > 0) break;
+          } else {
+            fetchError = new Error(`上游返回 HTTP ${res.status}`);
+          }
+        } catch (err) {
+          const msg = (err as Error)?.message || String(err);
+          fetchError = new Error(msg === "Failed to fetch" ? "网络请求失败（可能是跨域限制 CORS 或网络不可达）" : msg);
+        }
       }
     }
-
     if (models.size > 0) {
       return Array.from(models).sort();
     }
@@ -277,4 +306,119 @@ export function validate(kind: Kind, form: Form): string | null {
   if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) return "优先级必须是整数";
   if (lines(form.headers).some((l) => !l.includes(":"))) return "请求头每行格式为 名称: 值";
   return null;
+}
+
+export async function testProviderConnectivity(
+  kind: Kind,
+  form: Form,
+): Promise<{ ok: boolean; latencyMs: number; message: string }> {
+  const start = Date.now();
+  const cleanBase = form.baseUrl.trim().replace(/\/+$/, "");
+  const customHeaders: Record<string, string> = {};
+  for (const line of lines(form.headers)) {
+    const i = line.indexOf(":");
+    if (i > 0) customHeaders[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+
+  const modelRows = parseModelRows(form.models);
+  const testModel = modelRows[0]?.name || "";
+
+  let method = "POST";
+  let url = "";
+  let payload: unknown;
+
+  if (kind.openai) {
+    if (!cleanBase) throw new Error("测试连通性必须填写 Base URL");
+    const firstKey = lines(form.keys)[0]?.trim() || "";
+    if (firstKey) customHeaders.Authorization = `Bearer ${firstKey}`;
+    customHeaders["Content-Type"] = "application/json";
+
+    url = cleanBase.endsWith("/chat/completions")
+      ? cleanBase
+      : cleanBase.endsWith("/v1")
+        ? `${cleanBase}/chat/completions`
+        : `${cleanBase}/v1/chat/completions`;
+
+    payload = {
+      model: testModel || "gpt-4o-mini",
+      messages: [{ role: "user", content: "Hi" }],
+      max_tokens: 5,
+      stream: false,
+    };
+  } else if (kind.endpoint === "claude-api-key") {
+    const key = form.apiKey.trim();
+    if (key) customHeaders["x-api-key"] = key;
+    customHeaders["anthropic-version"] = "2023-06-01";
+    customHeaders["Content-Type"] = "application/json";
+    const host = cleanBase || "https://api.anthropic.com";
+    url = host.endsWith("/messages") ? host : `${host}/v1/messages`;
+    payload = {
+      model: testModel || "claude-3-5-sonnet-20241022",
+      max_tokens: 5,
+      messages: [{ role: "user", content: "Hi" }],
+    };
+  } else if (kind.endpoint === "gemini-api-key" || kind.endpoint === "interactions-api-key") {
+    const key = form.apiKey.trim();
+    const host = cleanBase || "https://generativelanguage.googleapis.com";
+    const m = testModel || "gemini-1.5-flash";
+    url = `${host}/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
+    customHeaders["Content-Type"] = "application/json";
+    payload = {
+      contents: [{ parts: [{ text: "Hi" }] }],
+    };
+  } else if (kind.endpoint === "codex-api-key") {
+    if (!cleanBase) throw new Error("Codex 必须填写 Base URL");
+    const key = form.apiKey.trim();
+    if (key) customHeaders.Authorization = `Bearer ${key}`;
+    url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/models`;
+    method = "GET";
+  } else if (kind.endpoint === "xai-api-key") {
+    if (!cleanBase) throw new Error("xAI 必须填写 Base URL");
+    const key = form.apiKey.trim();
+    if (key) customHeaders.Authorization = `Bearer ${key}`;
+    customHeaders["Content-Type"] = "application/json";
+    url = cleanBase.endsWith("/chat/completions") ? cleanBase : `${cleanBase}/v1/chat/completions`;
+    payload = {
+      model: testModel || "grok-beta",
+      messages: [{ role: "user", content: "Hi" }],
+      max_tokens: 5,
+    };
+  } else {
+    if (!cleanBase) throw new Error("请填写 Base URL");
+    const key = form.apiKey.trim();
+    if (key) customHeaders.Authorization = `Bearer ${key}`;
+    url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/v1/models`;
+    method = "GET";
+  }
+
+  try {
+    const res = await api<{ status_code: number; body?: unknown }>("/v0/management/api-call", {
+      method: "POST",
+      body: {
+        method,
+        url,
+        header: customHeaders,
+        ...(payload !== undefined ? { data: JSON.stringify(payload) } : {}),
+      },
+    });
+
+    const latencyMs = Date.now() - start;
+    if (res.status_code >= 200 && res.status_code < 300) {
+      return { ok: true, latencyMs, message: `HTTP ${res.status_code} 正常 (${latencyMs}ms)` };
+    }
+
+    let detail = "";
+    if (res.body) {
+      try {
+        const bodyObj = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+        detail = bodyObj?.error?.message || bodyObj?.message || String(res.body).slice(0, 100);
+      } catch {
+        detail = String(res.body).slice(0, 100);
+      }
+    }
+    return { ok: false, latencyMs, message: `HTTP ${res.status_code}${detail ? `: ${detail}` : ""}` };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    return { ok: false, latencyMs, message: (err as Error)?.message || "连通性测试请求失败" };
+  }
 }

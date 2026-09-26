@@ -5,7 +5,9 @@ import {
   Download,
   Ellipsis,
   FileKey,
+  Info,
   PencilLine,
+  RefreshCw,
   RotateCcw,
   Search,
   Trash2,
@@ -29,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -53,8 +56,42 @@ import type { AuthFile } from "@/lib/types";
 const QUERY_KEY = ["cpa", "auth-files"];
 const file = (name: string) => encodeURIComponent(name);
 
+const COOLDOWN_REASONS: Record<string, string> = {
+  quota: "额度超限",
+  credential_quota: "凭据额度限制",
+  cloudflare_challenge: "Cloudflare 验证拦截",
+  invalid_grant: "凭据授权失效",
+  unauthorized: "未授权 (401)",
+  payment_required: "需要付费 (402)",
+  not_found: "资源不存在 (404)",
+  model_not_supported: "模型不受支持",
+  transient_error: "临时网络错误",
+};
+
 function StatusCell({ file: f }: { file: AuthFile }) {
   if (f.disabled) return <Badge variant="outline">已停用</Badge>;
+
+  if (f.cooldowns && f.cooldowns.length > 0) {
+    const credWide = f.cooldowns.some((c) => c.scope === "credential");
+    const modelCount = f.cooldowns.filter((c) => c.scope === "model").length;
+    const earliestSec = Math.min(...f.cooldowns.map((c) => c.remaining_seconds || 0));
+    const title = f.cooldowns
+      .map(
+        (c) =>
+          `${c.scope === "credential" ? "凭据级" : c.model_key}: ${COOLDOWN_REASONS[c.reason] || c.reason} (剩余约 ${c.remaining_seconds}s)`,
+      )
+      .join("\n");
+
+    return (
+      <span className="grid gap-0.5" title={title}>
+        <Badge variant="destructive" className="w-fit">
+          {credWide ? "凭据级冷却" : `${modelCount} 个模型冷却`}
+        </Badge>
+        {earliestSec > 0 && <span className="text-xs text-muted-foreground">约 {earliestSec}s 后恢复</span>}
+      </span>
+    );
+  }
+
   if (f.unavailable) {
     const retry = f.next_retry_after ? Date.parse(f.next_retry_after) : Number.NaN;
     return (
@@ -323,13 +360,128 @@ function VertexDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-type Dialogs = { kind: "models" | "fields" | "delete"; target: AuthFile } | { kind: "vertex" | "delete-all" } | null;
+function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>凭证详情 - {accountName(target)}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 text-xs">
+          <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
+            <div>
+              <span className="text-muted-foreground">文件名：</span>
+              <p className="font-mono font-medium">{target.name}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">提供商：</span>
+              <p className="font-medium">{target.provider || "—"}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">账号标识：</span>
+              <p className="font-medium">{target.email || target.account || "—"}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Auth Index：</span>
+              <p className="font-mono">{target.auth_index || "—"}</p>
+            </div>
+            {target.project_id && (
+              <div>
+                <span className="text-muted-foreground">项目 ID：</span>
+                <p className="font-mono">{target.project_id}</p>
+              </div>
+            )}
+            <div>
+              <span className="text-muted-foreground">状态：</span>
+              <p className="font-medium">
+                {target.disabled ? "已禁用" : target.unavailable ? "冷却中" : target.status || "正常"}
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">最近刷新：</span>
+              <p>{target.last_refresh ? formatDateTime(Date.parse(target.last_refresh)) : "—"}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">更新时间：</span>
+              <p>{target.updated_at ? formatDateTime(Date.parse(target.updated_at)) : "—"}</p>
+            </div>
+          </div>
+
+          {target.cooldowns && target.cooldowns.length > 0 && (
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+              <span className="font-medium text-warning">当前冷却限制（{target.cooldowns.length} 项）</span>
+              <div className="mt-2 grid gap-1.5">
+                {target.cooldowns.map((c) => (
+                  <div
+                    key={`${c.scope}-${c.model_key ?? "cred"}-${c.reason}`}
+                    className="flex items-center justify-between border-b pb-1 last:border-0 last:pb-0"
+                  >
+                    <div>
+                      <span className="font-medium">{c.scope === "credential" ? "整个凭据限制" : c.model_key}</span>
+                      <span className="ml-2 text-muted-foreground">（{COOLDOWN_REASONS[c.reason] || c.reason}）</span>
+                    </div>
+                    <span className="font-mono tabular-nums text-muted-foreground">剩余 ~{c.remaining_seconds}s</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(target.prefix || target.proxy_url || target.priority !== undefined || target.note) && (
+            <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
+              {target.prefix && (
+                <div>
+                  <span className="text-muted-foreground">前缀路由：</span>
+                  <p className="font-mono">{target.prefix}</p>
+                </div>
+              )}
+              {target.proxy_url && (
+                <div>
+                  <span className="text-muted-foreground">代理地址：</span>
+                  <p className="font-mono">{target.proxy_url}</p>
+                </div>
+              )}
+              {target.priority !== undefined && (
+                <div>
+                  <span className="text-muted-foreground">优先级：</span>
+                  <p>{target.priority}</p>
+                </div>
+              )}
+              {target.note && (
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">备注：</span>
+                  <p>{target.note}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+              查看原始元数据 (JSON)
+            </summary>
+            <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted p-2 font-mono text-[11px]">
+              {JSON.stringify(target, null, 2)}
+            </pre>
+          </details>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type Dialogs =
+  | { kind: "models" | "fields" | "delete" | "details"; target: AuthFile }
+  | { kind: "vertex" | "delete-all" | "batch-delete" }
+  | null;
 
 export function AccountsPage() {
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
   const [keyword, setKeyword] = useState("");
   const [provider, setProvider] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cooldown" | "disabled">("all");
+  const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialogs>(null);
   const deferredKeyword = useDeferredValue(keyword);
 
@@ -375,6 +527,38 @@ export function AccountsPage() {
     },
   });
 
+  const manualRefresh = useMutation({
+    mutationFn: (f: AuthFile) =>
+      api("/v0/management/auth-files/refresh", {
+        method: "POST",
+        body: { name: f.name, ...(f.auth_index ? { auth_index: f.auth_index } : {}) },
+      }),
+    onSuccess: (_, f) => {
+      toast.success(`已刷新 ${accountName(f)} 的凭证`);
+      refresh();
+    },
+    onError: (err: Error) => {
+      toast.error(`刷新失败：${err.message}`);
+    },
+  });
+
+  const batchDelete = useMutation({
+    mutationFn: async (names: string[]) => {
+      for (const name of names) {
+        await api(`/v0/management/auth-files?name=${file(name)}`, { method: "DELETE" });
+      }
+      return names.length;
+    },
+    onSuccess: (count) => {
+      toast.success(`已批量删除 ${count} 个认证文件`);
+      setSelected([]);
+      setDialog(null);
+      refresh();
+    },
+    onError: (err: Error) => {
+      toast.error(`批量删除失败：${err.message}`);
+    },
+  });
   const upload = useMutation({
     mutationFn: async (files: File[]) => {
       for (const f of files) {
@@ -401,12 +585,28 @@ export function AccountsPage() {
 
   const files = useMemo(() => {
     const k = deferredKeyword.trim().toLowerCase();
-    return (data ?? []).filter(
-      (f) =>
-        (!provider || f.provider === provider) &&
-        (!k || [f.name, f.email, f.label, f.note, f.provider].some((v) => v?.toLowerCase().includes(k))),
-    );
-  }, [data, deferredKeyword, provider]);
+    return (data ?? []).filter((f) => {
+      if (provider && f.provider !== provider) return false;
+      const isCooldown = f.unavailable || (f.cooldowns && f.cooldowns.length > 0);
+      if (statusFilter === "disabled" && !f.disabled) return false;
+      if (statusFilter === "cooldown" && !isCooldown) return false;
+      if (statusFilter === "active" && (f.disabled || isCooldown)) return false;
+      if (k) {
+        const match = [f.name, f.email, f.label, f.note, f.provider].some((v) => v?.toLowerCase().includes(k));
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [data, deferredKeyword, provider, statusFilter]);
+
+  const allSelected = files.length > 0 && files.every((f) => selected.includes(f.name));
+  const toggleAll = () => {
+    if (allSelected) setSelected([]);
+    else setSelected(files.map((f) => f.name));
+  };
+  const toggleOne = (name: string) => {
+    setSelected((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+  };
 
   const cooling = data?.filter((f) => f.unavailable && !f.disabled).length ?? 0;
 
@@ -465,6 +665,17 @@ export function AccountsPage() {
               <TabsTrigger value="quota">额度</TabsTrigger>
             </TabsList>
             <div className="flex flex-wrap gap-2">
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter((v as typeof statusFilter) ?? "all")}>
+                <SelectTrigger className="w-28" aria-label="按状态筛选">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="active">正常</SelectItem>
+                  <SelectItem value="cooldown">冷却中</SelectItem>
+                  <SelectItem value="disabled">已停用</SelectItem>
+                </SelectContent>
+              </Select>
               <Select
                 items={[{ value: "", label: "全部提供商" }, ...providers.map((p) => ({ value: p, label: p }))]}
                 value={provider}
@@ -499,9 +710,33 @@ export function AccountsPage() {
             <QuotaPanel files={files} />
           </TabsContent>
           <TabsContent value="list">
+            {selected.length > 0 && (
+              <div className="mb-3 flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2 text-xs">
+                <span>
+                  已选择 <strong className="font-semibold text-foreground">{selected.length}</strong> 个认证文件
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setDialog({ kind: "batch-delete" })}
+                  >
+                    <Trash2 className="size-3" />
+                    批量删除
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelected([])}>
+                    取消选择
+                  </Button>
+                </div>
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="全选本页" />
+                  </TableHead>
                   <TableHead>账号</TableHead>
                   <TableHead>提供商</TableHead>
                   <TableHead>状态</TableHead>
@@ -516,16 +751,23 @@ export function AccountsPage() {
               </TableHeader>
               <TableBody>
                 {isPending ? (
-                  <SkeletonRows columns={8} />
+                  <SkeletonRows columns={9} />
                 ) : files.length === 0 ? (
-                  <EmptyRow columns={8}>
-                    {keyword || provider
+                  <EmptyRow columns={9}>
+                    {keyword || provider || statusFilter !== "all"
                       ? "没有匹配的账号"
                       : "还没有认证文件，可以上传 JSON 文件或在 OAuth 登录页添加。"}
                   </EmptyRow>
                 ) : (
                   files.map((f) => (
                     <TableRow key={f.id || f.name} className={f.disabled ? "text-muted-foreground" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.includes(f.name)}
+                          onCheckedChange={() => toggleOne(f.name)}
+                          aria-label={`选择 ${accountName(f)}`}
+                        />
+                      </TableCell>
                       <TableCell className="max-w-72">
                         <div className="truncate font-medium" title={accountName(f)}>
                           {accountName(f)}
@@ -567,6 +809,17 @@ export function AccountsPage() {
                             <Ellipsis />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="min-w-40">
+                            <DropdownMenuItem onClick={() => setDialog({ kind: "details", target: f })}>
+                              <Info />
+                              查看详情
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={manualRefresh.isPending}
+                              onClick={() => manualRefresh.mutate(f)}
+                            >
+                              <RefreshCw className={manualRefresh.isPending ? "animate-spin" : undefined} />
+                              刷新凭证
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setDialog({ kind: "models", target: f })}>
                               <Boxes />
                               查看可用模型
@@ -617,30 +870,43 @@ export function AccountsPage() {
 
       {dialog?.kind === "models" && <ModelsDialog target={dialog.target} onClose={() => setDialog(null)} />}
       {dialog?.kind === "fields" && <FieldsDialog target={dialog.target} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "details" && <DetailsDialog target={dialog.target} onClose={() => setDialog(null)} />}
       {dialog?.kind === "vertex" && <VertexDialog onClose={() => setDialog(null)} />}
 
       <AlertDialog
-        open={dialog?.kind === "delete" || dialog?.kind === "delete-all"}
+        open={dialog?.kind === "delete" || dialog?.kind === "delete-all" || dialog?.kind === "batch-delete"}
         onOpenChange={(open) => !open && setDialog(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{dialog?.kind === "delete-all" ? "删除全部认证文件" : "删除认证文件"}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {dialog?.kind === "delete-all"
+                ? "删除全部认证文件"
+                : dialog?.kind === "batch-delete"
+                  ? `批量删除认证文件（共 ${selected.length} 项）`
+                  : "删除认证文件"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {dialog?.kind === "delete"
                 ? `${dialog.target.name} 会从 CPA 的认证目录中删除，删除后无法恢复。`
-                : "认证目录下的所有 JSON 文件都会被删除，对应账号立即停止使用，无法恢复。"}
+                : dialog?.kind === "batch-delete"
+                  ? `选中的 ${selected.length} 个文件将从 CPA 认证目录彻底删除，删除后无法恢复。`
+                  : "认证目录下的所有 JSON 文件都会被删除，对应账号立即停止使用，无法恢复。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              disabled={remove.isPending || removeAll.isPending}
-              onClick={() => (dialog?.kind === "delete" ? remove.mutate(dialog.target) : removeAll.mutate())}
+              disabled={remove.isPending || removeAll.isPending || batchDelete.isPending}
+              onClick={() => {
+                if (dialog?.kind === "delete") remove.mutate(dialog.target);
+                else if (dialog?.kind === "batch-delete") batchDelete.mutate(selected);
+                else removeAll.mutate();
+              }}
             >
-              {(remove.isPending || removeAll.isPending) && <Spinner />}
-              {dialog?.kind === "delete-all" ? "全部删除" : "删除"}
+              {(remove.isPending || removeAll.isPending || batchDelete.isPending) && <Spinner />}
+              {dialog?.kind === "delete-all" ? "全部删除" : dialog?.kind === "batch-delete" ? "确认删除" : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

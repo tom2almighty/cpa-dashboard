@@ -1,5 +1,14 @@
 import { expect, test } from "bun:test";
-import { parseAntigravity, parseClaude, parseCodex, parseKimi, parseXai, windowLabel } from "./quota";
+import {
+  parseAntigravity,
+  parseClaude,
+  parseCodex,
+  parseDevin,
+  parseKimi,
+  parseMeta,
+  parseXai,
+  windowLabel,
+} from "./quota";
 
 const now = Date.UTC(2026, 8, 24);
 
@@ -91,5 +100,39 @@ test("窗口时长命名", () => {
     "每月",
     "2 天",
     "额度",
+  ]);
+});
+
+test("devin 每日与每周剩余额度换算", () => {
+  const q = parseDevin({
+    userStatus: {
+      planStatus: {
+        planInfo: { planName: "Pro" },
+        dailyQuotaRemainingPercent: 85,
+        dailyQuotaResetAtUnix: 1790500000,
+        weeklyQuotaRemainingPercent: 40,
+        weeklyQuotaResetAtUnix: 1791000000,
+      },
+    },
+  });
+  expect(q.plan).toBe("Pro");
+  expect(q.windows.map((w) => [w.label, w.usedPercent, w.resetAt])).toEqual([
+    ["每日额度", 15, 1790500000_000],
+    ["每周额度", 60, 1791000000_000],
+  ]);
+});
+
+test("meta 窗口与每周额度", () => {
+  const q = parseMeta({
+    subs_tier_name: "Pro Tier",
+    subs_usage: {
+      window: { used_percent: 35, resets_at: 1790500000, window_duration_mins: 180 },
+      weekly: { used_percent: 70, resets_at: 1791000000 },
+    },
+  });
+  expect(q.plan).toBe("Pro Tier");
+  expect(q.windows.map((w) => [w.label, w.usedPercent, w.detail])).toEqual([
+    ["会话窗口", 35, "180 分钟窗口"],
+    ["每周额度", 70, undefined],
   ]);
 });

@@ -29,6 +29,8 @@ const ANTIGRAVITY_URLS = [
   "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
   "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
 ];
+const DEVIN_STATUS_URL = "https://server.codeium.com/exa.seat_management_pb.SeatManagementService/GetUserStatus";
+const META_MUSE_QUOTA_URL = "https://api.meta.ai/muse-code/key";
 // Antigravity 认证文件里没有 project_id 时,官方客户端使用的默认项目
 const ANTIGRAVITY_DEFAULT_PROJECT = "bamboo-precept-lgxtn";
 
@@ -53,12 +55,24 @@ const HEADERS = {
     "Content-Type": "application/json",
     "User-Agent": "antigravity/cli/1.0.13 (aidev_client; os_type=darwin; arch=arm64)",
   },
+  devin: {
+    "Content-Type": "application/json",
+    "Connect-Protocol-Version": "1",
+  },
 } satisfies Record<string, Record<string, string>>;
 
-const QUOTA_PROVIDERS = new Set(["codex", "claude", "antigravity", "kimi", "xai"]);
+const QUOTA_PROVIDERS: Record<string, true> = {
+  codex: true,
+  claude: true,
+  antigravity: true,
+  kimi: true,
+  xai: true,
+  devin: true,
+  meta: true,
+};
 
 export function supportsQuota(file: AuthFile): boolean {
-  return QUOTA_PROVIDERS.has((file.provider ?? "").toLowerCase()) && Boolean(file.auth_index);
+  return Boolean(QUOTA_PROVIDERS[(file.provider ?? "").toLowerCase()]) && Boolean(file.auth_index);
 }
 
 // ---------- 通用解析 ----------
@@ -325,6 +339,58 @@ export function parseAntigravity(payload: Json): Quota {
   return { plan: null, windows, notes: [] };
 }
 
+export function parseDevin(payload: Json): Quota {
+  const status = obj(obj(obj(payload.userStatus)?.planStatus));
+  const planInfo = obj(status?.planInfo);
+  const plan = str(planInfo?.planName) ?? null;
+  const windows: QuotaWindow[] = [];
+  for (const id of ["daily", "weekly"] as const) {
+    const remaining = num(status?.[`${id}QuotaRemainingPercent`]);
+    const resetSeconds = num(status?.[`${id}QuotaResetAtUnix`]);
+    if (remaining !== null || resetSeconds !== null) {
+      windows.push({
+        id: `devin-${id}`,
+        label: id === "daily" ? "每日额度" : "每周额度",
+        usedPercent: remaining !== null ? clampPercent(100 - remaining) : null,
+        resetAt: resetSeconds && resetSeconds > 0 ? resetSeconds * 1000 : null,
+        detail: remaining !== null ? `剩余 ${Math.round(remaining)}%` : undefined,
+      });
+    }
+  }
+  return { plan, windows, notes: [] };
+}
+
+export function parseMeta(payload: Json): Quota {
+  const usage = obj(payload.subs_usage);
+  const explicitPlan = str(payload.subs_tier_name);
+  const usagePlan = str(usage?.tier);
+  const plan = explicitPlan ?? usagePlan ?? null;
+  const windows: QuotaWindow[] = [];
+
+  const parseWindow = (id: string, label: string, rawVal: unknown) => {
+    const raw = obj(rawVal);
+    if (!raw) return;
+    const used = clampPercent(num(raw.used_percent));
+    const resetAt = num(raw.resets_at);
+    const durationMins = num(raw.window_duration_mins);
+    if (used !== null || resetAt !== null) {
+      windows.push({
+        id: `meta-${id}`,
+        label,
+        usedPercent: used,
+        resetAt: resetAt && resetAt > 0 ? resetAt : null,
+        detail: durationMins ? `${durationMins} 分钟窗口` : undefined,
+      });
+    }
+  };
+
+  if (usage) {
+    parseWindow("window", "会话窗口", usage.window);
+    parseWindow("weekly", "每周额度", usage.weekly);
+  }
+  return { plan, windows, notes: [] };
+}
+
 // ---------- 请求 ----------
 
 type ApiCallResponse = { status_code: number; body?: string };
@@ -424,6 +490,38 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
         }
       }
       throw lastError;
+    }
+    case "devin": {
+      const data = JSON.stringify({
+        metadata: {
+          ideName: "chisel",
+          ideVersion: "3000.10.21",
+          apiKey: "$TOKEN$",
+          locale: "en",
+          os: "darwin",
+          extensionVersion: "3000.10.21",
+          clientName: "chisel",
+        },
+      });
+      return parseDevin(await upstream(authIndex, "POST", DEVIN_STATUS_URL, HEADERS.devin, data));
+    }
+    case "meta": {
+      let dcaToken = findField(file, ["dca_token", "dcaToken"]);
+      if (!dcaToken && file.name) {
+        try {
+          const raw = await api<unknown>(`/v0/management/auth-files/download?name=${encodeURIComponent(file.name)}`);
+          const parsed = obj(typeof raw === "string" ? JSON.parse(raw) : raw);
+          dcaToken = findField(parsed, ["dca_token", "dcaToken"]);
+        } catch {}
+      }
+      if (!dcaToken) throw new Error("认证文件中缺少 DCA Token");
+      const header = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${dcaToken}`,
+        "x-api-version": "1.0.0",
+      };
+      return parseMeta(await upstream(authIndex, "POST", META_MUSE_QUOTA_URL, header, "{}"));
     }
     default:
       throw new Error("该提供商不支持额度查询");
