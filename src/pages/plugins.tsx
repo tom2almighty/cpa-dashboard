@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, Settings2, ShieldAlert, Trash2 } from "lucide-react";
+import { Download, ExternalLink, Globe, RefreshCw, Settings2, ShieldAlert, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/code-editor";
@@ -27,30 +27,41 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api } from "@/lib/api";
+import { api, resolveUrl } from "@/lib/api";
 
 type ConfigField = { name: string; type?: string; enum_values?: string[] | null; description?: string };
+
+type PluginMenu = { path: string; menu?: string; description?: string };
 
 type Plugin = {
   id: string;
   registered?: boolean;
   enabled?: boolean;
   effective_enabled?: boolean;
+  supports_oauth?: boolean;
+  oauth_provider?: string;
+  logo?: string;
   config_fields?: ConfigField[] | null;
-  menus?: { path: string; menu?: string; description?: string }[] | null;
+  menus?: PluginMenu[] | null;
   metadata?: {
     name?: string;
     version?: string;
     author?: string;
     github_repository?: string;
+    logo?: string;
     config_fields?: ConfigField[] | null;
   };
 };
 
-// 插件资源页挂在 /v0/resource/plugins/<id>/ 下,菜单路径可能已带前缀
-function menuHref(pluginId: string, path: string): string {
-  if (path.startsWith("/v0/")) return path;
-  return `/v0/resource/plugins/${encodeURIComponent(pluginId)}${path.startsWith("/") ? "" : "/"}${path}`;
+// 插件资源页挂在 /v0/resource/plugins/<id>/ 下，结合 CPA 服务地址解析完整访问 URL
+function resolvePluginMenuUrl(pluginId: string, path: string): string {
+  const trimmed = path.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  let rawPath = trimmed;
+  if (!rawPath.startsWith("/v0/resource/plugins/")) {
+    rawPath = `/v0/resource/plugins/${encodeURIComponent(pluginId)}${rawPath.startsWith("/") ? "" : "/"}${rawPath}`;
+  }
+  return resolveUrl(rawPath);
 }
 
 function fieldsOf(p: Plugin): ConfigField[] {
@@ -244,10 +255,74 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
   );
 }
 
+function PluginViewerDialog({
+  title,
+  subtitle,
+  url,
+  onClose,
+}: {
+  title: string;
+  subtitle?: string;
+  url: string;
+  onClose: () => void;
+}) {
+  const [reloadKey, setReloadKey] = useState(0);
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="flex h-[88vh] max-h-[92vh] w-[95vw] max-w-5xl flex-col overflow-hidden p-0 sm:max-w-5xl">
+        <DialogHeader className="flex flex-row items-center justify-between border-b px-4 py-2.5 space-y-0">
+          <div className="flex items-center gap-2 min-w-0 pr-4">
+            <Globe className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <DialogTitle className="truncate text-sm font-semibold">{title}</DialogTitle>
+              {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 pr-6">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="刷新页面"
+              aria-label="刷新页面"
+              onClick={() => setReloadKey((k) => k + 1)}
+            >
+              <RefreshCw className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="在新标签页中打开"
+              aria-label="在新标签页中打开"
+              render={
+                <a href={url} target="_blank" rel="noreferrer">
+                  <ExternalLink className="size-3.5" />
+                </a>
+              }
+            />
+          </div>
+        </DialogHeader>
+        <div className="relative flex-1 bg-background">
+          <iframe
+            key={reloadKey}
+            src={url}
+            title={title}
+            className="size-full border-0"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Installed() {
   const queryClient = useQueryClient();
   const [configuring, setConfiguring] = useState<Plugin | null>(null);
   const [deleting, setDeleting] = useState<Plugin | null>(null);
+  const [viewingResource, setViewingResource] = useState<{ title: string; subtitle?: string; url: string } | null>(
+    null,
+  );
   const { data, isPending, isError, error } = useQuery({
     queryKey: PLUGINS_KEY,
     queryFn: () => api<PluginsResponse>("/v0/management/plugins"),
@@ -309,26 +384,72 @@ function Installed() {
             data.plugins.map((p) => (
               <TableRow key={p.id}>
                 <TableCell>
-                  <div className="font-medium">{p.metadata?.name || p.id}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium">{p.metadata?.name || p.id}</div>
+                    {p.supports_oauth && (
+                      <Badge variant="outline" className="text-[10px] font-normal">
+                        OAuth
+                      </Badge>
+                    )}
+                    {p.metadata?.github_repository && (
+                      <a
+                        href={
+                          p.metadata.github_repository.startsWith("http")
+                            ? p.metadata.github_repository
+                            : `https://github.com/${p.metadata.github_repository}`
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                        title="查看 GitHub 仓库"
+                        aria-label="查看 GitHub 仓库"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <ExternalLink className="size-3" />
+                      </a>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {p.id}
                     {p.metadata?.author && `，作者 ${p.metadata.author}`}
                   </div>
                   {p.effective_enabled && (p.menus?.length ?? 0) > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                      {p.menus?.map((m) => (
-                        <a
-                          key={m.path}
-                          href={menuHref(p.id, m.path)}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={m.description}
-                          className="inline-flex items-center gap-1 text-xs text-chart-1 hover:underline"
-                        >
-                          {m.menu || m.path}
-                          <ExternalLink className="size-3" aria-hidden />
-                        </a>
-                      ))}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {p.menus?.map((m) => {
+                        const href = resolvePluginMenuUrl(p.id, m.path);
+                        const label = m.menu || m.path;
+                        return (
+                          <div
+                            key={m.path}
+                            className="inline-flex items-center rounded-md border bg-muted/40 text-xs shadow-2xs hover:bg-muted"
+                          >
+                            <button
+                              type="button"
+                              className="flex items-center gap-1.5 px-2.5 py-1 text-left font-medium hover:text-primary cursor-pointer"
+                              title={m.description || label}
+                              onClick={() =>
+                                setViewingResource({
+                                  title: `${p.metadata?.name || p.id} - ${label}`,
+                                  subtitle: m.description,
+                                  url: href,
+                                })
+                              }
+                            >
+                              <Globe className="size-3 text-muted-foreground" />
+                              <span>{label}</span>
+                            </button>
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="在新标签页中打开"
+                              aria-label={`在新标签页中打开 ${label}`}
+                              className="border-l p-1.5 text-muted-foreground hover:text-foreground"
+                            >
+                              <ExternalLink className="size-3" />
+                            </a>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </TableCell>
@@ -371,6 +492,14 @@ function Installed() {
       </Table>
 
       {configuring && <ConfigDialog plugin={configuring} onClose={() => setConfiguring(null)} />}
+      {viewingResource && (
+        <PluginViewerDialog
+          title={viewingResource.title}
+          subtitle={viewingResource.subtitle}
+          url={viewingResource.url}
+          onClose={() => setViewingResource(null)}
+        />
+      )}
 
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
