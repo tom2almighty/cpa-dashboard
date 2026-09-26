@@ -480,6 +480,7 @@ export function AccountsPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [keyword, setKeyword] = useState("");
   const [provider, setProvider] = useState("");
+  const [tab, setTab] = useState<"list" | "quota">("list");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cooldown" | "disabled">("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialogs>(null);
@@ -658,56 +659,61 @@ export function AccountsPage() {
           读取账号失败：{error.message}
         </p>
       ) : (
-        <Tabs defaultValue="list">
+        <Tabs value={tab} onValueChange={(v) => setTab((v as typeof tab) ?? "list")}>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <TabsList variant="line">
               <TabsTrigger value="list">列表</TabsTrigger>
               <TabsTrigger value="quota">额度</TabsTrigger>
             </TabsList>
-            <div className="flex flex-wrap gap-2">
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter((v as typeof statusFilter) ?? "all")}>
-                <SelectTrigger className="w-28" aria-label="按状态筛选">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="active">正常</SelectItem>
-                  <SelectItem value="cooldown">冷却中</SelectItem>
-                  <SelectItem value="disabled">已停用</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                items={[{ value: "", label: "全部提供商" }, ...providers.map((p) => ({ value: p, label: p }))]}
-                value={provider}
-                onValueChange={(v) => setProvider(v ?? "")}
-              >
-                <SelectTrigger className="w-36" aria-label="按提供商筛选">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">全部提供商</SelectItem>
-                  {providers.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="搜索账号、备注"
-                  aria-label="搜索账号"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  className="w-56 pl-8"
-                />
+            {tab === "list" && (
+              <div className="flex flex-wrap gap-2">
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter((v as typeof statusFilter) ?? "all")}
+                >
+                  <SelectTrigger className="w-28" aria-label="按状态筛选">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部状态</SelectItem>
+                    <SelectItem value="active">正常</SelectItem>
+                    <SelectItem value="cooldown">冷却中</SelectItem>
+                    <SelectItem value="disabled">已停用</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  items={[{ value: "", label: "全部提供商" }, ...providers.map((p) => ({ value: p, label: p }))]}
+                  value={provider}
+                  onValueChange={(v) => setProvider(v ?? "")}
+                >
+                  <SelectTrigger className="w-36" aria-label="按提供商筛选">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">全部提供商</SelectItem>
+                    {providers.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="搜索账号、备注"
+                    aria-label="搜索账号"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    className="w-56 pl-8"
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <TabsContent value="quota">
-            <QuotaPanel files={files} />
+            <QuotaPanel files={data ?? []} />
           </TabsContent>
           <TabsContent value="list">
             {selected.length > 0 && (

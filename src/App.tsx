@@ -7,7 +7,6 @@ import { api, isUnauthorized, storedKey } from "@/lib/api";
 import { LoginPage } from "@/pages/login";
 
 const StatusPage = lazy(() => import("@/pages/status").then((m) => ({ default: m.StatusPage })));
-const QuotaPage = lazy(() => import("@/pages/quota").then((m) => ({ default: m.QuotaPage })));
 const AccountsPage = lazy(() => import("@/pages/accounts").then((m) => ({ default: m.AccountsPage })));
 const ConfigPage = lazy(() => import("@/pages/config").then((m) => ({ default: m.ConfigPage })));
 const OAuthPage = lazy(() => import("@/pages/oauth").then((m) => ({ default: m.OAuthPage })));
@@ -45,7 +44,6 @@ export function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<StatusPage />} />
-        <Route path="quota" element={<QuotaPage />} />
         <Route path="accounts" element={<AccountsPage />} />
         <Route path="oauth" element={<OAuthPage />} />
         <Route path="providers" element={<ProvidersPage />} />

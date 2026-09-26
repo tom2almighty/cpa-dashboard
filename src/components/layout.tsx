@@ -2,7 +2,6 @@ import {
   Activity,
   Boxes,
   FileCog,
-  Gauge,
   KeyRound,
   KeySquare,
   LogOut,
@@ -38,10 +37,7 @@ import { useLogout } from "@/hooks/use-logout";
 
 type NavItem = { to: string; label: string; icon: typeof Users };
 
-const OVERVIEW_NAV: NavItem[] = [
-  { to: "/", label: "运行概览", icon: Activity },
-  { to: "/quota", label: "额度查询", icon: Gauge },
-];
+const OVERVIEW_NAV: NavItem[] = [{ to: "/", label: "运行概览", icon: Activity }];
 
 const GATEWAY_NAV: NavItem[] = [
   { to: "/accounts", label: "账号", icon: Users },
