@@ -78,6 +78,8 @@ function kindOf(f: ConfigField): "bool" | "number" | "enum" | "text" {
 
 type PluginsResponse = { plugins_enabled?: boolean; plugins_dir?: string; plugins?: Plugin[] };
 
+type PluginPlatform = { goos?: string; goarch?: string };
+
 type StorePlugin = {
   store_id: string;
   source_id: string;
@@ -89,6 +91,12 @@ type StorePlugin = {
   version?: string;
   repository?: string;
   homepage?: string;
+  license?: string;
+  tags?: string[];
+  platforms?: PluginPlatform[];
+  install_type?: string;
+  auth_required?: boolean;
+  auth_configured?: boolean;
   installed?: boolean;
   installed_version?: string;
   update_available?: boolean;
@@ -630,6 +638,11 @@ function Store() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {plugins.map((p) => {
             const repoUrl = formatRepoUrl(p.repository, p.homepage);
+            const isOfficial = (p.repository || "").toLowerCase().includes("router-for-me/");
+            const platformList = (p.platforms ?? [])
+              .map((plat) => (plat.goos && plat.goarch ? `${plat.goos}/${plat.goarch}` : ""))
+              .filter(Boolean);
+
             return (
               <Card
                 key={p.store_id}
@@ -652,6 +665,19 @@ function Store() {
                             可更新
                           </Badge>
                         )}
+                        {!isOfficial && p.repository && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0 h-4 text-warning border-warning/40"
+                          >
+                            第三方
+                          </Badge>
+                        )}
+                        {p.auth_required && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground">
+                            需认证
+                          </Badge>
+                        )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground truncate" title={p.id}>
                         {p.id}
@@ -659,27 +685,69 @@ function Store() {
                       </p>
                     </div>
 
-                    {repoUrl && (
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
-                        title={`查看 GitHub 仓库：${p.repository || repoUrl}`}
-                        aria-label={`查看 ${p.name || p.id} 的 GitHub 仓库`}
-                        render={
-                          <a href={repoUrl} target="_blank" rel="noreferrer">
-                            <GithubIcon className="size-3.5" />
-                          </a>
-                        }
-                      />
-                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {repoUrl && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          className="text-muted-foreground hover:text-foreground"
+                          title={`查看 GitHub 仓库：${p.repository || repoUrl}`}
+                          aria-label={`查看 ${p.name || p.id} 的 GitHub 仓库`}
+                          render={
+                            <a href={repoUrl} target="_blank" rel="noreferrer">
+                              <GithubIcon className="size-3.5" />
+                            </a>
+                          }
+                        />
+                      )}
+                      {p.homepage && !p.homepage.includes("github.com") && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          className="text-muted-foreground hover:text-foreground"
+                          title={`访问官方主页：${p.homepage}`}
+                          aria-label={`访问 ${p.name || p.id} 官方主页`}
+                          render={
+                            <a href={p.homepage} target="_blank" rel="noreferrer">
+                              <ExternalLink className="size-3.5" />
+                            </a>
+                          }
+                        />
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
 
-                <CardContent className="flex-1 pb-3 text-sm text-muted-foreground">
+                <CardContent className="flex-1 space-y-2.5 pb-3 text-sm text-muted-foreground">
                   <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap break-words text-xs sm:text-sm">
                     {p.description || "暂无描述"}
                   </p>
+
+                  {/* 标签列表 */}
+                  {p.tags && p.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {p.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 规格明细：许可证、安装类型、系统平台 */}
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground/80 pt-1">
+                    {p.license && <span>开源协议：{p.license}</span>}
+                    {p.install_type && <span>方式：{p.install_type.replace(/-/g, " ")}</span>}
+                    {platformList.length > 0 && (
+                      <span title={platformList.join(", ")}>
+                        平台：{platformList.slice(0, 2).join(", ")}
+                        {platformList.length > 2 && ` +${platformList.length - 2}`}
+                      </span>
+                    )}
+                  </div>
                 </CardContent>
 
                 <CardFooter className="flex items-center justify-between border-t bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
