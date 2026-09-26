@@ -560,6 +560,26 @@ export function AccountsPage() {
       toast.error(`批量删除失败：${err.message}`);
     },
   });
+
+  const batchToggle = useMutation({
+    mutationFn: async (disabled: boolean) => {
+      for (const name of selected) {
+        await api("/v0/management/auth-files/status", {
+          method: "PATCH",
+          body: { name, disabled },
+        });
+      }
+      return { count: selected.length, disabled };
+    },
+    onSuccess: ({ count, disabled }) => {
+      toast.success(`已批量${disabled ? "停用" : "启用"} ${count} 个认证文件`);
+      setSelected([]);
+      refresh();
+    },
+    onError: (err: Error) => {
+      toast.error(`批量设置状态失败：${err.message}`);
+    },
+  });
   const upload = useMutation({
     mutationFn: async (files: File[]) => {
       for (const f of files) {
@@ -717,11 +737,31 @@ export function AccountsPage() {
           </TabsContent>
           <TabsContent value="list">
             {selected.length > 0 && (
-              <div className="mb-3 flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2 text-xs">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-xs">
                 <span>
                   已选择 <strong className="font-semibold text-foreground">{selected.length}</strong> 个认证文件
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={batchToggle.isPending}
+                    onClick={() => batchToggle.mutate(false)}
+                  >
+                    {batchToggle.isPending && !batchToggle.variables ? <Spinner className="size-3" /> : null}
+                    批量启用
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={batchToggle.isPending}
+                    onClick={() => batchToggle.mutate(true)}
+                  >
+                    {batchToggle.isPending && batchToggle.variables ? <Spinner className="size-3" /> : null}
+                    批量停用
+                  </Button>
                   <Button
                     variant="destructive"
                     size="sm"
