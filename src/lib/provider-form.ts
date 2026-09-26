@@ -123,91 +123,35 @@ export async function fetchProviderModels(
         ? [`${cleanBase}/models`]
         : [`${cleanBase}/models`, `${cleanBase}/v1/models`];
 
-    let fetchError: Error | null = null;
+    let lastError = "未返回任何模型";
     for (const url of candidateUrls) {
-      // 优先通过 CPA 后端 /api-call 代理请求，避开前端浏览器 CORS 跨域限制
-      try {
-        const res = await api<{ status_code: number; body?: unknown }>("/v0/management/api-call", {
-          method: "POST",
-          body: {
-            method: "GET",
-            url,
-            header: customHeaders,
-          },
-        });
-        if (res.status_code >= 200 && res.status_code < 300) {
-          const bodyObj = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
-          const items = Array.isArray(bodyObj)
-            ? bodyObj
-            : Array.isArray(bodyObj?.data)
-              ? bodyObj.data
-              : Array.isArray(bodyObj?.models)
-                ? bodyObj.models
-                : [];
-          for (const item of items) {
-            const id = typeof item === "string" ? item : item?.id || item?.name;
-            if (typeof id === "string" && id) models.add(id);
-          }
-          if (models.size > 0) break;
-        } else {
-          fetchError = new Error(`上游返回 HTTP ${res.status_code}`);
-        }
-      } catch {
-        // api-call 失败时降级尝试前端直接 fetch
-        try {
-          const res = await fetch(url, { headers: customHeaders, signal: AbortSignal.timeout(8000) });
-          if (res.ok) {
-            const json = await res.json();
-            const items = Array.isArray(json)
-              ? json
-              : Array.isArray(json?.data)
-                ? json.data
-                : Array.isArray(json?.models)
-                  ? json.models
-                  : [];
-            for (const item of items) {
-              const id = typeof item === "string" ? item : item?.id || item?.name;
-              if (typeof id === "string" && id) models.add(id);
-            }
-            if (models.size > 0) break;
-          } else {
-            fetchError = new Error(`上游返回 HTTP ${res.status}`);
-          }
-        } catch (err) {
-          const msg = (err as Error)?.message || String(err);
-          fetchError = new Error(msg === "Failed to fetch" ? "网络请求失败（可能是跨域限制 CORS 或网络不可达）" : msg);
-        }
+      // 走 CPA 的 /api-call 代理，避开浏览器 CORS
+      const res = await api<{ status_code: number; body?: unknown }>("/v0/management/api-call", {
+        method: "POST",
+        body: { method: "GET", url, header: customHeaders },
+      });
+      if (res.status_code < 200 || res.status_code >= 300) {
+        lastError = `上游返回 HTTP ${res.status_code}`;
+        continue;
       }
+      const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+      const items: unknown[] = Array.isArray(body) ? body : (body?.data ?? body?.models ?? []);
+      for (const item of items) {
+        const id = typeof item === "string" ? item : (item as Json)?.id || (item as Json)?.name;
+        if (typeof id === "string" && id) models.add(id);
+      }
+      if (models.size > 0) return Array.from(models).sort();
     }
-    if (models.size > 0) {
-      return Array.from(models).sort();
-    }
-    throw new Error(`获取上游模型失败：${fetchError?.message || "未返回任何模型"}`);
+    throw new Error(`获取上游模型失败：${lastError}`);
   }
 
-  // 2. 未填写 Base URL 时，匹配 CPA 内置渠道定义
+  // 2. 未填写 Base URL 时，使用 CPA 内置渠道的模型定义
   for (const ch of KIND_CHANNEL_MAP[kind.endpoint] ?? []) {
-    try {
-      const res = await api<{ models?: { id: string }[] }>(
-        `/v0/management/model-definitions/${encodeURIComponent(ch)}`,
-      );
-      for (const m of res.models ?? []) {
-        if (m.id) models.add(m.id);
-      }
-    } catch {}
+    const res = await api<{ models?: { id: string }[] }>(`/v0/management/model-definitions/${encodeURIComponent(ch)}`);
+    for (const m of res.models ?? []) {
+      if (m.id) models.add(m.id);
+    }
   }
-
-  // 3. 兜底获取 CPA 实例已有的 /v1/models
-  if (models.size === 0) {
-    try {
-      const res = await api<{ data?: { id: string }[]; models?: { id: string }[] } | { id: string }[]>("/v1/models");
-      const list = Array.isArray(res) ? res : (res?.data ?? res?.models ?? []);
-      for (const m of list) {
-        if (m.id) models.add(m.id);
-      }
-    } catch {}
-  }
-
   return Array.from(models).sort();
 }
 

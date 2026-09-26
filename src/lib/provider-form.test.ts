@@ -70,61 +70,49 @@ test("解析与格式化模型行", () => {
   ).toBe("model-a");
 });
 
-test("fetchProviderModels 填写 Base URL 时使用上游模型且包含 Claude 专属 Header，不混入内置渠道定义", async () => {
+// api() 读取存储里的服务地址与密钥,测试环境给个空实现
+const storage = { getItem: () => null } as unknown as Storage;
+Object.assign(globalThis, { localStorage: storage, sessionStorage: storage });
+
+// 模拟 CPA 的 /api-call:记录转发请求,返回指定的上游状态码与响应体
+async function withApiCall(
+  statusCode: number,
+  body: unknown,
+  run: (calls: { url: string; header: Record<string, string> }[]) => Promise<void>,
+) {
   const originalFetch = globalThis.fetch;
-  let requestedUrl = "";
-  let requestedHeaders: Record<string, string> = {};
-
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    requestedUrl = String(url);
-    requestedHeaders = (init?.headers as Record<string, string>) ?? {};
-    return new Response(JSON.stringify({ data: [{ id: "custom-claude-3-7-sonnet" }] }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+  const calls: { url: string; header: Record<string, string> }[] = [];
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return Response.json({ status_code: statusCode, body: JSON.stringify(body) });
   }) as typeof fetch;
-
   try {
-    const list = await fetchProviderModels(claude, "https://custom.api.com", "sk-ant-test");
-    expect(list).toEqual(["custom-claude-3-7-sonnet"]);
-    expect(requestedUrl).toBe("https://custom.api.com/models");
-    expect(requestedHeaders["x-api-key"]).toBe("sk-ant-test");
-    expect(requestedHeaders["anthropic-version"]).toBe("2023-06-01");
-    expect(requestedHeaders.Authorization).toBe("Bearer sk-ant-test");
+    await run(calls);
   } finally {
     globalThis.fetch = originalFetch;
   }
-});
+}
 
-test("fetchProviderModels 填写 Base URL 失败时直接报错，不静默降级为内置模型", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => {
-    return new Response("Unauthorized", { status: 401 });
-  }) as typeof fetch;
+test("fetchProviderModels 填写 Base URL 时经 /api-call 拉上游模型并带 Claude 专属 Header", () =>
+  withApiCall(200, { data: [{ id: "custom-claude-3-7-sonnet" }] }, async (calls) => {
+    const list = await fetchProviderModels(claude, "https://custom.api.com", "sk-ant-test");
+    expect(list).toEqual(["custom-claude-3-7-sonnet"]);
+    expect(calls[0].url).toBe("https://custom.api.com/models");
+    expect(calls[0].header["x-api-key"]).toBe("sk-ant-test");
+    expect(calls[0].header["anthropic-version"]).toBe("2023-06-01");
+    expect(calls[0].header.Authorization).toBe("Bearer sk-ant-test");
+  }));
 
-  try {
+test("fetchProviderModels 上游失败时直接报出状态码", () =>
+  withApiCall(401, "Unauthorized", async () => {
     await expect(fetchProviderModels(claude, "https://custom.api.com", "bad-key")).rejects.toThrow(
       "获取上游模型失败：上游返回 HTTP 401",
     );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
+  }));
 
-test("fetchProviderModels 自定义 Base URL 若以 /models 结尾不重复追加", async () => {
-  const originalFetch = globalThis.fetch;
-  let requestedUrl = "";
-
-  globalThis.fetch = (async (url: string | URL | Request) => {
-    requestedUrl = String(url);
-    return new Response(JSON.stringify([{ id: "m1" }]), { status: 200 });
-  }) as typeof fetch;
-
-  try {
+test("fetchProviderModels 自定义 Base URL 若以 /models 结尾不重复追加", () =>
+  withApiCall(200, [{ id: "m1" }], async (calls) => {
     const list = await fetchProviderModels(claude, "https://custom.api.com/v1/models", "k");
     expect(list).toEqual(["m1"]);
-    expect(requestedUrl).toBe("https://custom.api.com/v1/models");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
+    expect(calls.map((c) => c.url)).toEqual(["https://custom.api.com/v1/models"]);
+  }));
