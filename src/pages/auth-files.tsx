@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { zipSync } from "fflate";
 import {
   Boxes,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
 import { type ChangeEvent, type FormEvent, useDeferredValue, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
+import { Pagination, paginate } from "@/components/pagination";
 import { accountName, QuotaPanel } from "@/components/quota-panel";
 import { RequestSparkline } from "@/components/sparkline";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
@@ -49,12 +51,13 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { api, download } from "@/lib/api";
+import { api, download, fetchBlob, saveBlob } from "@/lib/api";
 import { formatDateTime, formatInteger, formatRelative } from "@/lib/format";
 import type { AuthFile } from "@/lib/types";
 
 const QUERY_KEY = ["cpa", "auth-files"];
 const file = (name: string) => encodeURIComponent(name);
+const PAGE_SIZE = 50;
 
 const COOLDOWN_REASONS: Record<string, string> = {
   quota: "额度超限",
@@ -485,6 +488,11 @@ export function AuthFilesPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialogs>(null);
   const deferredKeyword = useDeferredValue(keyword);
+  // 页码跟筛选条件绑定,条件一变自动回到第一页
+  const filterKey = `${deferredKeyword}|${provider}|${statusFilter}`;
+  const [pager, setPager] = useState({ filterKey, page: 1 });
+  const page = pager.filterKey === filterKey ? pager.page : 1;
+  const setPage = (next: number) => setPager({ filterKey, page: next });
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: QUERY_KEY,
@@ -580,6 +588,25 @@ export function AuthFilesPage() {
       toast.error(`批量设置状态失败：${err.message}`);
     },
   });
+  // 选中的文件打包成一个 zip 下载,仅存在于内存的凭据没有文件,跳过
+  const batchDownload = useMutation({
+    mutationFn: async (names: string[]) => {
+      const targets = (data ?? []).filter((f) => names.includes(f.name) && !f.runtime_only);
+      if (targets.length === 0) throw new Error("选中的凭据没有可下载的文件");
+      const entries = await Promise.all(
+        targets.map(async (f) => {
+          const blob = await fetchBlob(`/v0/management/auth-files/download?name=${file(f.name)}`);
+          return [f.name, new Uint8Array(await blob.arrayBuffer())] as const;
+        }),
+      );
+      saveBlob(new Blob([zipSync(Object.fromEntries(entries))]), `auth-files-${Date.now()}.zip`);
+      return { count: targets.length, skipped: names.length - targets.length };
+    },
+    onSuccess: ({ count, skipped }) =>
+      toast.success(`已打包下载 ${count} 个认证文件${skipped ? `，跳过 ${skipped} 个无文件的凭据` : ""}`),
+    onError: (err: Error) => toast.error(`批量下载失败：${err.message}`),
+  });
+
   const upload = useMutation({
     mutationFn: async (files: File[]) => {
       for (const f of files) {
@@ -620,10 +647,11 @@ export function AuthFilesPage() {
     });
   }, [data, deferredKeyword, provider, statusFilter]);
 
-  const allSelected = files.length > 0 && files.every((f) => selected.includes(f.name));
+  const { pageItems, current, pageCount } = paginate(files, page, PAGE_SIZE);
+  const allSelected = pageItems.length > 0 && pageItems.every((f) => selected.includes(f.name));
   const toggleAll = () => {
-    if (allSelected) setSelected([]);
-    else setSelected(files.map((f) => f.name));
+    const names = pageItems.map((f) => f.name);
+    setSelected((prev) => (allSelected ? prev.filter((n) => !names.includes(n)) : [...new Set([...prev, ...names])]));
   };
   const toggleOne = (name: string) => {
     setSelected((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
@@ -763,6 +791,16 @@ export function AuthFilesPage() {
                     批量停用
                   </Button>
                   <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={batchDownload.isPending}
+                    onClick={() => batchDownload.mutate(selected)}
+                  >
+                    {batchDownload.isPending ? <Spinner className="size-3" /> : <Download className="size-3" />}
+                    批量下载
+                  </Button>
+                  <Button
                     variant="destructive"
                     size="sm"
                     className="h-7 text-xs"
@@ -805,7 +843,7 @@ export function AuthFilesPage() {
                       : "还没有认证文件，可以上传 JSON 文件或在 OAuth 登录页添加。"}
                   </EmptyRow>
                 ) : (
-                  files.map((f) => (
+                  pageItems.map((f) => (
                     <TableRow key={f.id || f.name} className={f.disabled ? "text-muted-foreground" : undefined}>
                       <TableCell>
                         <Checkbox
@@ -910,6 +948,7 @@ export function AuthFilesPage() {
                 )}
               </TableBody>
             </Table>
+            <Pagination page={current} pageCount={pageCount} total={files.length} onChange={setPage} />
           </TabsContent>
         </Tabs>
       )}

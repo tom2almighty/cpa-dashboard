@@ -115,14 +115,20 @@ export function isUnauthorized(error: unknown): boolean {
 
 // ---------- 下载 ----------
 
-function saveBlob(blob: Blob, filename: string) {
+export function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = Object.assign(document.createElement("a"), { href: url, download: filename });
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// 用 fetch 下载而不是 <a href>,要带管理密钥
+// 用 fetch 取文件而不是 <a href>,要带管理密钥
+export async function fetchBlob(path: string): Promise<Blob> {
+  const res = await request(path);
+  if (!res.ok) throw await toError(res);
+  return res.blob();
+}
+
 export async function download(path: string, fallbackName: string) {
   const res = await request(path);
   if (!res.ok) throw await toError(res);
