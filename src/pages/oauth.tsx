@@ -219,7 +219,7 @@ export function OAuthPage() {
 
   return (
     <>
-      <PageHeader title="OAuth 登录" description="登录成功后，CPA 会把认证文件保存到认证目录，可在账号页查看。" />
+      <PageHeader title="OAuth 登录" description="登录成功后，CPA 会把认证文件保存到认证目录，可在认证文件页查看。" />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[...PROVIDERS, ...pluginProviders].map((p) => (
           <ProviderCard key={p.id} provider={p} />

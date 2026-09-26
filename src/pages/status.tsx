@@ -113,8 +113,8 @@ export function StatusPage() {
             <h2 id="distribution-title" className="font-medium">
               账号分布
             </h2>
-            <Link to="/accounts" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
-              全部账号
+            <Link to="/auth-files" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+              全部认证文件
             </Link>
           </div>
           {byProvider.length === 0 ? (

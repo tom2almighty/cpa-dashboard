@@ -2,6 +2,7 @@ import {
   Activity,
   Boxes,
   FileCog,
+  FileKey,
   KeyRound,
   KeySquare,
   LogOut,
@@ -9,7 +10,6 @@ import {
   Puzzle,
   ScrollText,
   Sparkles,
-  Users,
 } from "lucide-react";
 import { Suspense, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
@@ -35,12 +35,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { useVersionData, VersionDialog } from "@/components/version-dialog";
 import { useLogout } from "@/hooks/use-logout";
 
-type NavItem = { to: string; label: string; icon: typeof Users };
+type NavItem = { to: string; label: string; icon: typeof FileKey };
 
 const OVERVIEW_NAV: NavItem[] = [{ to: "/", label: "运行概览", icon: Activity }];
 
 const GATEWAY_NAV: NavItem[] = [
-  { to: "/accounts", label: "账号", icon: Users },
+  { to: "/auth-files", label: "认证文件", icon: FileKey },
   { to: "/oauth", label: "OAuth 登录", icon: KeySquare },
   { to: "/providers", label: "提供商", icon: Network },
   { to: "/api-keys", label: "API Key", icon: KeyRound },
