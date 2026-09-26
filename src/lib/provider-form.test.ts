@@ -1,9 +1,19 @@
 import { expect, test } from "bun:test";
-import { formatModelRows, fromForm, KINDS, parseModelRows, toForm, validate } from "./provider-form";
+import {
+  fetchProviderModels,
+  formatModelRows,
+  fromForm,
+  KINDS,
+  parseModelRows,
+  toForm,
+  validate,
+} from "./provider-form";
 
-const claude = KINDS.find((k) => k.endpoint === "claude-api-key");
-const openai = KINDS.find((k) => k.endpoint === "openai-compatibility");
-if (!claude || !openai) throw new Error("缺少提供商定义");
+const rawClaude = KINDS.find((k) => k.endpoint === "claude-api-key");
+const rawOpenai = KINDS.find((k) => k.endpoint === "openai-compatibility");
+if (!rawClaude || !rawOpenai) throw new Error("缺少提供商定义");
+const claude = rawClaude;
+const openai = rawOpenai;
 
 test("编辑时保留表单不管的字段,清空的字段会删除", () => {
   const original = {
@@ -58,4 +68,63 @@ test("解析与格式化模型行", () => {
       { name: "model-a", alias: "" },
     ]),
   ).toBe("model-a");
+});
+
+test("fetchProviderModels 填写 Base URL 时使用上游模型且包含 Claude 专属 Header，不混入内置渠道定义", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let requestedHeaders: Record<string, string> = {};
+
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    requestedUrl = String(url);
+    requestedHeaders = (init?.headers as Record<string, string>) ?? {};
+    return new Response(JSON.stringify({ data: [{ id: "custom-claude-3-7-sonnet" }] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const list = await fetchProviderModels(claude, "https://custom.api.com", "sk-ant-test");
+    expect(list).toEqual(["custom-claude-3-7-sonnet"]);
+    expect(requestedUrl).toBe("https://custom.api.com/models");
+    expect(requestedHeaders["x-api-key"]).toBe("sk-ant-test");
+    expect(requestedHeaders["anthropic-version"]).toBe("2023-06-01");
+    expect(requestedHeaders.Authorization).toBe("Bearer sk-ant-test");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("fetchProviderModels 填写 Base URL 失败时直接报错，不静默降级为内置模型", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return new Response("Unauthorized", { status: 401 });
+  }) as typeof fetch;
+
+  try {
+    await expect(fetchProviderModels(claude, "https://custom.api.com", "bad-key")).rejects.toThrow(
+      "获取上游模型失败：上游返回 HTTP 401",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("fetchProviderModels 自定义 Base URL 若以 /models 结尾不重复追加", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    requestedUrl = String(url);
+    return new Response(JSON.stringify([{ id: "m1" }]), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const list = await fetchProviderModels(claude, "https://custom.api.com/v1/models", "k");
+    expect(list).toEqual(["m1"]);
+    expect(requestedUrl).toBe("https://custom.api.com/v1/models");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

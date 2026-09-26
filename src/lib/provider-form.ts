@@ -92,24 +92,38 @@ export async function fetchProviderModels(
   headersText = "",
 ): Promise<string[]> {
   const models = new Set<string>();
-  let fetchError: Error | null = null;
   const cleanBase = baseUrl.trim().replace(/\/+$/, "");
 
-  // 1. 若填写了 Base URL，向上游标准 /models 或 /v1/models 获取
+  // 1. 若填写了 Base URL，仅向上游标准 /models 或 /v1/models 获取，不混入内置渠道定义
   if (cleanBase) {
     const customHeaders: Record<string, string> = {};
+    const trimmedKey = apiKey.trim();
+
+    if (trimmedKey) {
+      customHeaders.Authorization = `Bearer ${trimmedKey}`;
+      if (kind.endpoint === "claude-api-key") {
+        customHeaders["x-api-key"] = trimmedKey;
+      } else if (kind.endpoint === "gemini-api-key") {
+        customHeaders["x-goog-api-key"] = trimmedKey;
+      }
+    }
+    if (kind.endpoint === "claude-api-key") {
+      customHeaders["anthropic-version"] = "2023-06-01";
+    }
+
+    // 用户填写的自定义 Header 具有最高优先级，覆盖默认值
     for (const line of lines(headersText)) {
       const i = line.indexOf(":");
       if (i > 0) customHeaders[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     }
-    if (apiKey.trim()) {
-      customHeaders.Authorization = `Bearer ${apiKey.trim()}`;
-    }
 
-    const candidateUrls = cleanBase.endsWith("/v1")
-      ? [`${cleanBase}/models`]
-      : [`${cleanBase}/models`, `${cleanBase}/v1/models`];
+    const candidateUrls = cleanBase.endsWith("/models")
+      ? [cleanBase]
+      : cleanBase.endsWith("/v1")
+        ? [`${cleanBase}/models`]
+        : [`${cleanBase}/models`, `${cleanBase}/v1/models`];
 
+    let fetchError: Error | null = null;
     for (const url of candidateUrls) {
       try {
         const res = await fetch(url, { headers: customHeaders, signal: AbortSignal.timeout(8000) });
@@ -131,12 +145,18 @@ export async function fetchProviderModels(
           fetchError = new Error(`上游返回 HTTP ${res.status}`);
         }
       } catch (err) {
-        fetchError = err as Error;
+        const msg = (err as Error)?.message || String(err);
+        fetchError = new Error(msg === "Failed to fetch" ? "网络请求失败（可能是跨域限制 CORS 或网络不可达）" : msg);
       }
     }
+
+    if (models.size > 0) {
+      return Array.from(models).sort();
+    }
+    throw new Error(`获取上游模型失败：${fetchError?.message || "未返回任何模型"}`);
   }
 
-  // 2. 匹配 CPA 内置渠道定义
+  // 2. 未填写 Base URL 时，匹配 CPA 内置渠道定义
   for (const ch of KIND_CHANNEL_MAP[kind.endpoint] ?? []) {
     try {
       const res = await api<{ models?: { id: string }[] }>(
@@ -159,11 +179,7 @@ export async function fetchProviderModels(
     } catch {}
   }
 
-  const result = Array.from(models).sort();
-  if (result.length === 0 && fetchError) {
-    throw new Error(`获取上游模型失败：${fetchError.message}`);
-  }
-  return result;
+  return Array.from(models).sort();
 }
 
 export function mask(key: string): string {
