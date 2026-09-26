@@ -1,15 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  ArrowUpDown,
-  CheckCircle2,
-  Clock,
-  Gauge,
-  OctagonAlert,
-  RefreshCw,
-  Search,
-  Sparkles,
-} from "lucide-react";
+import { AlertTriangle, ArrowUpDown, Clock, Gauge, OctagonAlert, RefreshCw, Search, Sparkles } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -38,10 +28,13 @@ const CHANNELS: { id: string; label: string }[] = [
   { id: "antigravity", label: "Antigravity" },
 ];
 
-function level(used: number | null): "ok" | "warn" | "danger" {
-  if (used === null) return "ok";
-  if (used >= 95) return "danger";
-  if (used >= 80) return "warn";
+// 剩余不超过该百分比视为紧张,卡片、统计与"仅看告警"共用
+const WARN_REMAINING = 20;
+
+function level(remaining: number | null): "ok" | "warn" | "danger" {
+  if (remaining === null) return "ok";
+  if (remaining <= 0) return "danger";
+  if (remaining <= WARN_REMAINING) return "warn";
   return "ok";
 }
 
@@ -52,9 +45,8 @@ const BAR_COLOR = {
 };
 
 function MeterRow({ window: w }: { window: QuotaWindow }) {
-  const state = level(w.usedPercent);
-  const used = w.usedPercent === null ? null : Math.round(w.usedPercent);
-  const remaining = used === null ? null : Math.max(0, Math.min(100, 100 - used));
+  const remaining = w.usedPercent === null ? null : Math.max(0, Math.min(100, 100 - Math.round(w.usedPercent)));
+  const state = level(remaining);
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-1.5">
@@ -161,17 +153,15 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
     let healthy = 0;
     let warning = 0;
     let exhausted = 0;
+    let failed = 0;
 
     for (const it of items) {
-      if (it.minRemaining !== null) {
-        if (it.minRemaining <= 0) exhausted++;
-        else if (it.minRemaining <= 20) warning++;
-        else healthy++;
-      } else if (it.query?.isSuccess) {
-        healthy++;
-      }
+      if (it.query?.isError) failed++;
+      else if (level(it.minRemaining) === "danger") exhausted++;
+      else if (level(it.minRemaining) === "warn") warning++;
+      else if (it.query?.isSuccess) healthy++;
     }
-    return { total: items.length, healthy, warning, exhausted };
+    return { total: items.length, healthy, warning, exhausted, failed };
   }, [items]);
 
   const upcomingResets = useMemo(() => {
@@ -206,7 +196,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
     return items
       .filter((it) => {
         if (selectedChannel !== "all" && it.provider !== selectedChannel) return false;
-        if (warningOnly && (it.minRemaining === null || it.minRemaining > 20)) return false;
+        if (warningOnly && level(it.minRemaining) === "ok" && !it.query?.isError) return false;
         if (query) {
           const matchName = it.name.toLowerCase().includes(query);
           const matchProvider = (it.file.provider ?? "").toLowerCase().includes(query);
@@ -234,9 +224,10 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
   const isRefreshingAll = results.some((r) => r?.isFetching);
 
   const handleRefreshAll = async () => {
-    toast.info("正在刷新所有账号配额…");
-    await Promise.all(results.map((r) => r?.refetch()));
-    toast.success("已完成配额刷新");
+    const done = await Promise.all(results.map((r) => r.refetch()));
+    const failed = done.filter((r) => r.isError).length;
+    if (failed) toast.error(`${failed} 个认证文件额度查询失败`);
+    else toast.success("额度已刷新");
   };
 
   if (targets.length === 0) {
@@ -262,7 +253,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
               <Clock className="size-3.5" />
               恢复计划与监控
               {upcomingResets.length > 0 && (
-                <span className="rounded-full bg-chart-1/15 px-1.5 py-0.2 text-[10px] font-semibold text-chart-1">
+                <span className="rounded-full bg-chart-1/15 px-1.5 py-0.5 text-[10px] font-semibold text-chart-1">
                   {upcomingResets.length}
                 </span>
               )}
@@ -291,6 +282,12 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
               <span className="flex items-center gap-1 text-destructive font-medium">
                 <span className="size-1.5 rounded-full bg-destructive" />
                 {metrics.exhausted} 用尽
+              </span>
+            )}
+            {metrics.failed > 0 && (
+              <span className="flex items-center gap-1 font-medium">
+                <span className="size-1.5 rounded-full bg-muted-foreground" />
+                {metrics.failed} 查询失败
               </span>
             )}
           </div>
@@ -341,13 +338,13 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Tabs value={selectedChannel} onValueChange={setSelectedChannel} className="w-full sm:w-auto">
               <TabsList className="h-9 flex-wrap">
-                {CHANNELS.map((ch) => {
-                  const count = channelCounts[ch.id] || 0;
+                {CHANNELS.filter((ch) => channelCounts[ch.id]).map((ch) => {
+                  const count = channelCounts[ch.id];
                   return (
                     <TabsTrigger key={ch.id} value={ch.id} className="gap-1.5 text-xs">
                       {ch.label}
                       {count > 0 && (
-                        <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.2 text-[10px] font-semibold">
+                        <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold">
                           {count}
                         </span>
                       )}
@@ -475,45 +472,6 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
       {/* 视图二：恢复计划与大盘监控（完整统计与时间线） */}
       {subView === "schedule" && (
         <div className="space-y-6">
-          {/* 大盘指标统计卡片 */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">总监控账号</span>
-                <Gauge className="size-4 text-muted-foreground" />
-              </div>
-              <div className="mt-2 text-2xl font-semibold tabular-nums">{metrics.total}</div>
-              <p className="mt-1 text-xs text-muted-foreground">支持额度查询的凭据数</p>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">额度充裕</span>
-                <CheckCircle2 className="size-4 text-chart-1" />
-              </div>
-              <div className="mt-2 text-2xl font-semibold tabular-nums text-chart-1">{metrics.healthy}</div>
-              <p className="mt-1 text-xs text-muted-foreground">剩余用量 &gt; 20%</p>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">用量紧张</span>
-                <AlertTriangle className="size-4 text-warning" />
-              </div>
-              <div className="mt-2 text-2xl font-semibold tabular-nums text-warning">{metrics.warning}</div>
-              <p className="mt-1 text-xs text-muted-foreground">剩余用量 &le; 20%</p>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">额度用尽</span>
-                <OctagonAlert className="size-4 text-destructive" />
-              </div>
-              <div className="mt-2 text-2xl font-semibold tabular-nums text-destructive">{metrics.exhausted}</div>
-              <p className="mt-1 text-xs text-muted-foreground">当前等待窗口刷新</p>
-            </Card>
-          </div>
-
           {/* 即将恢复额度窗口卡片 */}
           <Card className="p-5">
             <div className="mb-4 flex items-center justify-between">
