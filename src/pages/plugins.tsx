@@ -87,10 +87,19 @@ type StorePlugin = {
   description?: string;
   author?: string;
   version?: string;
+  repository?: string;
+  homepage?: string;
   installed?: boolean;
   installed_version?: string;
   update_available?: boolean;
 };
+
+function formatRepoUrl(repo?: string, homepage?: string): string {
+  const target = (repo || homepage || "").trim();
+  if (!target) return "";
+  if (/^https?:\/\//i.test(target)) return target;
+  return `https://github.com/${target.replace(/^\/+/, "")}`;
+}
 
 type StoreResponse = { sources?: { id: string; name?: string; error?: string }[]; plugins?: StorePlugin[] };
 
@@ -600,79 +609,97 @@ function Store() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {plugins.map((p) => (
-            <Card
-              key={p.store_id}
-              className="flex flex-col justify-between transition-colors hover:border-foreground/20"
-            >
-              <CardHeader className="pb-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <CardTitle className="truncate text-base font-semibold" title={p.name || p.id}>
-                        {p.name || p.id}
-                      </CardTitle>
-                      {p.installed && !p.update_available && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-                          已安装
-                        </Badge>
-                      )}
-                      {p.update_available && (
-                        <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4">
-                          可更新
-                        </Badge>
-                      )}
+          {plugins.map((p) => {
+            const repoUrl = formatRepoUrl(p.repository, p.homepage);
+            return (
+              <Card
+                key={p.store_id}
+                className="flex flex-col justify-between transition-colors hover:border-foreground/20"
+              >
+                <CardHeader className="pb-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <CardTitle className="truncate text-base font-semibold" title={p.name || p.id}>
+                          {p.name || p.id}
+                        </CardTitle>
+                        {p.installed && !p.update_available && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                            已安装
+                          </Badge>
+                        )}
+                        {p.update_available && (
+                          <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4">
+                            可更新
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                        <span className="font-mono text-[11px] truncate" title={p.id}>
+                          {p.id}
+                        </span>
+                        {p.author && <span>· {p.author}</span>}
+                        {repoUrl && (
+                          <a
+                            href={repoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={`查看 GitHub 仓库：${p.repository || repoUrl}`}
+                            aria-label={`查看 ${p.name || p.id} 的 GitHub 仓库`}
+                            className="inline-flex items-center gap-1 text-[11px] text-chart-1 hover:underline ml-auto"
+                          >
+                            <ExternalLink className="size-3" />
+                            <span className="max-w-[130px] truncate">{p.repository || "GitHub"}</span>
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground truncate" title={p.id}>
-                      {p.id}
-                      {p.author && <span> · {p.author}</span>}
-                    </p>
                   </div>
-                </div>
-              </CardHeader>
+                </CardHeader>
 
-              <CardContent className="flex-1 pb-3 text-sm text-muted-foreground">
-                <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap break-words text-xs sm:text-sm">
-                  {p.description || "暂无描述"}
-                </p>
-              </CardContent>
+                <CardContent className="flex-1 pb-3 text-sm text-muted-foreground">
+                  <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap break-words text-xs sm:text-sm">
+                    {p.description || "暂无描述"}
+                  </p>
+                </CardContent>
 
-              <CardFooter className="flex items-center justify-between border-t bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
-                <div className="flex flex-col gap-0.5">
-                  <span className="truncate max-w-[120px]" title={p.source_name || p.source_id}>
-                    {p.source_name || p.source_id}
-                  </span>
-                  <span className="font-mono text-[11px]">
-                    {p.installed && p.installed_version && p.installed_version !== p.version
-                      ? `${p.installed_version} → ${p.version}`
-                      : `v${p.version || "0.0.0"}`}
-                  </span>
-                </div>
+                <CardFooter className="flex items-center justify-between border-t bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="truncate max-w-[120px]" title={p.source_name || p.source_id}>
+                      {p.source_name || p.source_id}
+                    </span>
+                    <span className="font-mono text-[11px]">
+                      {p.installed && p.installed_version && p.installed_version !== p.version
+                        ? `${p.installed_version} → ${p.version}`
+                        : `v${p.version || "0.0.0"}`}
+                    </span>
+                  </div>
 
-                <div>
-                  {p.installed && !p.update_available ? (
-                    <Button size="sm" variant="ghost" disabled className="h-8 text-xs text-muted-foreground">
-                      已安装
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant={p.update_available ? "default" : "outline"}
-                      disabled={install.isPending}
-                      onClick={() => setInstallingTarget(p)}
-                    >
-                      {install.isPending && install.variables?.store_id === p.store_id ? (
-                        <Spinner className="size-3.5" />
-                      ) : (
-                        <Download className="size-3.5" />
-                      )}
-                      {p.update_available ? "更新" : "安装"}
-                    </Button>
-                  )}
-                </div>
-              </CardFooter>
-            </Card>
-          ))}
+                  <div>
+                    {p.installed && !p.update_available ? (
+                      <Button size="sm" variant="ghost" disabled className="h-8 text-xs text-muted-foreground">
+                        已安装
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant={p.update_available ? "default" : "outline"}
+                        disabled={install.isPending}
+                        onClick={() => setInstallingTarget(p)}
+                      >
+                        {install.isPending && install.variables?.store_id === p.store_id ? (
+                          <Spinner className="size-3.5" />
+                        ) : (
+                          <Download className="size-3.5" />
+                        )}
+                        {p.update_available ? "更新" : "安装"}
+                      </Button>
+                    )}
+                  </div>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
 
