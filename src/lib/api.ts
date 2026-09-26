@@ -1,3 +1,5 @@
+import { deobfuscate, obfuscate } from "@/lib/encryption";
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -7,31 +9,71 @@ export class ApiError extends Error {
   }
 }
 
-// ---------- 管理密钥 ----------
+// ---------- CPA 服务地址与管理密钥 ----------
 
 const KEY_STORAGE = "cpa-dashboard.management-key";
+const BASE_STORAGE = "cpa-dashboard.api-base";
 
-export function storedKey(): string {
-  return sessionStorage.getItem(KEY_STORAGE) ?? localStorage.getItem(KEY_STORAGE) ?? "";
+export function normalizeBaseUrl(input: string): string {
+  let base = (input || "").trim().replace(/\/+$/, "");
+  if (!base) return "";
+  base = base.replace(/\/?v0\/management\/?$/i, "");
+  base = base.replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(base)) {
+    base = `http://${base}`;
+  }
+  return base;
 }
 
-// 默认只保存在当前标签页,勾选记住后才写入 localStorage
+export function storedBaseUrl(): string {
+  return localStorage.getItem(BASE_STORAGE) ?? sessionStorage.getItem(BASE_STORAGE) ?? "";
+}
+
+export function saveBaseUrl(base: string, remember = true) {
+  const normalized = normalizeBaseUrl(base);
+  if (normalized) {
+    (remember ? localStorage : sessionStorage).setItem(BASE_STORAGE, normalized);
+  } else {
+    localStorage.removeItem(BASE_STORAGE);
+    sessionStorage.removeItem(BASE_STORAGE);
+  }
+}
+
+export function clearBaseUrl() {
+  sessionStorage.removeItem(BASE_STORAGE);
+  localStorage.removeItem(BASE_STORAGE);
+}
+
+export function resolveUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = storedBaseUrl();
+  if (!base) return path;
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${cleanPath}`;
+}
+
+export function storedKey(): string {
+  const raw = sessionStorage.getItem(KEY_STORAGE) ?? localStorage.getItem(KEY_STORAGE) ?? "";
+  return deobfuscate(raw);
+}
+
+// 默认只保存在当前标签页,勾选记住后才写入 localStorage，且始终进行可逆混淆加密存储
 export function saveKey(key: string, remember: boolean) {
   clearKey();
-  (remember ? localStorage : sessionStorage).setItem(KEY_STORAGE, key);
+  const obfuscated = obfuscate(key);
+  (remember ? localStorage : sessionStorage).setItem(KEY_STORAGE, obfuscated);
 }
 
 export function clearKey() {
   sessionStorage.removeItem(KEY_STORAGE);
   localStorage.removeItem(KEY_STORAGE);
 }
-
 // 管理接口带管理密钥;/v1 接口只认客户端 Key,每次现取配置里的第一个,没配置时 CPA 不校验
 async function withAuth(path: string, headers?: HeadersInit): Promise<Headers> {
   const out = new Headers(headers);
-  if (path.startsWith("/v0/management")) {
+  if (path.includes("/v0/management")) {
     out.set("Authorization", `Bearer ${storedKey()}`);
-  } else if (path.startsWith("/v1/") && !out.has("Authorization")) {
+  } else if (path.includes("/v1/") && !out.has("Authorization")) {
     const key = (await api<{ "api-keys"?: string[] }>("/v0/management/api-keys"))["api-keys"]?.[0];
     if (key) out.set("Authorization", `Bearer ${key}`);
   }
@@ -44,9 +86,10 @@ type Init = Omit<RequestInit, "body"> & { body?: unknown; raw?: boolean };
 
 export async function request(path: string, { body, raw, headers, ...init }: Init = {}): Promise<Response> {
   const isJson = body !== undefined && !raw;
-  const h = await withAuth(path, headers);
+  const url = resolveUrl(path);
+  const h = await withAuth(url, headers);
   if (isJson) h.set("Content-Type", "application/json");
-  return fetch(path, { ...init, headers: h, body: isJson ? JSON.stringify(body) : (body as BodyInit | undefined) });
+  return fetch(url, { ...init, headers: h, body: isJson ? JSON.stringify(body) : (body as BodyInit | undefined) });
 }
 
 // CPA 的错误格式是 {error, message?}
