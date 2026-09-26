@@ -6,8 +6,8 @@ export function useLogout() {
   return useMutation({
     mutationFn: async () => clearKey(),
     onSuccess: () => {
-      queryClient.clear();
       queryClient.setQueryData(["session"], false);
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "session" });
     },
   });
 }
