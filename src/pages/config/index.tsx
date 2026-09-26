@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { VersionCardContent } from "@/components/version-dialog";
 import { PayloadRules } from "./payload-rules";
 import { GROUPS, SettingsGroup } from "./settings";
 import { YamlEditor } from "./yaml-editor";
@@ -20,7 +19,6 @@ export function ConfigPage() {
           ))}
           <TabsTrigger value="payload">Payload 规则</TabsTrigger>
           <TabsTrigger value="yaml">源文件</TabsTrigger>
-          <TabsTrigger value="about">关于与更新</TabsTrigger>
         </TabsList>
 
         {GROUPS.map((g) => (
@@ -33,11 +31,6 @@ export function ConfigPage() {
         </TabsContent>
         <TabsContent value="yaml">
           <YamlEditor />
-        </TabsContent>
-        <TabsContent value="about">
-          <div className="max-w-3xl">
-            <VersionCardContent />
-          </div>
         </TabsContent>
       </Tabs>
     </>

@@ -83,7 +83,7 @@ export function useVersionData() {
   };
 }
 
-export function VersionCardContent() {
+function VersionCardContent() {
   const queryClient = useQueryClient();
   const [checking, setChecking] = useState(false);
   const { panelReleaseQuery, cpaCurrent, cpaLatest, cpaHasUpdate, panelLatest, panelHasUpdate, currentVersion } =
