@@ -101,6 +101,25 @@ function formatRepoUrl(repo?: string, homepage?: string): string {
   return `https://github.com/${target.replace(/^\/+/, "")}`;
 }
 
+function GithubIcon({ className = "size-3.5" }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+      <path d="M9 18c-4.51 2-5-2-7-2" />
+    </svg>
+  );
+}
+
 type StoreResponse = { sources?: { id: string; name?: string; error?: string }[]; plugins?: StorePlugin[] };
 
 const PLUGINS_KEY = ["cpa", "plugins"];
@@ -409,11 +428,11 @@ function Installed() {
                         }
                         target="_blank"
                         rel="noreferrer"
-                        title="查看 GitHub 仓库"
+                        title={`查看 GitHub 仓库：${p.metadata.github_repository}`}
                         aria-label="查看 GitHub 仓库"
-                        className="text-muted-foreground hover:text-foreground"
+                        className="inline-flex text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        <ExternalLink className="size-3" />
+                        <GithubIcon className="size-3.5" />
                       </a>
                     )}
                   </div>
@@ -634,26 +653,26 @@ function Store() {
                           </Badge>
                         )}
                       </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                        <span className="font-mono text-[11px] truncate" title={p.id}>
-                          {p.id}
-                        </span>
-                        {p.author && <span>· {p.author}</span>}
-                        {repoUrl && (
-                          <a
-                            href={repoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            title={`查看 GitHub 仓库：${p.repository || repoUrl}`}
-                            aria-label={`查看 ${p.name || p.id} 的 GitHub 仓库`}
-                            className="inline-flex items-center gap-1 text-[11px] text-chart-1 hover:underline ml-auto"
-                          >
-                            <ExternalLink className="size-3" />
-                            <span className="max-w-[130px] truncate">{p.repository || "GitHub"}</span>
-                          </a>
-                        )}
-                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground truncate" title={p.id}>
+                        {p.id}
+                        {p.author && <span> · {p.author}</span>}
+                      </p>
                     </div>
+
+                    {repoUrl && (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        title={`查看 GitHub 仓库：${p.repository || repoUrl}`}
+                        aria-label={`查看 ${p.name || p.id} 的 GitHub 仓库`}
+                        render={
+                          <a href={repoUrl} target="_blank" rel="noreferrer">
+                            <GithubIcon className="size-3.5" />
+                          </a>
+                        }
+                      />
+                    )}
                   </div>
                 </CardHeader>
 

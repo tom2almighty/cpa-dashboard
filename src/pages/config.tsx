@@ -35,8 +35,22 @@ type Setting = {
 
 const GROUPS: { title: string; items: Setting[] }[] = [
   {
-    title: "基础与代理",
+    title: "基础与服务",
     items: [
+      {
+        endpoint: "host",
+        label: "监听主机",
+        hint: "CPA 绑定的主机 IP 地址，例如 0.0.0.0 或 127.0.0.1",
+        type: "text",
+        fallback: "0.0.0.0",
+      },
+      {
+        endpoint: "port",
+        label: "服务端口",
+        hint: "CPA 服务监听端口，默认 8317",
+        type: "int",
+        fallback: "8317",
+      },
       {
         endpoint: "proxy-url",
         label: "全局代理",
@@ -112,8 +126,27 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         type: "text",
         fallback: "1h",
       },
+      {
+        endpoint: "request-retry",
+        label: "每轮请求重试次数",
+        hint: "请求失败后向上游重试的最大次数，默认 3",
+        type: "int",
+        fallback: "3",
+      },
       { endpoint: "max-retry-credentials", label: "每轮最大重试凭据数", hint: "0 表示尝试所有可用凭据", type: "int" },
       { endpoint: "max-retry-interval", label: "最大重试等待（秒）", type: "int" },
+      {
+        endpoint: "passthrough-headers",
+        label: "透传客户端请求头",
+        hint: "将客户端请求中携带的自定义 Header 原样透传给上游",
+        type: "bool",
+      },
+      {
+        endpoint: "gpt-image-2-base-model",
+        label: "生图转基础模型",
+        hint: "例如 gpt-5.4-mini，该模型用于解析与理解生图指令",
+        type: "text",
+      },
       {
         endpoint: "disable-cooling",
         label: "全局禁用冷却",
@@ -144,6 +177,47 @@ const GROUPS: { title: string; items: Setting[] }[] = [
         endpoint: "quota-exceeded/antigravity-credits",
         label: "Antigravity 超额使用 Credits",
         hint: "当所有免费账号额度耗尽时，允许使用付费积分兜底",
+        type: "bool",
+      },
+    ],
+  },
+  {
+    title: "流式传输与保活",
+    items: [
+      {
+        endpoint: "streaming/keepalive-seconds",
+        label: "流式心跳保持（秒）",
+        hint: "SSE 流式响应保活心跳发送间隔，0 表示禁用心跳",
+        type: "int",
+      },
+      {
+        endpoint: "streaming/bootstrap-retries",
+        label: "流式启动重试次数",
+        hint: "流式连接建立阶段发生网络或协议错误时的重试次数",
+        type: "int",
+      },
+      {
+        endpoint: "nonstream-keepalive-interval",
+        label: "非流式保活间隔",
+        hint: "非流式长请求心跳保活间隔，例如 10s、30s",
+        type: "text",
+      },
+    ],
+  },
+  {
+    title: "高级与实验配置",
+    items: [
+      {
+        endpoint: "antigravity/signature-cache",
+        label: "Antigravity 签名缓存",
+        hint: "开启后缓存会话签名以提升多并发请求吞吐与凭据稳定性",
+        type: "bool",
+        fallback: "true",
+      },
+      {
+        endpoint: "antigravity/signature-bypass-strict",
+        label: "Antigravity 严格签名绕过",
+        hint: "绕过严格签名校验（实验性），用于兼容特定上游调用",
         type: "bool",
       },
     ],
@@ -203,7 +277,7 @@ function SettingRow({ setting, value }: { setting: Setting; value: unknown }) {
   } else if (setting.type === "select") {
     control = (
       <Select items={setting.options} value={initial || null} onValueChange={(v) => v && save.mutate(v)}>
-        <SelectTrigger id={id} className="w-44">
+        <SelectTrigger id={id} className="min-w-44 w-auto max-w-xs sm:max-w-sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

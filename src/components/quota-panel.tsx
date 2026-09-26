@@ -369,7 +369,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
               </div>
 
               <Select value={sortMode} onValueChange={(v) => setSortMode(v as typeof sortMode)}>
-                <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectTrigger className="h-8 min-w-32 w-auto text-xs">
                   <ArrowUpDown className="mr-1.5 size-3" />
                   <SelectValue />
                 </SelectTrigger>
