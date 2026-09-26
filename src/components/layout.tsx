@@ -7,6 +7,8 @@ import {
   KeySquare,
   LogOut,
   Network,
+  PanelLeftClose,
+  PanelLeftOpen,
   Puzzle,
   ScrollText,
   Sparkles,
@@ -29,7 +31,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { useVersionData, VersionDialog } from "@/components/version-dialog";
@@ -76,6 +80,19 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
+  );
+}
+
+// 桌面端收起/展开,收起后只保留图标;快捷键 Ctrl/⌘ + B
+function CollapseButton() {
+  const { state, toggleSidebar } = useSidebar();
+  const collapsed = state === "collapsed";
+  const label = collapsed ? "展开侧边栏" : "收起侧边栏";
+  return (
+    <SidebarMenuButton tooltip={label} onClick={toggleSidebar} className="hidden md:flex">
+      {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+      <span>{label}</span>
+    </SidebarMenuButton>
   );
 }
 
@@ -130,6 +147,9 @@ export function Layout() {
               <ThemeToggle />
             </SidebarMenuItem>
             <SidebarMenuItem>
+              <CollapseButton />
+            </SidebarMenuItem>
+            <SidebarMenuItem>
               <SidebarMenuButton tooltip="退出登录" onClick={() => logout.mutate()}>
                 <LogOut />
                 <span>退出登录</span>
@@ -137,6 +157,7 @@ export function Layout() {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
+        <SidebarRail title="收起/展开侧边栏" aria-label="收起/展开侧边栏" />
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur md:hidden">
