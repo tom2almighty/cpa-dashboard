@@ -1,0 +1,55 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "refer/**"
+      - ".gitignore"
+      - "LICENSE"
+
+# 赋予部署 GitHub Pages 必需的权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 保证同一时间只有一个并发部署
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run test
+      - run: bun run build
+
+      - name: 准备 Pages 静态文件
+        # Vite 编译产物为 dist/management.html，单文件且 HashRouter 下完全自包含
+        # 复制一份为 index.html 作为 GitHub Pages 站点默认首页
+        run: |
+          cp dist/management.html dist/index.html
+          touch dist/.nojekyll
+
+      - name: 配置 GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: 上传 Pages 静态产物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
