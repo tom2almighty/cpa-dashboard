@@ -7,7 +7,6 @@ export type Kind = {
   label: string;
   openai?: boolean;
   baseUrlRequired?: boolean;
-  // 支持走上游 WebSocket(Codex / xAI)
   websockets?: boolean;
 };
 
@@ -21,6 +20,13 @@ export const KINDS: Kind[] = [
   { endpoint: "meta", label: "Meta", websockets: true },
   { endpoint: "interactions", label: "Interactions" },
 ];
+
+export type ProviderKey = {
+  "api-key": string;
+  weight?: number;
+  "proxy-url"?: string;
+  websockets?: boolean;
+};
 
 export type Form = {
   name: string;
@@ -37,7 +43,7 @@ export type Form = {
   websockets: boolean;
 };
 
-type Model = { name: string; alias?: string } & Json;
+export type Model = { name: string; alias?: string } & Json;
 
 export function str(value: unknown): string {
   return typeof value === "string" ? value : value === undefined || value === null ? "" : String(value);
@@ -94,7 +100,6 @@ export async function fetchProviderModels(
   const models = new Set<string>();
   const cleanBase = baseUrl.trim().replace(/\/+$/, "");
 
-  // 1. 若填写了 Base URL，仅向上游标准 /models 或 /v1/models 获取，不混入内置渠道定义
   if (cleanBase) {
     const customHeaders: Record<string, string> = {};
     const trimmedKey = apiKey.trim();
@@ -111,7 +116,6 @@ export async function fetchProviderModels(
       customHeaders["anthropic-version"] = "2023-06-01";
     }
 
-    // 用户填写的自定义 Header 具有最高优先级，覆盖默认值
     for (const line of lines(headersText)) {
       const i = line.indexOf(":");
       if (i > 0) customHeaders[line.slice(0, i).trim()] = line.slice(i + 1).trim();
@@ -125,27 +129,32 @@ export async function fetchProviderModels(
 
     let lastError = "未返回任何模型";
     for (const url of candidateUrls) {
-      // 走 CPA 的 /v8/management/requests/api-call 代理，避开浏览器 CORS
       const res = await api<{ status_code: number; body?: unknown }>("/v8/management/requests/api-call", {
         method: "POST",
         body: { method: "GET", url, header: customHeaders },
       });
-      if (res.status_code < 200 || res.status_code >= 300) {
-        lastError = `上游返回 HTTP ${res.status_code}`;
-        continue;
+
+      if (res.status_code >= 200 && res.status_code < 300) {
+        const parsed = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+        const list = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray((parsed as { data?: unknown[] })?.data)
+            ? (parsed as { data: unknown[] }).data
+            : Array.isArray((parsed as { models?: unknown[] })?.models)
+              ? (parsed as { models: unknown[] }).models
+              : [];
+        for (const item of list) {
+          const id = (item as { id?: string })?.id || (item as { name?: string })?.name;
+          if (id) models.add(id);
+        }
+        if (models.size > 0) return Array.from(models).sort();
+      } else {
+        lastError = `获取上游模型失败：上游返回 HTTP ${res.status_code}`;
       }
-      const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
-      const items: unknown[] = Array.isArray(body) ? body : (body?.data ?? body?.models ?? []);
-      for (const item of items) {
-        const id = typeof item === "string" ? item : (item as Json)?.id || (item as Json)?.name;
-        if (typeof id === "string" && id) models.add(id);
-      }
-      if (models.size > 0) return Array.from(models).sort();
     }
-    throw new Error(`获取上游模型失败：${lastError}`);
+    if (models.size === 0) throw new Error(lastError);
   }
 
-  // 2. 未填写 Base URL 时，使用 CPA 内置渠道的模型定义
   for (const ch of KIND_CHANNEL_MAP[kind.endpoint] ?? []) {
     const res = await api<{ models?: { id: string }[] }>(
       `/v8/management/routing/model-definitions/${encodeURIComponent(ch)}`,
@@ -161,15 +170,18 @@ export function mask(key: string): string {
   return key.length > 12 ? `${key.slice(0, 6)}…${key.slice(-4)}` : key;
 }
 
-// 同一提供商下用 api-key + base-url 区分条目,OpenAI 兼容用 name
-export function identity(kind: Kind, item: Json): string {
-  return kind.openai ? str(item.name) : `${str(item["api-key"])}|${str(item["base-url"])}`;
+export function identity(_kind: Kind, item: Json): string {
+  const name = str(item.name);
+  if (name) return name;
+  const keysList = list<ProviderKey>(item.keys);
+  const firstKey = keysList[0]?.["api-key"] ?? str(item["api-key"]);
+  return `${firstKey}|${str(item["base-url"])}`;
 }
 
 export function toForm(item: Json): Form {
-  const keysList = list(item.keys);
-  const firstKey = keysList.length > 0 ? str(keysList[0]?.["api-key"] ?? keysList[0]) : str(item["api-key"]);
-  const allKeys = keysList.length > 0 ? keysList.map((k) => str(k?.["api-key"] ?? k)).join("\n") : str(item["api-key"]);
+  const keysList = list<ProviderKey>(item.keys);
+  const firstKey = keysList[0]?.["api-key"] ?? str(item["api-key"]);
+  const allKeys = keysList.length > 0 ? keysList.map((k) => str(k["api-key"])).join("\n") : str(item["api-key"]);
 
   return {
     name: str(item.name),
@@ -191,7 +203,6 @@ export function toForm(item: Json): Form {
   };
 }
 
-// 在原条目上合并表单字段,表单不管的字段(cloak、模型的 display-name 等)原样保留
 export function fromForm(kind: Kind, form: Form, original: Json): Json {
   const out: Json = { ...original };
   delete out["auth-index"];
@@ -206,8 +217,8 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
   };
 
   set("name", form.name.trim() || undefined);
-  const existingKeys = list(original.keys);
-  const keysMap = new Map(existingKeys.map((k) => [str(k?.["api-key"] ?? k), k]));
+  const existingKeys = list<ProviderKey>(original.keys);
+  const keysMap = new Map(existingKeys.map((k) => [str(k["api-key"]), k]));
   const enteredKeys = lines(form.keys.trim() ? form.keys : form.apiKey);
 
   set(
@@ -249,7 +260,6 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
       }),
   );
   set("excluded-models", lines(form.excluded, true));
-  if (kind.websockets) set("websockets", form.websockets || undefined);
   return out;
 }
 
@@ -341,7 +351,7 @@ export async function testProviderConnectivity(
     if (!cleanBase) throw new Error("请填写 Base URL");
     const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
-    url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/v1/models`;
+    url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/models`;
     method = "GET";
   }
 
@@ -352,27 +362,16 @@ export async function testProviderConnectivity(
         method,
         url,
         header: customHeaders,
-        ...(payload !== undefined ? { data: JSON.stringify(payload) } : {}),
+        ...(payload ? { data: JSON.stringify(payload) } : {}),
       },
     });
-
     const latencyMs = Date.now() - start;
     if (res.status_code >= 200 && res.status_code < 300) {
-      return { ok: true, latencyMs, message: `HTTP ${res.status_code} 正常 (${latencyMs}ms)` };
+      return { ok: true, latencyMs, message: `成功响应 (${latencyMs}ms)` };
     }
-
-    let detail = "";
-    if (res.body) {
-      try {
-        const bodyObj = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
-        detail = bodyObj?.error?.message || bodyObj?.message || String(res.body).slice(0, 100);
-      } catch {
-        detail = String(res.body).slice(0, 100);
-      }
-    }
-    return { ok: false, latencyMs, message: `HTTP ${res.status_code}${detail ? `: ${detail}` : ""}` };
+    return { ok: false, latencyMs, message: `上游返回 HTTP ${res.status_code}` };
   } catch (err) {
     const latencyMs = Date.now() - start;
-    return { ok: false, latencyMs, message: (err as Error)?.message || "连通性测试请求失败" };
+    return { ok: false, latencyMs, message: (err as Error).message || "请求失败" };
   }
 }

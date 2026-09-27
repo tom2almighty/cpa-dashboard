@@ -1,5 +1,6 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { CircleAlert } from "lucide-react";
+import { Activity, CircleAlert } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { PageHeader } from "@/components/page-header";
 import { accountName } from "@/components/quota-panel";
@@ -46,6 +47,36 @@ export function StatusPage() {
     queryFn: () => api<string[]>("/v8/management/config/access/api-keys"),
     select: (res) => (Array.isArray(res) ? res : []),
   });
+
+  // v8: 内存实时用量队列流
+  const [recentUsage, setRecentUsage] = useState<
+    Array<{ id: string; model?: string; provider?: string; timestamp?: number; status?: string }>
+  >([]);
+
+  const usageQueue = useQuery({
+    queryKey: ["cpa", "usage-queue"],
+    queryFn: () =>
+      api<Array<{ id?: string; model?: string; provider?: string; timestamp?: number; status?: string }>>(
+        "/v8/management/observability/usage/queue?count=5",
+      ).catch(() => []),
+    refetchInterval: 5000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (usageQueue.data && usageQueue.data.length > 0) {
+      setRecentUsage((prev) => {
+        const incoming = usageQueue.data.map((item, idx) => ({
+          id: item.id || `${Date.now()}-${idx}-${Math.random()}`,
+          model: item.model,
+          provider: item.provider,
+          timestamp: item.timestamp ?? Date.now(),
+          status: item.status ?? "ok",
+        }));
+        return [...incoming, ...prev].slice(0, 10);
+      });
+    }
+  }, [usageQueue.data]);
 
   if (!files.data) {
     return (
@@ -172,6 +203,43 @@ export function StatusPage() {
           )}
         </section>
       </div>
+
+      {/* v8 实时调用事件流监控 */}
+      <section className="mt-10 rounded-xl border bg-card p-5" aria-labelledby="live-stream-title">
+        <div className="flex items-center justify-between pb-3 border-b">
+          <div className="flex items-center gap-2">
+            <Activity className="size-4 text-primary" />
+            <h2 id="live-stream-title" className="text-base font-semibold">
+              实时请求动态 (Usage Queue)
+            </h2>
+          </div>
+          <span className="text-xs text-muted-foreground">每 5 秒同步</span>
+        </div>
+        {recentUsage.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            暂无最新请求事件。启用 observability.usage.usage-statistics-enabled 后，新请求将实时呈现在此。
+          </p>
+        ) : (
+          <ul className="divide-y text-xs">
+            {recentUsage.map((u) => (
+              <li key={u.id} className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    {u.provider || "gateway"}
+                  </Badge>
+                  <span className="font-mono text-foreground truncate">{u.model || "unknown-model"}</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 text-muted-foreground">
+                  <span className={u.status === "error" ? "text-destructive" : "text-emerald-500"}>
+                    {u.status === "error" ? "失败" : "成功"}
+                  </span>
+                  <span>{new Date(u.timestamp ?? Date.now()).toLocaleTimeString()}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </>
   );
 }

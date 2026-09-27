@@ -582,11 +582,11 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{kind.openai ? "名称" : "API Key"}</TableHead>
+            <TableHead>分组名称 / 密钥</TableHead>
             <TableHead>Base URL</TableHead>
-            {kind.openai && <TableHead className="text-right">Key</TableHead>}
+            <TableHead className="text-right">密钥数</TableHead>
             <TableHead className="text-right">模型</TableHead>
-            {!kind.openai && <TableHead>代理</TableHead>}
+            <TableHead>代理</TableHead>
             <TableHead>最近 200 分钟</TableHead>
             <TableHead className="w-16">启用</TableHead>
             <TableHead className="w-28">
@@ -601,10 +601,13 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
             <EmptyRow columns={columns}>还没有配置 {kind.label}</EmptyRow>
           ) : (
             items.map((item) => {
-              const title = kind.openai ? str(item.name) : mask(str(item["api-key"]));
+              const keysList = list(item.keys);
+              const title =
+                str(item.name) || (keysList[0]?.["api-key"] ? mask(str(keysList[0]["api-key"])) : "未命名分组");
+              const keysCount = keysList.length || (item["api-key"] ? 1 : 0);
               return (
                 <TableRow key={identity(kind, item)} className={item.disabled ? "text-muted-foreground" : undefined}>
-                  <TableCell className={kind.openai ? "font-medium" : "font-mono text-sm"}>
+                  <TableCell className="font-medium">
                     {title}
                     {str(item.prefix) && (
                       <Badge variant="outline" className="ml-2 font-sans">
@@ -615,20 +618,16 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                   <TableCell className="max-w-72 truncate text-muted-foreground" title={str(item["base-url"])}>
                     {str(item["base-url"]) || "官方地址"}
                   </TableCell>
-                  {kind.openai && (
-                    <TableCell className="text-right tabular-nums">{list(item["api-key-entries"]).length}</TableCell>
-                  )}
+                  <TableCell className="text-right tabular-nums">{keysCount}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {list(item.models).length || "全部"}
                     {list(item["excluded-models"]).length > 0 && (
                       <span className="text-muted-foreground">，排除 {list(item["excluded-models"]).length}</span>
                     )}
                   </TableCell>
-                  {!kind.openai && (
-                    <TableCell className="max-w-48 truncate text-muted-foreground">
-                      {str(item["proxy-url"]) || "—"}
-                    </TableCell>
-                  )}
+                  <TableCell className="max-w-48 truncate text-muted-foreground">
+                    {str(item["proxy-url"]) || "—"}
+                  </TableCell>
                   <TableCell>
                     <RequestSparkline buckets={usageOf(kind, item, usage.data)} label={title} />
                   </TableCell>

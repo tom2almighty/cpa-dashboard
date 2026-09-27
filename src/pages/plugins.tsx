@@ -1,3 +1,4 @@
+import { SiGithub } from "@icons-pack/react-simple-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, Download, ExternalLink, Globe, RefreshCw, Settings2, ShieldAlert, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -111,22 +112,7 @@ function formatRepoUrl(repo?: string, homepage?: string): string {
 }
 
 function GithubIcon({ className = "size-3.5" }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-      <path d="M9 18c-4.51 2-5-2-7-2" />
-    </svg>
-  );
+  return <SiGithub className={className} />;
 }
 
 type StoreResponse = { sources?: { id: string; name?: string; error?: string }[]; plugins?: StorePlugin[] };
@@ -565,6 +551,7 @@ function Store() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [installingTarget, setInstallingTarget] = useState<StorePlugin | null>(null);
+  const [customVersion, setCustomVersion] = useState("");
   const [page, setPage] = useState(1);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -582,19 +569,21 @@ function Store() {
   });
 
   const install = useMutation({
-    mutationFn: (p: StorePlugin) =>
-      api<{ restart_required?: boolean; version?: string }>(
+    mutationFn: ({ plugin: p, version }: { plugin: StorePlugin; version?: string }) => {
+      const body = version?.trim() ? { version: version.trim() } : {};
+      return api<{ restart_required?: boolean; version?: string }>(
         `/v8/management/plugins/store/${encodeURIComponent(p.id)}/install?source=${encodeURIComponent(p.source_id)}`,
-        { method: "POST", body: {} },
-      ),
-    onSuccess: (res, p) => {
+        { method: "POST", body },
+      );
+    },
+    onSuccess: (res, { plugin: p }) => {
       toast.success(`已安装 ${p.name || p.id} ${res.version ?? ""}${res.restart_required ? "，重启 CPA 后生效" : ""}`);
       queryClient.invalidateQueries({ queryKey: ["cpa", "plugin-store"] });
       queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
       setInstallingTarget(null);
+      setCustomVersion("");
     },
   });
-
   const sourceErrors = data?.sources?.filter((s) => s.error) ?? [];
   const plugins = useMemo(() => {
     const list = data?.plugins ?? [];
@@ -784,9 +773,12 @@ function Store() {
                           size="sm"
                           variant={p.update_available ? "default" : "outline"}
                           disabled={install.isPending}
-                          onClick={() => setInstallingTarget(p)}
+                          onClick={() => {
+                            setInstallingTarget(p);
+                            setCustomVersion(p.version || "");
+                          }}
                         >
-                          {install.isPending && install.variables?.store_id === p.store_id ? (
+                          {install.isPending && install.variables?.plugin.store_id === p.store_id ? (
                             <Spinner className="size-3.5" />
                           ) : (
                             <Download className="size-3.5" />
@@ -837,6 +829,18 @@ function Store() {
                 {installingTarget?.version || "未知"}，来源：
                 {installingTarget?.source_name || installingTarget?.source_id}）。
               </p>
+              <div className="grid gap-1.5 pt-1">
+                <Label htmlFor="plugin-version-input" className="text-xs text-muted-foreground">
+                  安装版本（可指定特定 tag 或版本）：
+                </Label>
+                <Input
+                  id="plugin-version-input"
+                  value={customVersion}
+                  onChange={(e) => setCustomVersion(e.target.value)}
+                  placeholder="例如 1.0.0"
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
               <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-foreground/90 space-y-1.5">
                 <p className="font-semibold text-destructive">安全风险提示：</p>
                 <p className="text-muted-foreground">
@@ -854,7 +858,9 @@ function Store() {
             <AlertDialogAction
               disabled={install.isPending}
               onClick={() => {
-                if (installingTarget) install.mutate(installingTarget);
+                if (installingTarget) {
+                  install.mutate({ plugin: installingTarget, version: customVersion });
+                }
               }}
             >
               {install.isPending && <Spinner />}

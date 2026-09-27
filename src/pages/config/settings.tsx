@@ -510,46 +510,26 @@ export function ConfigYamlProvider({ children }: { children: React.ReactNode }) 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const latestYaml = await api<string>("/v8/management/config.yaml");
-      const latestDoc = YAML.parseDocument(latestYaml || "");
-
+      // v8 RESTful: 对修改的配置节点直接调用 PUT 或 DELETE
       for (const [endpoint, value] of Object.entries(patch)) {
-        const keys = endpoint.split("/");
-        if (endpoint === "management/secret-key") {
-          const newSecret = String(value ?? "").trim();
-          if (newSecret) {
-            latestDoc.setIn(keys, newSecret);
-          }
-          continue;
-        }
+        const path = endpoint;
         if (value === undefined || value === null || value === "") {
-          latestDoc.deleteIn(keys);
-        } else if (typeof value === "boolean") {
-          latestDoc.setIn(keys, value);
-        } else if (typeof value === "number") {
-          latestDoc.setIn(keys, value);
+          await api(`/v8/management/config/${path}`, { method: "DELETE" }).catch(() => {});
         } else {
-          latestDoc.setIn(keys, value);
+          await api(`/v8/management/config/${path}`, {
+            method: "PUT",
+            body: value,
+          });
         }
       }
-
-      const nextYamlText = latestDoc.toString();
-      await api("/v8/management/config.yaml", {
-        method: "PUT",
-        body: nextYamlText,
-        raw: true,
-        headers: { "Content-Type": "application/yaml" },
-      });
 
       if (patch["management/secret-key"]) {
         saveKey(String(patch["management/secret-key"]), true);
       }
-
-      return nextYamlText;
     },
-    onSuccess: (savedText) => {
+    onSuccess: () => {
       setPatch({});
-      queryClient.setQueryData(["cpa", "config.yaml"], savedText);
+      queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
       queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
       queryClient.invalidateQueries({ queryKey: ["session"] });
       toast.success("配置已保存，CPA 会自动重新加载生效");

@@ -1,3 +1,4 @@
+import { SiGithub } from "@icons-pack/react-simple-icons";
 import {
   Activity,
   Boxes,
@@ -141,6 +142,15 @@ export function Layout() {
                     更新
                   </Badge>
                 )}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="GitHub 仓库"
+                render={<a href="https://github.com/tom2almighty/cpa-dashboard" target="_blank" rel="noreferrer" />}
+              >
+                <SiGithub className="size-4" />
+                <span>GitHub 仓库</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>

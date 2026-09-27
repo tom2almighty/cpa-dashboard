@@ -41,8 +41,9 @@ export default defineConfig(async () => {
     },
     server: {
       proxy: {
-        "/v0": target,
+        "/v8": target,
         "/v1": target,
+        "/v0": target,
       },
     },
   };

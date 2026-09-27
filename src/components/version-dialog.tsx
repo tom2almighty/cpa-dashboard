@@ -248,7 +248,7 @@ function VersionCardContent() {
             ：
           </p>
           <pre className="rounded bg-muted/60 p-2 font-mono text-[11px] text-foreground">
-            {`remote-management:
+            {`management:
   panel-github-repository: "https://github.com/${GITHUB_REPO}"
   disable-auto-update-panel: false # 为 false 时 CPA 后台会自动拉取最新 Release`}
           </pre>
