@@ -14,6 +14,7 @@ const FRONTEND_VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION_
 const GITHUB_REPO = "tom2almighty/cpa-dashboard";
 
 function newer(latest: string, current: string): boolean {
+  if (!latest || !current) return false;
   const parse = (v: string) => v.replace(/^v/, "").split(/[.-]/).map(Number);
   const [a, b] = [parse(latest), parse(current)];
   for (let i = 0; i < 3; i++) {

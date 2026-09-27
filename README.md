@@ -49,3 +49,11 @@ bun run check     # Biome 检查与 TypeScript 类型校验
 bun run test      # 运行测试用例
 bun run build     # 编译生成单文件 dist/management.html
 ```
+
+## 致谢
+
+[LINUX DO](https://linux.do/)
+
+## LICENSE
+
+[AGPL-3.0](LICENSE)
