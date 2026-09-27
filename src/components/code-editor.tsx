@@ -1,6 +1,6 @@
 import { json } from "@codemirror/lang-json";
 import { yaml } from "@codemirror/lang-yaml";
-import CodeMirror, { EditorView } from "@uiw/react-codemirror";
+import CodeMirror, { EditorView, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { useTheme } from "next-themes";
 
 // 让编辑器背景、边框跟随面板的颜色 token
@@ -19,6 +19,7 @@ export function CodeEditor({
   height,
   onSave,
   label,
+  editorRef,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -26,6 +27,7 @@ export function CodeEditor({
   height: string;
   onSave?: () => void;
   label: string;
+  editorRef?: React.Ref<ReactCodeMirrorRef>;
 }) {
   const { resolvedTheme } = useTheme();
   return (
@@ -39,6 +41,7 @@ export function CodeEditor({
       }}
     >
       <CodeMirror
+        ref={editorRef}
         value={value}
         onChange={onChange}
         height={height}
