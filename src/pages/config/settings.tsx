@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import YAML from "yaml";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { api } from "@/lib/api";
+import { api, saveKey } from "@/lib/api";
 
 export type Json = Record<string, unknown>;
 
@@ -15,7 +17,7 @@ type Setting = {
   endpoint: string;
   label: string;
   hint?: string;
-  type: "bool" | "int" | "text" | "select";
+  type: "bool" | "int" | "text" | "password" | "select";
   options?: { value: string; label: string }[];
   // 配置里没写这一项时 CPA 使用的默认值
   fallback?: string;
@@ -62,8 +64,8 @@ export const GROUPS: ConfigGroup[] = [
       {
         endpoint: "remote-management/secret-key",
         label: "管理密钥 (Secret Key)",
-        hint: "管理接口访问密钥，修改保存后需以新密钥重新登录",
-        type: "text",
+        hint: "留空保持已有密钥不变；输入新密钥并保存后，将重置管理密钥并写回配置",
+        type: "password",
       },
       {
         endpoint: "remote-management/disable-control-panel",
@@ -410,39 +412,203 @@ export const GROUPS: ConfigGroup[] = [
     ],
   },
 ];
+type ConfigYamlContextType = {
+  rawYaml: string | undefined;
+  doc: YAML.Document | null;
+  isPending: boolean;
+  isError: boolean;
+  error: Error | null;
+  patch: Record<string, unknown>;
+  dirtyCount: number;
+  getValue: (endpoint: string, fallback?: string) => unknown;
+  setValue: (endpoint: string, value: unknown) => void;
+  resetPatch: () => void;
+  saveAll: () => Promise<void>;
+  isSaving: boolean;
+};
 
-// /config 返回的 JSON 键与 endpoint 路径一一对应,例如 routing/strategy -> routing.strategy
-function read(config: Json | undefined, endpoint: string): unknown {
-  return endpoint.split("/").reduce<unknown>((node, key) => (node as Json | undefined)?.[key], config);
+const ConfigYamlContext = createContext<ConfigYamlContextType | null>(null);
+
+export function useConfigYaml() {
+  const ctx = useContext(ConfigYamlContext);
+  if (!ctx) throw new Error("useConfigYaml must be used within ConfigYamlProvider");
+  return ctx;
 }
 
-function SettingRow({ setting, value }: { setting: Setting; value: unknown }) {
+export function ConfigYamlProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const initial = value === undefined || value === null ? "" : String(value);
-  const [draft, setDraft] = useState(initial);
-  useEffect(() => setDraft(initial), [initial]);
+  const {
+    data: rawYaml,
+    isPending,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["cpa", "config.yaml"],
+    queryFn: () => api<string>("/v0/management/config.yaml"),
+    refetchOnWindowFocus: false,
+  });
 
-  const save = useMutation({
-    mutationFn: (next: unknown) =>
-      setting.endpoint === "proxy-url" && next === ""
-        ? api("/v0/management/proxy-url", { method: "DELETE" })
-        : api(`/v0/management/${setting.endpoint}`, { method: "PUT", body: { value: next } }),
-    onSuccess: () => {
-      toast.success(`已更新${setting.label}`);
+  const doc = useMemo(() => {
+    if (rawYaml === undefined) return null;
+    try {
+      return YAML.parseDocument(rawYaml);
+    } catch {
+      return null;
+    }
+  }, [rawYaml]);
+
+  const [patch, setPatch] = useState<Record<string, unknown>>({});
+
+  const readDocNode = useCallback((d: YAML.Document | null, endpoint: string): unknown => {
+    if (!d) return undefined;
+    const keys = endpoint.split("/");
+    const val = d.getIn(keys);
+    if (val === undefined || val === null) return undefined;
+    if (val && typeof val === "object" && "toJSON" in val && typeof val.toJSON === "function") {
+      return val.toJSON();
+    }
+    return val;
+  }, []);
+
+  const getValue = useCallback(
+    (endpoint: string, fallback?: string): unknown => {
+      if (Object.hasOwn(patch, endpoint)) {
+        return patch[endpoint];
+      }
+      const fromDoc = readDocNode(doc, endpoint);
+      return fromDoc !== undefined ? fromDoc : fallback;
+    },
+    [patch, doc, readDocNode],
+  );
+
+  const setValue = useCallback(
+    (endpoint: string, nextVal: unknown) => {
+      setPatch((prev) => {
+        const orig = readDocNode(doc, endpoint);
+        if (String(orig ?? "") === String(nextVal ?? "")) {
+          const next = { ...prev };
+          delete next[endpoint];
+          return next;
+        }
+        return { ...prev, [endpoint]: nextVal };
+      });
+    },
+    [doc, readDocNode],
+  );
+
+  const resetPatch = useCallback(() => {
+    setPatch({});
+  }, []);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const latestYaml = await api<string>("/v0/management/config.yaml");
+      const latestDoc = YAML.parseDocument(latestYaml || "");
+
+      for (const [endpoint, value] of Object.entries(patch)) {
+        const keys = endpoint.split("/");
+        if (endpoint === "remote-management/secret-key") {
+          const newSecret = String(value ?? "").trim();
+          if (newSecret) {
+            latestDoc.setIn(keys, newSecret);
+          }
+          continue;
+        }
+        if (value === undefined || value === null || value === "") {
+          latestDoc.deleteIn(keys);
+        } else if (typeof value === "boolean") {
+          latestDoc.setIn(keys, value);
+        } else if (typeof value === "number") {
+          latestDoc.setIn(keys, value);
+        } else {
+          latestDoc.setIn(keys, value);
+        }
+      }
+
+      const nextYamlText = latestDoc.toString();
+      await api("/v0/management/config.yaml", {
+        method: "PUT",
+        body: nextYamlText,
+        raw: true,
+        headers: { "Content-Type": "application/yaml" },
+      });
+
+      if (patch["remote-management/secret-key"]) {
+        saveKey(String(patch["remote-management/secret-key"]), true);
+      }
+
+      return nextYamlText;
+    },
+    onSuccess: (savedText) => {
+      setPatch({});
+      queryClient.setQueryData(["cpa", "config.yaml"], savedText);
       queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
+      queryClient.invalidateQueries({ queryKey: ["session"] });
+      toast.success("配置已保存，CPA 会自动重新加载生效");
+    },
+    onError: (err: Error) => {
+      toast.error(`保存失败：${err.message}`);
     },
   });
 
+  const dirtyCount = Object.keys(patch).length;
+
+  return (
+    <ConfigYamlContext.Provider
+      value={{
+        rawYaml,
+        doc,
+        isPending,
+        isError,
+        error: error as Error | null,
+        patch,
+        dirtyCount,
+        getValue,
+        setValue,
+        resetPatch,
+        saveAll: async () => {
+          await saveMutation.mutateAsync();
+        },
+        isSaving: saveMutation.isPending,
+      }}
+    >
+      {children}
+    </ConfigYamlContext.Provider>
+  );
+}
+
+function SettingRow({ setting }: { setting: Setting }) {
+  const { getValue, setValue, patch } = useConfigYaml();
+  const currentValue = getValue(setting.endpoint, setting.fallback);
+  const isModified = Object.hasOwn(patch, setting.endpoint);
+  const isSecretKey = setting.endpoint === "remote-management/secret-key";
+  const initial = isSecretKey
+    ? String(patch[setting.endpoint] ?? "")
+    : currentValue === undefined || currentValue === null
+      ? ""
+      : String(currentValue);
+  const [draft, setDraft] = useState(initial);
+  const [showPassword, setShowPassword] = useState(false);
+  useEffect(() => setDraft(initial), [initial]);
+
   const id = `setting-${setting.endpoint.replace("/", "-")}`;
   let control: React.ReactNode;
+
   if (setting.type === "bool") {
     control = (
-      <Switch id={id} checked={value === true} disabled={save.isPending} onCheckedChange={(v) => save.mutate(v)} />
+      <Switch
+        id={id}
+        checked={currentValue === true}
+        onCheckedChange={(checked) => setValue(setting.endpoint, checked)}
+      />
     );
   } else if (setting.type === "select") {
     control = (
-      <Select items={setting.options} value={initial || null} onValueChange={(v) => v && save.mutate(v)}>
+      <Select
+        items={setting.options}
+        value={initial || null}
+        onValueChange={(val) => val && setValue(setting.endpoint, val)}
+      >
         <SelectTrigger id={id} className="min-w-44 w-auto max-w-xs sm:max-w-sm">
           <SelectValue />
         </SelectTrigger>
@@ -455,41 +621,94 @@ function SettingRow({ setting, value }: { setting: Setting; value: unknown }) {
         </SelectContent>
       </Select>
     );
+  } else if (setting.type === "password") {
+    const hasConfigured = Boolean(currentValue);
+    const placeholder = isSecretKey
+      ? hasConfigured
+        ? "已设置管理密钥（留空保持不变，输入新密钥覆盖）"
+        : "未设置管理密钥（输入以配置）"
+      : currentValue
+        ? "••••••••"
+        : "未设置密码";
+
+    control = (
+      <div className="relative w-full sm:w-80">
+        <Input
+          id={id}
+          type={showPassword ? "text" : "password"}
+          value={draft}
+          onChange={(e) => {
+            const val = e.target.value;
+            setDraft(val);
+            if (isSecretKey) {
+              setValue(setting.endpoint, val.trim() ? val : "");
+            } else {
+              setValue(setting.endpoint, val);
+            }
+          }}
+          placeholder={placeholder}
+          className="w-full pr-9 text-xs font-mono"
+        />
+        {draft && (
+          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
+              title={showPassword ? "隐藏密钥" : "显示明文密钥"}
+              aria-label={showPassword ? "隐藏密钥" : "显示明文密钥"}
+              onClick={() => setShowPassword((prev) => !prev)}
+            >
+              {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
   } else {
     const isInt = setting.type === "int";
     const invalid = isInt && draft !== "" && !/^\d+$/.test(draft);
     control = (
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!invalid) save.mutate(isInt ? Number(draft || 0) : draft.trim());
+      <Input
+        id={id}
+        value={draft}
+        inputMode={isInt ? "numeric" : undefined}
+        onChange={(e) => {
+          const val = e.target.value;
+          setDraft(val);
+          if (isInt) {
+            if (val === "" || /^\d+$/.test(val)) {
+              setValue(setting.endpoint, val === "" ? "" : Number(val));
+            }
+          } else {
+            setValue(setting.endpoint, val);
+          }
         }}
-      >
-        <Input
-          id={id}
-          value={draft}
-          inputMode={isInt ? "numeric" : undefined}
-          onChange={(e) => setDraft(e.target.value)}
-          aria-invalid={invalid || undefined}
-          className={isInt ? "w-28" : "w-full sm:w-80"}
-        />
-        {draft !== initial && (
-          <Button type="submit" size="default" disabled={invalid || save.isPending}>
-            保存
-          </Button>
-        )}
-      </form>
+        aria-invalid={invalid || undefined}
+        className={isInt ? "w-28 text-xs font-mono" : "w-full sm:w-80 text-xs font-mono"}
+      />
     );
   }
 
   return (
-    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <label htmlFor={id} className="text-sm font-medium">
-          {setting.label}
-        </label>
-        {setting.hint && <p className="mt-0.5 text-sm text-muted-foreground">{setting.hint}</p>}
+    <div
+      className={`flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between transition-colors ${
+        isModified ? "bg-chart-1/5 rounded-lg px-3 -mx-3" : ""
+      }`}
+    >
+      <div className="min-w-0 pr-4">
+        <div className="flex items-center gap-2">
+          <label htmlFor={id} className="text-sm font-medium">
+            {setting.label}
+          </label>
+          {isModified && (
+            <span className="rounded bg-chart-1/15 px-1.5 py-0.2 text-[10px] font-medium text-chart-1">
+              已修改待保存
+            </span>
+          )}
+        </div>
+        {setting.hint && <p className="mt-0.5 text-xs text-muted-foreground">{setting.hint}</p>}
       </div>
       <div className="shrink-0">{control}</div>
     </div>
@@ -497,25 +716,25 @@ function SettingRow({ setting, value }: { setting: Setting; value: unknown }) {
 }
 
 export function SettingsGroup({ groupId }: { groupId: string }) {
-  const { data, isPending, isError, error } = useQuery({
-    queryKey: ["cpa", "config"],
-    queryFn: () => api<Json>("/v0/management/config"),
-  });
+  const { isPending, isError, error } = useConfigYaml();
+
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        读取配置失败：{error.message}
+        读取配置失败：{error?.message}
       </p>
     );
   }
   if (isPending) return <Skeleton className="h-96" />;
+
   const group = GROUPS.find((g) => g.id === groupId);
   if (!group) return null;
+
   return (
     <div className="max-w-3xl">
       <div className="divide-y">
         {group.items.map((s) => (
-          <SettingRow key={s.endpoint} setting={s} value={read(data, s.endpoint) ?? s.fallback} />
+          <SettingRow key={s.endpoint} setting={s} />
         ))}
       </div>
     </div>
