@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Copy, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { type FormEvent, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -302,15 +302,55 @@ function ExcludedDialog({
   const queryClient = useQueryClient();
   const uid = useId();
   const [provider, setProvider] = useState(initial);
-  const [text, setText] = useState(models.join("\n"));
+  const [textMode, setTextMode] = useState(false);
+  const [search, setSearch] = useState("");
+  const [customInput, setCustomInput] = useState("");
+
+  const [rules, setRules] = useState<string[]>(() => {
+    return models.map((m) => m.trim()).filter(Boolean);
+  });
+
+  const catalog = useCatalog(provider);
+  const upstreamModels = useMemo(() => {
+    const list = catalog.data?.map((m) => m.id) ?? [];
+    return [...new Set(list)].sort();
+  }, [catalog.data]);
+
+  const textValue = useMemo(() => rules.join("\n"), [rules]);
+
+  const addRule = (pattern: string) => {
+    const trimmed = pattern.trim();
+    if (!trimmed) return;
+    if (!rules.includes(trimmed)) {
+      setRules((prev) => [...prev, trimmed]);
+    }
+  };
+
+  const removeRule = (pattern: string) => {
+    setRules((prev) => prev.filter((r) => r !== pattern));
+  };
+
+  const toggleModel = (modelId: string) => {
+    if (rules.includes(modelId)) {
+      removeRule(modelId);
+    } else {
+      addRule(modelId);
+    }
+  };
+
+  const handleExcludeAllUpstream = () => {
+    const toAdd = upstreamModels.filter((m) => !rules.includes(m));
+    if (toAdd.length > 0) {
+      setRules((prev) => [...prev, ...toAdd]);
+      toast.success(`已添加 ${toAdd.length} 个上游模型至排除列表`);
+    }
+  };
+
   const save = useMutation({
     mutationFn: () => {
-      const list = text
-        .split(/[\n,]/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      return list.length
-        ? api("/v0/management/oauth-excluded-models", { method: "PATCH", body: { provider, models: list } })
+      const clean = rules.map((s) => s.trim()).filter(Boolean);
+      return clean.length
+        ? api("/v0/management/oauth-excluded-models", { method: "PATCH", body: { provider, models: clean } })
         : api(`/v0/management/oauth-excluded-models?provider=${encodeURIComponent(provider)}`, { method: "DELETE" });
     },
     onSuccess: () => {
@@ -319,12 +359,20 @@ function ExcludedDialog({
       onClose();
     },
   });
+
+  const filteredUpstream = useMemo(() => {
+    if (!search.trim()) return upstreamModels;
+    const q = search.trim().toLowerCase();
+    return upstreamModels.filter((m) => m.toLowerCase().includes(q));
+  }, [upstreamModels, search]);
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{initial ? `编辑 ${initial} 的排除模型` : "添加排除模型"}</DialogTitle>
         </DialogHeader>
+
         <div className="grid gap-4">
           {!initial && (
             <div className="grid gap-1.5">
@@ -332,20 +380,199 @@ function ExcludedDialog({
               <ChannelInput id={`${uid}-provider`} value={provider} onChange={setProvider} />
             </div>
           )}
-          <div className="grid gap-1.5">
-            <Label htmlFor={`${uid}-models`}>排除的模型</Label>
-            <Textarea
-              id={`${uid}-models`}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              className="min-h-40 font-mono text-sm"
-              placeholder={"gpt-5-codex-mini\n*-mini"}
-            />
-            <p className="text-xs text-muted-foreground">
-              每行一个，支持 * 通配（如 gpt-5-*、*-mini）。清空后保存即删除该渠道的规则。
-            </p>
+
+          <div className="flex items-center justify-between gap-2 border-b pb-2">
+            <div>
+              <Label className="text-sm font-medium">排除规则配置</Label>
+              <p className="text-xs text-muted-foreground">
+                支持直接勾选上游模型，或输入 * 通配符（如 gpt-5-*、*-mini）
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={!provider || catalog.isFetching}
+                onClick={() => catalog.refetch()}
+              >
+                {catalog.isFetching ? <Spinner className="size-3" /> : <RefreshCw className="size-3" />}
+                {upstreamModels.length > 0 ? `上游模型 (${upstreamModels.length})` : "获取模型"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                onClick={() => setTextMode((prev) => !prev)}
+              >
+                {textMode ? "可视化选择" : "文本编辑"}
+              </Button>
+            </div>
           </div>
+
+          {textMode ? (
+            <div className="grid gap-1.5">
+              <Textarea
+                id={`${uid}-models`}
+                value={textValue}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRules(
+                    val
+                      .split(/[\n,]/)
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  );
+                }}
+                className="min-h-56 font-mono text-xs leading-relaxed"
+                placeholder={"gpt-5-codex-mini\n*-mini\nclaude-3-haiku*"}
+              />
+              <p className="text-xs text-muted-foreground">
+                每行一个或逗号分隔，支持 * 通配。清空后保存即删除该渠道的所有排除规则。
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="font-medium text-foreground">已排除规则 ({rules.length})</span>
+                  {rules.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setRules([])}
+                      className="text-xs text-destructive hover:underline cursor-pointer"
+                    >
+                      清空全部
+                    </button>
+                  )}
+                </div>
+
+                {rules.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                    暂未排除任何模型，可通过下方候选模型一键点击添加，或直接输入通配符规则。
+                  </div>
+                ) : (
+                  <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto rounded-lg border bg-muted/20 p-2.5">
+                    {rules.map((rule) => (
+                      <span
+                        key={rule}
+                        className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 font-mono text-xs text-destructive"
+                      >
+                        <span>{rule}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeRule(rule)}
+                          className="hover:opacity-75 cursor-pointer"
+                          aria-label={`移除规则 ${rule}`}
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Input
+                  value={customInput}
+                  onChange={(e) => setCustomInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addRule(customInput);
+                      setCustomInput("");
+                    }
+                  }}
+                  placeholder="输入自定义模型名或通配符（如 *-preview），回车添加..."
+                  className="h-8 text-xs font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 text-xs"
+                  onClick={() => {
+                    addRule(customInput);
+                    setCustomInput("");
+                  }}
+                  disabled={!customInput.trim()}
+                >
+                  <Plus className="size-3" />
+                  添加
+                </Button>
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-medium text-muted-foreground">上游模型候选列表 ({upstreamModels.length})</span>
+                  {upstreamModels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExcludeAllUpstream}
+                      className="text-xs text-primary hover:underline cursor-pointer"
+                    >
+                      排除全部候选
+                    </button>
+                  )}
+                </div>
+
+                {catalog.isPending ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : upstreamModels.length === 0 ? (
+                  <div className="rounded-lg border border-dashed py-6 text-center text-xs text-muted-foreground">
+                    未从该渠道获取到模型定义，您可以直接使用上方输入框输入模型名或通配符。
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="过滤上游模型候选..."
+                        className="h-7 pl-7 text-xs font-mono"
+                      />
+                    </div>
+
+                    <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-lg border p-2.5">
+                      {filteredUpstream.length === 0 ? (
+                        <p className="w-full text-center text-xs text-muted-foreground py-2">无匹配模型</p>
+                      ) : (
+                        filteredUpstream.map((m) => {
+                          const isExcluded = rules.includes(m);
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => toggleModel(m)}
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-xs transition-colors cursor-pointer border ${
+                                isExcluded
+                                  ? "border-destructive/40 bg-destructive/15 text-destructive font-medium"
+                                  : "border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground"
+                              }`}
+                              title={isExcluded ? "点击取消排除" : "点击加入排除"}
+                            >
+                              <span>{m}</span>
+                              {isExcluded ? (
+                                <X className="size-3 text-destructive" />
+                              ) : (
+                                <Plus className="size-3 opacity-60" />
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             取消
