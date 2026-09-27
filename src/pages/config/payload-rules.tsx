@@ -37,16 +37,23 @@ type EditingRule = {
 
 // 读取当前 config.yaml,改完 payload 段写回,保留其余内容与注释
 async function updatePayload(change: (payload: Record<string, unknown[]>) => void) {
-  const doc = YAML.parseDocument((await api<string>("/v0/management/config.yaml")) || "");
-  const payload = ((doc.get("payload") as { toJSON?: () => unknown } | undefined)?.toJSON?.() ?? {}) as Record<
+  const doc = YAML.parseDocument((await api<string>("/v8/management/config.yaml")) || "");
+  const requests = doc.get("requests") as YAML.YAMLMap | undefined;
+  const rawPayload = requests ? requests.get("payload") : doc.get("payload");
+  const payload = ((rawPayload as { toJSON?: () => unknown } | undefined)?.toJSON?.() ?? {}) as Record<
     string,
     unknown[]
   >;
   change(payload);
   for (const key of Object.keys(payload)) if (!payload[key]?.length) delete payload[key];
-  if (Object.keys(payload).length === 0) doc.delete("payload");
-  else doc.set("payload", payload);
-  await api("/v0/management/config.yaml", {
+  if (requests) {
+    if (Object.keys(payload).length === 0) requests.delete("payload");
+    else requests.set("payload", payload);
+  } else {
+    if (Object.keys(payload).length === 0) doc.deleteIn(["requests", "payload"]);
+    else doc.setIn(["requests", "payload"], payload);
+  }
+  await api("/v8/management/config.yaml", {
     method: "PUT",
     body: doc.toString(),
     raw: true,
@@ -357,7 +364,7 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
 
   const { data: configData, isPending } = useQuery({
     queryKey: ["cpa", "config"],
-    queryFn: () => api<Json>("/v0/management/config"),
+    queryFn: () => api<Json>("/v8/management/config"),
   });
 
   const saveMutation = useMutation({

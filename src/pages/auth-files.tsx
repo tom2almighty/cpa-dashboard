@@ -128,7 +128,7 @@ function ModelsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
     queryKey: ["cpa", "auth-file-models", target.name],
     queryFn: () =>
       api<{ models?: { id: string; display_name?: string; owned_by?: string }[] }>(
-        `/v0/management/auth-files/models?name=${file(target.name)}`,
+        `/v8/management/credentials/models?name=${file(target.name)}`,
       ),
     select: (res) => res.models ?? [],
   });
@@ -212,7 +212,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
     queryFn: () =>
       target.runtime_only
         ? Promise.resolve(target as unknown as Record<string, unknown>)
-        : api<Record<string, unknown>>(`/v0/management/auth-files/download?name=${file(target.name)}`),
+        : api<Record<string, unknown>>(`/v8/management/credentials/download?name=${file(target.name)}`),
     select: readFields,
     refetchOnWindowFocus: false,
   });
@@ -221,7 +221,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
 
   const save = useMutation({
     mutationFn: (patch: Record<string, unknown>) =>
-      api("/v0/management/auth-files/fields", { method: "PATCH", body: { name: target.name, ...patch } }),
+      api("/v8/management/credentials/fields", { method: "PATCH", body: { name: target.name, ...patch } }),
     onSuccess: () => {
       toast.success("已保存");
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -317,7 +317,11 @@ function VertexDialog({ onClose }: { onClose: () => void }) {
       const form = new FormData();
       if (picked) form.append("file", picked);
       if (location.trim()) form.append("location", location.trim());
-      return api<{ project_id?: string }>("/v0/management/vertex/import", { method: "POST", body: form, raw: true });
+      return api<{ project_id?: string }>("/v8/management/oauth/import?provider=vertex", {
+        method: "POST",
+        body: form,
+        raw: true,
+      });
     },
     onSuccess: (res) => {
       toast.success(`已导入 Vertex 项目 ${res.project_id ?? ""}`);
@@ -496,21 +500,20 @@ export function AuthFilesPage() {
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => api<{ files: AuthFile[] }>("/v0/management/auth-files"),
+    queryFn: () => api<{ files: AuthFile[] }>("/v8/management/credentials"),
     select: (res) => res.files ?? [],
-    refetchInterval: 30_000,
   });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: QUERY_KEY });
 
   const toggle = useMutation({
     mutationFn: (f: AuthFile) =>
-      api("/v0/management/auth-files/status", { method: "PATCH", body: { name: f.name, disabled: !f.disabled } }),
+      api("/v8/management/credentials/status", { method: "PATCH", body: { name: f.name, disabled: !f.disabled } }),
     onSuccess: refresh,
   });
 
   const remove = useMutation({
-    mutationFn: (f: AuthFile) => api(`/v0/management/auth-files?name=${file(f.name)}`, { method: "DELETE" }),
+    mutationFn: (f: AuthFile) => api(`/v8/management/credentials?name=${file(f.name)}`, { method: "DELETE" }),
     onSuccess: (_, f) => {
       toast.success(`已删除 ${f.name}`);
       setDialog(null);
@@ -519,7 +522,7 @@ export function AuthFilesPage() {
   });
 
   const removeAll = useMutation({
-    mutationFn: () => api<{ deleted?: number }>("/v0/management/auth-files?all=true", { method: "DELETE" }),
+    mutationFn: () => api<{ deleted?: number }>("/v8/management/credentials?all=true", { method: "DELETE" }),
     onSuccess: (res) => {
       toast.success(`已删除 ${res.deleted ?? 0} 个认证文件`);
       setDialog(null);
@@ -529,16 +532,18 @@ export function AuthFilesPage() {
 
   const resetQuota = useMutation({
     mutationFn: (f: AuthFile) =>
-      api<{ models?: string[] }>("/v0/management/reset-quota", { method: "POST", body: { auth_index: f.auth_index } }),
+      api<{ models?: string[] }>("/v8/management/routing/cooldown/reset", {
+        method: "POST",
+        body: { auth_index: f.auth_index },
+      }),
     onSuccess: (res, f) => {
       toast.success(`已重置 ${accountName(f)} 的冷却状态${res.models?.length ? `（${res.models.join("、")}）` : ""}`);
       refresh();
     },
   });
-
   const manualRefresh = useMutation({
     mutationFn: (f: AuthFile) =>
-      api("/v0/management/auth-files/refresh", {
+      api("/v8/management/credentials/refresh", {
         method: "POST",
         body: { name: f.name, ...(f.auth_index ? { auth_index: f.auth_index } : {}) },
       }),
@@ -554,7 +559,7 @@ export function AuthFilesPage() {
   const batchDelete = useMutation({
     mutationFn: async (names: string[]) => {
       for (const name of names) {
-        await api(`/v0/management/auth-files?name=${file(name)}`, { method: "DELETE" });
+        await api(`/v8/management/credentials?name=${file(name)}`, { method: "DELETE" });
       }
       return names.length;
     },
@@ -572,7 +577,7 @@ export function AuthFilesPage() {
   const batchToggle = useMutation({
     mutationFn: async (disabled: boolean) => {
       for (const name of selected) {
-        await api("/v0/management/auth-files/status", {
+        await api("/v8/management/credentials/status", {
           method: "PATCH",
           body: { name, disabled },
         });
@@ -595,7 +600,7 @@ export function AuthFilesPage() {
       if (targets.length === 0) throw new Error("选中的凭据没有可下载的文件");
       const entries = await Promise.all(
         targets.map(async (f) => {
-          const blob = await fetchBlob(`/v0/management/auth-files/download?name=${file(f.name)}`);
+          const blob = await fetchBlob(`/v8/management/credentials/download?name=${file(f.name)}`);
           return [f.name, new Uint8Array(await blob.arrayBuffer())] as const;
         }),
       );
@@ -612,7 +617,7 @@ export function AuthFilesPage() {
       for (const f of files) {
         const form = new FormData();
         form.append("file", f);
-        await api("/v0/management/auth-files", { method: "POST", body: form, raw: true });
+        await api("/v8/management/credentials", { method: "POST", body: form, raw: true });
       }
       return files.length;
     },
@@ -922,7 +927,7 @@ export function AuthFilesPage() {
                               <>
                                 <DropdownMenuItem
                                   onClick={() =>
-                                    download(`/v0/management/auth-files/download?name=${file(f.name)}`, f.name).catch(
+                                    download(`/v8/management/credentials/download?name=${file(f.name)}`, f.name).catch(
                                       (e: Error) => toast.error(e.message),
                                     )
                                   }

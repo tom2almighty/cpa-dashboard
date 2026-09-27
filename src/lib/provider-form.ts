@@ -12,14 +12,14 @@ export type Kind = {
 };
 
 export const KINDS: Kind[] = [
-  { endpoint: "gemini-api-key", label: "Gemini" },
-  { endpoint: "claude-api-key", label: "Claude" },
-  { endpoint: "codex-api-key", label: "Codex", baseUrlRequired: true, websockets: true },
+  { endpoint: "gemini", label: "Gemini" },
+  { endpoint: "claude", label: "Claude" },
+  { endpoint: "codex", label: "Codex", baseUrlRequired: true, websockets: true },
   { endpoint: "openai-compatibility", label: "OpenAI 兼容", openai: true },
-  { endpoint: "vertex-api-key", label: "Vertex" },
-  { endpoint: "xai-api-key", label: "xAI", baseUrlRequired: true, websockets: true },
-  { endpoint: "meta-api-key", label: "Meta", websockets: true },
-  { endpoint: "interactions-api-key", label: "Interactions" },
+  { endpoint: "vertex", label: "Vertex" },
+  { endpoint: "xai", label: "xAI", baseUrlRequired: true, websockets: true },
+  { endpoint: "meta", label: "Meta", websockets: true },
+  { endpoint: "interactions", label: "Interactions" },
 ];
 
 export type Form = {
@@ -77,12 +77,12 @@ export function formatModelRows(rows: ModelRow[]): string {
 }
 
 const KIND_CHANNEL_MAP: Record<string, string[]> = {
-  "claude-api-key": ["claude"],
-  "codex-api-key": ["codex"],
-  "gemini-api-key": ["gemini-cli", "aistudio"],
-  "vertex-api-key": ["vertex"],
-  "xai-api-key": ["xai"],
-  "meta-api-key": ["meta"],
+  claude: ["claude"],
+  codex: ["codex"],
+  gemini: ["gemini-cli", "aistudio"],
+  vertex: ["vertex"],
+  xai: ["xai"],
+  meta: ["meta"],
 };
 
 export async function fetchProviderModels(
@@ -101,13 +101,13 @@ export async function fetchProviderModels(
 
     if (trimmedKey) {
       customHeaders.Authorization = `Bearer ${trimmedKey}`;
-      if (kind.endpoint === "claude-api-key") {
+      if (kind.endpoint === "claude") {
         customHeaders["x-api-key"] = trimmedKey;
-      } else if (kind.endpoint === "gemini-api-key") {
+      } else if (kind.endpoint === "gemini") {
         customHeaders["x-goog-api-key"] = trimmedKey;
       }
     }
-    if (kind.endpoint === "claude-api-key") {
+    if (kind.endpoint === "claude") {
       customHeaders["anthropic-version"] = "2023-06-01";
     }
 
@@ -125,8 +125,8 @@ export async function fetchProviderModels(
 
     let lastError = "未返回任何模型";
     for (const url of candidateUrls) {
-      // 走 CPA 的 /api-call 代理，避开浏览器 CORS
-      const res = await api<{ status_code: number; body?: unknown }>("/v0/management/api-call", {
+      // 走 CPA 的 /v8/management/requests/api-call 代理，避开浏览器 CORS
+      const res = await api<{ status_code: number; body?: unknown }>("/v8/management/requests/api-call", {
         method: "POST",
         body: { method: "GET", url, header: customHeaders },
       });
@@ -147,7 +147,9 @@ export async function fetchProviderModels(
 
   // 2. 未填写 Base URL 时，使用 CPA 内置渠道的模型定义
   for (const ch of KIND_CHANNEL_MAP[kind.endpoint] ?? []) {
-    const res = await api<{ models?: { id: string }[] }>(`/v0/management/model-definitions/${encodeURIComponent(ch)}`);
+    const res = await api<{ models?: { id: string }[] }>(
+      `/v8/management/routing/model-definitions/${encodeURIComponent(ch)}`,
+    );
     for (const m of res.models ?? []) {
       if (m.id) models.add(m.id);
     }
@@ -165,12 +167,14 @@ export function identity(kind: Kind, item: Json): string {
 }
 
 export function toForm(item: Json): Form {
+  const keysList = list(item.keys);
+  const firstKey = keysList.length > 0 ? str(keysList[0]?.["api-key"] ?? keysList[0]) : str(item["api-key"]);
+  const allKeys = keysList.length > 0 ? keysList.map((k) => str(k?.["api-key"] ?? k)).join("\n") : str(item["api-key"]);
+
   return {
     name: str(item.name),
-    apiKey: str(item["api-key"]),
-    keys: list(item["api-key-entries"])
-      .map((e) => str(e["api-key"]))
-      .join("\n"),
+    apiKey: firstKey,
+    keys: allKeys,
     baseUrl: str(item["base-url"]),
     proxyUrl: str(item["proxy-url"]),
     prefix: str(item.prefix),
@@ -183,7 +187,7 @@ export function toForm(item: Json): Form {
       .join("\n"),
     excluded: list<string>(item["excluded-models"]).join("\n"),
     disabled: item.disabled === true,
-    websockets: item.websockets === true,
+    websockets: item.websockets === true || (keysList[0] && keysList[0].websockets === true),
   };
 }
 
@@ -201,16 +205,22 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
     else out[key] = value;
   };
 
+  set("name", form.name.trim() || undefined);
+  const existingKeys = list(original.keys);
+  const keysMap = new Map(existingKeys.map((k) => [str(k?.["api-key"] ?? k), k]));
+  const enteredKeys = lines(form.keys.trim() ? form.keys : form.apiKey);
+
+  set(
+    "keys",
+    enteredKeys.map((k) => {
+      const prev = keysMap.get(k);
+      const entry: Json = typeof prev === "object" && prev !== null ? { ...prev, "api-key": k } : { "api-key": k };
+      if (kind.websockets && form.websockets) entry.websockets = true;
+      return entry;
+    }),
+  );
   if (kind.openai) {
-    set("name", form.name.trim());
-    const entries = new Map(list(original["api-key-entries"]).map((e) => [str(e["api-key"]), e]));
-    set(
-      "api-key-entries",
-      lines(form.keys).map((key) => entries.get(key) ?? { "api-key": key }),
-    );
     set("disabled", form.disabled || undefined);
-  } else {
-    set("api-key", form.apiKey.trim());
   }
   set("base-url", form.baseUrl.trim());
   set("proxy-url", form.proxyUrl.trim());
@@ -245,7 +255,7 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
 
 export function validate(kind: Kind, form: Form): string | null {
   if (kind.openai && !form.name.trim()) return "请填写名称";
-  if (!kind.openai && !form.apiKey.trim()) return "请填写 API Key";
+  if (!form.apiKey.trim() && !form.keys.trim()) return "请填写 API Key";
   if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) return "请填写 Base URL";
   if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) return "优先级必须是整数";
   if (lines(form.headers).some((l) => !l.includes(":"))) return "请求头每行格式为 名称: 值";
@@ -289,7 +299,7 @@ export async function testProviderConnectivity(
       max_tokens: 5,
       stream: false,
     };
-  } else if (kind.endpoint === "claude-api-key") {
+  } else if (kind.endpoint === "claude") {
     const key = form.apiKey.trim();
     if (key) customHeaders["x-api-key"] = key;
     customHeaders["anthropic-version"] = "2023-06-01";
@@ -301,7 +311,7 @@ export async function testProviderConnectivity(
       max_tokens: 5,
       messages: [{ role: "user", content: "Hi" }],
     };
-  } else if (kind.endpoint === "gemini-api-key" || kind.endpoint === "interactions-api-key") {
+  } else if (kind.endpoint === "gemini" || kind.endpoint === "interactions") {
     const key = form.apiKey.trim();
     const host = cleanBase || "https://generativelanguage.googleapis.com";
     const m = testModel || "gemini-1.5-flash";
@@ -310,13 +320,13 @@ export async function testProviderConnectivity(
     payload = {
       contents: [{ parts: [{ text: "Hi" }] }],
     };
-  } else if (kind.endpoint === "codex-api-key") {
+  } else if (kind.endpoint === "codex") {
     if (!cleanBase) throw new Error("Codex 必须填写 Base URL");
     const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
     url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/models`;
     method = "GET";
-  } else if (kind.endpoint === "xai-api-key") {
+  } else if (kind.endpoint === "xai") {
     if (!cleanBase) throw new Error("xAI 必须填写 Base URL");
     const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
@@ -336,7 +346,7 @@ export async function testProviderConnectivity(
   }
 
   try {
-    const res = await api<{ status_code: number; body?: unknown }>("/v0/management/api-call", {
+    const res = await api<{ status_code: number; body?: unknown }>("/v8/management/requests/api-call", {
       method: "POST",
       body: {
         method,

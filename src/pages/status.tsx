@@ -27,7 +27,7 @@ function Stat({ label, value, detail }: { label: string; value: string; detail?:
 export function StatusPage() {
   const files = useQuery({
     queryKey: ["cpa", "auth-files"],
-    queryFn: () => api<{ files: AuthFile[] }>("/v0/management/auth-files"),
+    queryFn: () => api<{ files: AuthFile[] }>("/v8/management/credentials"),
     select: (res) => res.files ?? [],
     refetchInterval: 30_000,
   });
@@ -35,13 +35,16 @@ export function StatusPage() {
   const providers = useQueries({
     queries: KINDS.map((kind) => ({
       queryKey: ["cpa", "providers", kind.endpoint],
-      queryFn: () => api<Json>(`/v0/management/${kind.endpoint}`),
+      queryFn: () =>
+        api<Json[]>(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`)
+          .then((res) => ({ [kind.endpoint]: Array.isArray(res) ? res : [] }))
+          .catch(() => ({ [kind.endpoint]: [] })),
     })),
   });
   const clientKeys = useQuery({
     queryKey: ["cpa", "api-keys"],
-    queryFn: () => api<{ "api-keys": string[] }>("/v0/management/api-keys"),
-    select: (res) => res["api-keys"] ?? [],
+    queryFn: () => api<string[]>("/v8/management/config/access/api-keys"),
+    select: (res) => (Array.isArray(res) ? res : []),
   });
 
   if (!files.data) {

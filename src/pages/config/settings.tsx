@@ -13,7 +13,7 @@ import { api, saveKey } from "@/lib/api";
 export type Json = Record<string, unknown>;
 
 type Setting = {
-  // 对应 /v0/management/<endpoint>,请求体 {value}
+  // 对应 /v8/management/config/<endpoint>，请求体为原始配置值
   endpoint: string;
   label: string;
   hint?: string;
@@ -35,70 +35,70 @@ export const GROUPS: ConfigGroup[] = [
     title: "服务与连接",
     items: [
       {
-        endpoint: "host",
+        endpoint: "server/host",
         label: "监听主机",
         hint: "CPA 绑定的主机 IP 地址，例如 0.0.0.0 或 127.0.0.1",
         type: "text",
         fallback: "0.0.0.0",
       },
       {
-        endpoint: "port",
+        endpoint: "server/port",
         label: "服务端口",
         hint: "CPA 服务监听端口，默认 8317",
         type: "int",
         fallback: "8317",
       },
       {
-        endpoint: "auth-dir",
+        endpoint: "oauth/auth-dir",
         label: "认证凭证目录",
         hint: "认证文件存储目录路径，支持 ~ 路径，默认 ~/.cli-proxy-api",
         type: "text",
         fallback: "~/.cli-proxy-api",
       },
       {
-        endpoint: "remote-management/allow-remote",
+        endpoint: "management/allow-remote",
         label: "允许远程管理",
-        hint: "允许非本机（如局域网、公网反代）访问 /v0/management 接口与管理面板",
+        hint: "允许非本机（如局域网、公网反代）访问 /v8/management 接口与管理面板",
         type: "bool",
       },
       {
-        endpoint: "remote-management/secret-key",
+        endpoint: "management/secret-key",
         label: "管理密钥 (Secret Key)",
         hint: "留空保持已有密钥不变；输入新密钥并保存后，将重置管理密钥并写回配置",
         type: "password",
       },
       {
-        endpoint: "remote-management/disable-control-panel",
+        endpoint: "management/disable-control-panel",
         label: "禁用管理面板",
         hint: "禁用 CPA 内置管理面板资源托管与前端路由",
         type: "bool",
       },
       {
-        endpoint: "remote-management/disable-auto-update-panel",
+        endpoint: "management/disable-auto-update-panel",
         label: "禁用面板后台自动更新",
         hint: "禁用 CPA 在后台定时自动拉取并更新 management.html",
         type: "bool",
       },
       {
-        endpoint: "remote-management/panel-github-repository",
+        endpoint: "management/panel-github-repository",
         label: "面板更新发布仓库",
         hint: "管理面板发布的 GitHub 仓库地址，用于自动拉取更新",
         type: "text",
       },
       {
-        endpoint: "tls/enable",
+        endpoint: "server/tls/enable",
         label: "启用 HTTPS (TLS)",
         hint: "开启内置 HTTPS 服务",
         type: "bool",
       },
       {
-        endpoint: "tls/cert",
+        endpoint: "server/tls/cert",
         label: "TLS 证书路径",
         hint: "服务器 SSL/TLS 证书路径（.crt 或 .pem）",
         type: "text",
       },
       {
-        endpoint: "tls/key",
+        endpoint: "server/tls/key",
         label: "TLS 私钥路径",
         hint: "服务器 SSL/TLS 私钥路径（.key）",
         type: "text",
@@ -110,18 +110,23 @@ export const GROUPS: ConfigGroup[] = [
     title: "网络与路由",
     items: [
       {
-        endpoint: "proxy-url",
+        endpoint: "requests/proxy-url",
         label: "全局代理",
         hint: "上游请求走的代理，例如 socks5://127.0.0.1:1080，留空表示直连",
         type: "text",
       },
       {
-        endpoint: "force-model-prefix",
+        endpoint: "routing/force-model-prefix",
         label: "强制模型前缀",
         hint: "只允许用带前缀的模型名访问配置了前缀的凭据",
         type: "bool",
       },
-      { endpoint: "ws-auth", label: "WebSocket 鉴权", hint: "/ws 路由要求携带 API Key", type: "bool" },
+      {
+        endpoint: "oauth/providers/aistudio/ws-auth",
+        label: "WebSocket 鉴权",
+        hint: "/v1/ws 路由要求携带 API Key",
+        type: "bool",
+      },
       {
         endpoint: "routing/strategy",
         label: "凭据选择策略",
@@ -154,22 +159,27 @@ export const GROUPS: ConfigGroup[] = [
         fallback: "1h",
       },
       {
-        endpoint: "request-retry",
+        endpoint: "routing/retry/request-retry",
         label: "每轮请求重试次数",
         hint: "请求失败后向上游重试的最大次数，默认 3",
         type: "int",
         fallback: "3",
       },
-      { endpoint: "max-retry-credentials", label: "每轮最大重试凭据数", hint: "0 表示尝试所有可用凭据", type: "int" },
-      { endpoint: "max-retry-interval", label: "最大重试等待（秒）", type: "int" },
       {
-        endpoint: "passthrough-headers",
+        endpoint: "routing/retry/max-retry-credentials",
+        label: "每轮最大重试凭据数",
+        hint: "0 表示尝试所有可用凭据",
+        type: "int",
+      },
+      { endpoint: "routing/retry/max-retry-interval", label: "最大重试等待（秒）", type: "int" },
+      {
+        endpoint: "requests/passthrough-headers",
         label: "透传客户端请求头",
         hint: "将客户端请求中携带的自定义 Header 原样透传给上游",
         type: "bool",
       },
       {
-        endpoint: "disable-image-generation",
+        endpoint: "multimedia/disable-image-generation",
         label: "生图行为控制",
         hint: "控制模型图片生成行为",
         type: "select",
@@ -182,51 +192,56 @@ export const GROUPS: ConfigGroup[] = [
         fallback: "false",
       },
       {
-        endpoint: "gpt-image-2-base-model",
+        endpoint: "multimedia/gpt-image-2-base-model",
         label: "生图转基础模型",
         hint: "例如 gpt-5.4-mini，该模型用于解析与理解生图指令",
         type: "text",
       },
-      { endpoint: "disable-cooling", label: "全局禁用冷却", hint: "禁用凭据或模型失败后的拉黑冷却机制", type: "bool" },
       {
-        endpoint: "save-cooldown-status",
+        endpoint: "routing/cooldown/disable-cooling",
+        label: "全局禁用冷却",
+        hint: "禁用凭据或模型失败后的拉黑冷却机制",
+        type: "bool",
+      },
+      {
+        endpoint: "routing/cooldown/save-cooldown-status",
         label: "持久化冷却状态",
         hint: "将凭据冷却状态以 .cds 文件保存在认证目录",
         type: "bool",
       },
       {
-        endpoint: "transient-error-cooldown-seconds",
+        endpoint: "routing/cooldown/transient-error-cooldown-seconds",
         label: "瞬态错误冷却（秒）",
         hint: "408/500/502/503/504 等临时网络错误的冷却秒数，0 为默认（60秒），-1 为禁用",
         type: "int",
       },
       {
-        endpoint: "auth-auto-refresh-workers",
+        endpoint: "oauth/auth-auto-refresh-workers",
         label: "认证自动刷新线程数",
         hint: "后台自动刷新 OAuth Token 的并发线程数，默认 16",
         type: "int",
       },
       {
-        endpoint: "codex/identity-confuse",
+        endpoint: "oauth/providers/codex/identity-confuse",
         label: "Codex 身份混淆映射",
         hint: "使用 fill-first 或会话粘性时，按选定凭据重映射 Codex 缓存和安装标识",
         type: "bool",
       },
-      { endpoint: "debug", label: "调试模式", hint: "输出更详细的调试日志", type: "bool" },
+      { endpoint: "observability/logs/debug", label: "调试模式", hint: "输出更详细的调试日志", type: "bool" },
       {
-        endpoint: "commercial-mode",
+        endpoint: "server/commercial-mode",
         label: "高并发模式（Commercial Mode）",
         hint: "关闭高开销日志以最小化内存占用，适合高并发生产环境",
         type: "bool",
       },
       {
-        endpoint: "disable-claude-cloak-mode",
+        endpoint: "oauth/providers/claude/disable-claude-cloak-mode",
         label: "禁用 Claude 伪装",
         hint: "不伪装 Claude Code 客户端指纹和系统提示词，原样透传",
         type: "bool",
       },
       {
-        endpoint: "video-result-auth-cache-ttl",
+        endpoint: "multimedia/video-result-auth-cache-ttl",
         label: "视频凭据绑定缓存时效",
         hint: "视频 ID 与创建凭据的绑定时长，默认 3h",
         type: "text",
@@ -239,19 +254,7 @@ export const GROUPS: ConfigGroup[] = [
     title: "配额回退",
     items: [
       {
-        endpoint: "quota-exceeded/switch-project",
-        label: "超额时自动切换项目",
-        hint: "配额耗尽时自动切换凭据对应的 GCP / 服务项目",
-        type: "bool",
-      },
-      {
-        endpoint: "quota-exceeded/switch-preview-model",
-        label: "超额时自动切换预览模型",
-        hint: "配额耗尽时自动降级切换至轻量/预览模型",
-        type: "bool",
-      },
-      {
-        endpoint: "quota-exceeded/antigravity-credits",
+        endpoint: "oauth/providers/antigravity/antigravity-credits",
         label: "Antigravity 超额使用 Credits",
         hint: "当所有免费账号额度耗尽时，允许使用付费积分兜底",
         type: "bool",
@@ -263,19 +266,19 @@ export const GROUPS: ConfigGroup[] = [
     title: "流式保活",
     items: [
       {
-        endpoint: "streaming/keepalive-seconds",
+        endpoint: "requests/streaming/keepalive-seconds",
         label: "流式心跳保持（秒）",
         hint: "SSE 流式响应保活心跳发送间隔，0 表示禁用心跳",
         type: "int",
       },
       {
-        endpoint: "streaming/bootstrap-retries",
+        endpoint: "requests/streaming/bootstrap-retries",
         label: "流式启动重试次数",
         hint: "流式连接建立阶段发生网络或协议错误时的重试次数",
         type: "int",
       },
       {
-        endpoint: "nonstream-keepalive-interval",
+        endpoint: "requests/nonstream-keepalive-interval",
         label: "非流式保活间隔",
         hint: "非流式长请求心跳保活间隔，例如 10s、30s",
         type: "text",
@@ -287,39 +290,44 @@ export const GROUPS: ConfigGroup[] = [
     title: "日志与性能",
     items: [
       {
-        endpoint: "logging-to-file",
+        endpoint: "observability/logs/logging-to-file",
         label: "日志写入文件",
         hint: "将应用日志输出到日志目录中的文件",
         type: "bool",
       },
       {
-        endpoint: "request-log",
+        endpoint: "observability/logs/request-log",
         label: "请求详细日志",
         hint: "记录完整的 HTTP 请求报文与响应体，排查错误时开启",
         type: "bool",
       },
       {
-        endpoint: "usage-statistics-enabled",
+        endpoint: "observability/usage/usage-statistics-enabled",
         label: "用量统计",
         hint: "开启后 CPA 会将请求推入用量队列供面板采集；若关闭则面板无法统计用量",
         type: "bool",
       },
       {
-        endpoint: "redis-usage-queue-retention-seconds",
+        endpoint: "observability/usage/redis-usage-queue-retention-seconds",
         label: "用量队列内存保留时间（秒）",
         hint: "用量记录在内存队列中的保留时限，最大 3600 秒",
         type: "int",
       },
-      { endpoint: "logs-max-total-size-mb", label: "日志总大小上限（MB）", hint: "0 表示不限制", type: "int" },
-      { endpoint: "error-logs-max-files", label: "错误日志保留个数", type: "int" },
       {
-        endpoint: "pprof/enable",
+        endpoint: "observability/logs/logs-max-total-size-mb",
+        label: "日志总大小上限（MB）",
+        hint: "0 表示不限制",
+        type: "int",
+      },
+      { endpoint: "observability/logs/error-logs-max-files", label: "错误日志保留个数", type: "int" },
+      {
+        endpoint: "observability/pprof/enable",
         label: "启用 pprof 性能分析",
         hint: "开启内置 Go 运行时性能分析 HTTP 服务",
         type: "bool",
       },
       {
-        endpoint: "pprof/addr",
+        endpoint: "observability/pprof/addr",
         label: "pprof 监听地址",
         hint: "建议仅绑定本机如 127.0.0.1:8316",
         type: "text",
@@ -345,66 +353,66 @@ export const GROUPS: ConfigGroup[] = [
         fallback: "plugins",
       },
       {
-        endpoint: "antigravity/signature-cache",
+        endpoint: "oauth/providers/antigravity/signature-cache-enabled",
         label: "Antigravity 签名缓存",
         hint: "开启后缓存会话签名以提升多并发请求吞吐与凭据稳定性",
         type: "bool",
         fallback: "true",
       },
       {
-        endpoint: "antigravity/signature-bypass-strict",
+        endpoint: "oauth/providers/antigravity/signature-bypass-strict",
         label: "Antigravity 严格签名绕过",
         hint: "绕过严格签名校验（实验性），用于兼容特定上游调用",
         type: "bool",
       },
       {
-        endpoint: "claude-header-defaults/user-agent",
+        endpoint: "oauth/providers/claude/header-defaults/user-agent",
         label: "Claude 默认 User-Agent",
         hint: "客户端未携带时填补的默认 User-Agent",
         type: "text",
       },
       {
-        endpoint: "claude-header-defaults/package-version",
+        endpoint: "oauth/providers/claude/header-defaults/package-version",
         label: "Claude 默认 Package Version",
         hint: "如 0.74.0",
         type: "text",
       },
       {
-        endpoint: "claude-header-defaults/runtime-version",
+        endpoint: "oauth/providers/claude/header-defaults/runtime-version",
         label: "Claude 默认 Runtime Version",
         hint: "如 v24.3.0",
         type: "text",
       },
       {
-        endpoint: "claude-header-defaults/os",
+        endpoint: "oauth/providers/claude/header-defaults/os",
         label: "Claude 默认操作系统基准",
         hint: "如 MacOS，配合设备配置稳定化生效",
         type: "text",
       },
       {
-        endpoint: "claude-header-defaults/arch",
+        endpoint: "oauth/providers/claude/header-defaults/arch",
         label: "Claude 默认架构基准",
         hint: "如 arm64",
         type: "text",
       },
       {
-        endpoint: "claude-header-defaults/timeout",
+        endpoint: "oauth/providers/claude/header-defaults/timeout",
         label: "Claude 默认超时（秒）",
         type: "text",
       },
       {
-        endpoint: "claude-header-defaults/stabilize-device-profile",
+        endpoint: "oauth/providers/claude/header-defaults/stabilize-device-profile",
         label: "Claude 设备配置指纹稳定化",
         hint: "为每个凭据固定 OS/架构为配置的基准值以降低风控",
         type: "bool",
       },
       {
-        endpoint: "codex-header-defaults/user-agent",
+        endpoint: "oauth/providers/codex/header-defaults/user-agent",
         label: "Codex 默认 User-Agent",
         type: "text",
       },
       {
-        endpoint: "codex-header-defaults/beta-features",
+        endpoint: "oauth/providers/codex/header-defaults/beta-features",
         label: "Codex 默认 Beta Features",
         hint: "如 multi_agent，仅适用于 WebSocket 请求",
         type: "text",
@@ -444,7 +452,7 @@ export function ConfigYamlProvider({ children }: { children: React.ReactNode }) 
     error,
   } = useQuery({
     queryKey: ["cpa", "config.yaml"],
-    queryFn: () => api<string>("/v0/management/config.yaml"),
+    queryFn: () => api<string>("/v8/management/config.yaml"),
     refetchOnWindowFocus: false,
   });
 
@@ -502,12 +510,12 @@ export function ConfigYamlProvider({ children }: { children: React.ReactNode }) 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const latestYaml = await api<string>("/v0/management/config.yaml");
+      const latestYaml = await api<string>("/v8/management/config.yaml");
       const latestDoc = YAML.parseDocument(latestYaml || "");
 
       for (const [endpoint, value] of Object.entries(patch)) {
         const keys = endpoint.split("/");
-        if (endpoint === "remote-management/secret-key") {
+        if (endpoint === "management/secret-key") {
           const newSecret = String(value ?? "").trim();
           if (newSecret) {
             latestDoc.setIn(keys, newSecret);
@@ -526,15 +534,15 @@ export function ConfigYamlProvider({ children }: { children: React.ReactNode }) 
       }
 
       const nextYamlText = latestDoc.toString();
-      await api("/v0/management/config.yaml", {
+      await api("/v8/management/config.yaml", {
         method: "PUT",
         body: nextYamlText,
         raw: true,
         headers: { "Content-Type": "application/yaml" },
       });
 
-      if (patch["remote-management/secret-key"]) {
-        saveKey(String(patch["remote-management/secret-key"]), true);
+      if (patch["management/secret-key"]) {
+        saveKey(String(patch["management/secret-key"]), true);
       }
 
       return nextYamlText;

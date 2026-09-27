@@ -35,7 +35,7 @@ export function useVersionData() {
   const cpaQuery = useQuery({
     queryKey: ["cpa", "version"],
     queryFn: async () => {
-      const res = await request("/v0/management/latest-version");
+      const res = await request("/v8/management/server/latest-version");
       const body = res.ok ? ((await res.json().catch(() => ({}))) as { "latest-version"?: string }) : {};
       return {
         current: res.headers.get("x-cpa-version") || "未知",

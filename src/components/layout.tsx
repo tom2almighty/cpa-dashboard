@@ -50,7 +50,7 @@ const GATEWAY_NAV: NavItem[] = [
   { to: "/api-keys", label: "API Key", icon: KeyRound },
 ];
 
-const MODEL_NAV: NavItem[] = [{ to: "/models", label: "可用模型", icon: Boxes }];
+const MODEL_NAV: NavItem[] = [{ to: "/models", label: "模型管理", icon: Boxes }];
 
 const SYSTEM_NAV: NavItem[] = [
   { to: "/plugins", label: "插件", icon: Puzzle },

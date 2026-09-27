@@ -63,7 +63,9 @@ function ProviderCard({ provider }: { provider: Provider }) {
 
   const start = useMutation({
     mutationFn: () =>
-      api<Session>(`/v0/management/${provider.id}-auth-url${provider.callback ? "?is_webui=true" : ""}`),
+      api<Session>(
+        `/v8/management/oauth/auth-url?provider=${encodeURIComponent(provider.id)}${provider.callback ? "&is_webui=true" : ""}`,
+      ),
     onSuccess: (data) => {
       setSession(data);
       setCallbackUrl("");
@@ -74,7 +76,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
     queryKey: ["oauth-status", session?.state],
     queryFn: () =>
       api<{ status: "wait" | "ok" | "error"; error?: string }>(
-        `/v0/management/get-auth-status?state=${encodeURIComponent(session?.state ?? "")}`,
+        `/v8/management/oauth/status?state=${encodeURIComponent(session?.state ?? "")}`,
       ),
     enabled: Boolean(session?.state),
     refetchInterval: (query) => (query.state.data?.status === "wait" || !query.state.data ? 2000 : false),
@@ -87,13 +89,14 @@ function ProviderCard({ provider }: { provider: Provider }) {
   useEffect(() => {
     if (!done) return;
     toast.success(`${provider.name} 登录成功，认证文件已保存`);
+    queryClient.invalidateQueries({ queryKey: ["cpa", "credentials"] });
     queryClient.invalidateQueries({ queryKey: ["cpa", "auth-files"] });
     setSession(null);
   }, [done, provider.name, queryClient]);
 
   const submit = useMutation({
     mutationFn: () =>
-      api("/v0/management/oauth-callback", {
+      api("/v8/management/oauth/callback", {
         method: "POST",
         body: {
           provider: provider.id,
@@ -106,7 +109,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
 
   const cancel = useMutation({
     mutationFn: () =>
-      api(`/v0/management/oauth-session?state=${encodeURIComponent(session?.state ?? "")}`, { method: "DELETE" }),
+      api(`/v8/management/oauth/session?state=${encodeURIComponent(session?.state ?? "")}`, { method: "DELETE" }),
     onSettled: () => setSession(null),
   });
 
@@ -204,7 +207,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
 export function OAuthPage() {
   const plugins = useQuery({
     queryKey: ["cpa", "plugins"],
-    queryFn: () => api<PluginList>("/v0/management/plugins"),
+    queryFn: () => api<PluginList>("/v8/management/plugins"),
     retry: false,
   });
   const builtIn = new Set(PROVIDERS.map((p) => p.id));

@@ -25,7 +25,7 @@ async function login(base: string, key: string, remember: boolean) {
   saveKey(key, remember);
 
   try {
-    await api("/v0/management/debug");
+    await api("/v8/management/config");
   } catch (error) {
     clearKey();
     if (!remember) clearBaseUrl();
@@ -33,10 +33,13 @@ async function login(base: string, key: string, remember: boolean) {
       throw new ApiError(401, "管理密钥不正确");
     }
     if (error instanceof ApiError && error.status === 403) {
-      throw new ApiError(403, "CPA 不允许远程管理，需要在配置中设置 remote-management.allow-remote: true");
+      throw new ApiError(403, "CPA 不允许远程管理，需要在配置中设置 management.allow-remote: true");
     }
     if (error instanceof ApiError && error.status === 404) {
-      throw new ApiError(404, "CPA 没有开启管理接口，需要在配置中设置 remote-management.secret-key");
+      throw new ApiError(
+        404,
+        "CPA 没有开启管理接口，需要在配置中设置 management.secret-key 或启动环境变量 MANAGEMENT_PASSWORD",
+      );
     }
     const msg = (error as Error)?.message || String(error);
     if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
@@ -142,7 +145,7 @@ export function LoginPage() {
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                面板独立运行在其他端口或远程静态服务器时，请在此指定 CPA 后端地址。
+                前后端分离部署时，在此指定远程 CPA 服务地址（如 https://cpa.example.com）。
               </p>
             </div>
           )}
@@ -150,7 +153,7 @@ export function LoginPage() {
 
         {/* 管理密钥输入区 */}
         <div className="grid gap-2">
-          <Label htmlFor="key">管理密钥</Label>
+          <Label htmlFor="key">管理密钥 / 访问密码</Label>
           <div className="relative">
             <Input
               id="key"
@@ -162,7 +165,7 @@ export function LoginPage() {
               aria-invalid={mutation.isError || undefined}
               aria-describedby="key-hint"
               className="pr-9"
-              placeholder="请输入 remote-management.secret-key"
+              placeholder="management.secret-key 或 MANAGEMENT_PASSWORD"
             />
             <Button
               type="button"
@@ -176,7 +179,8 @@ export function LoginPage() {
             </Button>
           </div>
           <p id="key-hint" className="text-xs text-muted-foreground">
-            填写 CPA 配置里 remote-management.secret-key 的原文。连续输错 5 次，CPA 会封禁当前 IP 30 分钟。
+            可输入配置中的 management.secret-key，或环境变量 MANAGEMENT_PASSWORD（支持无配置远程连接）。连续输错 5
+            次将临时封禁 30 分钟。
           </p>
         </div>
 

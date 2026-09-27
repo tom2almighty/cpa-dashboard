@@ -19,7 +19,7 @@ const ApiKeysPage = lazy(() => import("@/pages/api-keys").then((m) => ({ default
 async function checkSession(): Promise<boolean> {
   if (!storedKey()) return false;
   try {
-    await api("/v0/management/debug");
+    await api("/v8/management/config");
     return true;
   } catch (error) {
     if (isUnauthorized(error)) return false;

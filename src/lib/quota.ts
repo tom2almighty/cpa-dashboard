@@ -397,7 +397,7 @@ type ApiCallResponse = { status_code: number; body?: string };
 
 // 通过 CPA 的 /api-call 用该账号的凭据调用上游,$TOKEN$ 会被替换成账号 token
 async function upstream(authIndex: string, method: string, url: string, header: Record<string, string>, data?: string) {
-  const res = await api<ApiCallResponse>("/v0/management/api-call", {
+  const res = await api<ApiCallResponse>("/v8/management/requests/api-call", {
     method: "POST",
     body: { auth_index: authIndex, method, url, header, ...(data ? { data } : {}) },
   });
@@ -443,7 +443,7 @@ async function antigravityProject(file: AuthFile): Promise<string> {
   const direct = findField(file, ["project_id", "projectId"]);
   if (direct) return direct;
   try {
-    const raw = await api<unknown>(`/v0/management/auth-files/download?name=${encodeURIComponent(file.name)}`);
+    const raw = await api<unknown>(`/v8/management/credentials/download?name=${encodeURIComponent(file.name)}`);
     const parsed = obj(typeof raw === "string" ? JSON.parse(raw) : raw);
     return findField(parsed, ["project_id", "projectId"]) ?? ANTIGRAVITY_DEFAULT_PROJECT;
   } catch {
@@ -509,7 +509,7 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
       let dcaToken = findField(file, ["dca_token", "dcaToken"]);
       if (!dcaToken && file.name) {
         try {
-          const raw = await api<unknown>(`/v0/management/auth-files/download?name=${encodeURIComponent(file.name)}`);
+          const raw = await api<unknown>(`/v8/management/credentials/download?name=${encodeURIComponent(file.name)}`);
           const parsed = obj(typeof raw === "string" ? JSON.parse(raw) : raw);
           dcaToken = findField(parsed, ["dca_token", "dcaToken"]);
         } catch {}

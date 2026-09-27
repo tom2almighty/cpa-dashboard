@@ -1,4 +1,4 @@
-// CPA GET /v0/management/auth-files
+// CPA GET /v8/management/credentials
 export type RecentBucket = { time: string; success: number; failed: number };
 
 export type AuthFileCooldown = {

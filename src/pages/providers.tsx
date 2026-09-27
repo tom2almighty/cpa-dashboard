@@ -56,11 +56,12 @@ import type { RecentBucket } from "@/lib/types";
 
 type KeyUsage = { success: number; failed: number; recent_requests?: RecentBucket[] };
 
-// /api-key-usage 按 provider -> "base-url|api-key" 分组,这里摊平成一张表
+// /observability/usage/api-keys 按 provider -> "base-url|api-key" 分组
 function useKeyUsage() {
   return useQuery({
     queryKey: ["cpa", "api-key-usage"],
-    queryFn: () => api<Record<string, Record<string, KeyUsage>>>("/v0/management/api-key-usage"),
+    queryFn: () =>
+      api<Record<string, Record<string, KeyUsage>>>("/v8/management/observability/usage/api-keys").catch(() => ({})),
     select: (res) => new Map(Object.values(res ?? {}).flatMap((group) => Object.entries(group ?? {}))),
     refetchInterval: 60_000,
     retry: false,
@@ -68,10 +69,11 @@ function useKeyUsage() {
 }
 
 // 一个条目可能有多个 Key(OpenAI 兼容),把它们的桶按位置相加
-function usageOf(kind: Kind, item: Json, usage: Map<string, KeyUsage> | undefined): RecentBucket[] {
+function usageOf(_kind: Kind, item: Json, usage: Map<string, KeyUsage> | undefined): RecentBucket[] {
   if (!usage) return [];
   const base = str(item["base-url"]);
-  const keys = kind.openai ? list(item["api-key-entries"]).map((e) => str(e["api-key"])) : [str(item["api-key"])];
+  const keysList = list(item.keys);
+  const keys = keysList.length > 0 ? keysList.map((e) => str(e["api-key"] ?? e)) : [str(item["api-key"])];
   const found = keys.map((k) => usage.get(`${base}|${k}`)).filter((u): u is KeyUsage => Boolean(u));
   const buckets: RecentBucket[] = [];
   for (const u of found) {
@@ -83,11 +85,18 @@ function usageOf(kind: Kind, item: Json, usage: Map<string, KeyUsage> | undefine
   return buckets;
 }
 
-// 先取最新列表再整表写回,避免覆盖别处的改动
+// v8: /config/api-keys/<provider> 整体替换
 async function mutateList(kind: Kind, change: (items: Json[]) => Json[]) {
-  const res = await api<Json>(`/v0/management/${kind.endpoint}`);
-  const items = list(res[kind.endpoint]).map(({ "auth-index": _, ...rest }) => rest);
-  await api(`/v0/management/${kind.endpoint}`, { method: "PUT", body: change(items) });
+  const current = await api<Json[]>(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`).catch(
+    () => [],
+  );
+  const items = list(current).map(({ "auth-index": _, ...rest }) => rest);
+  const updated = change(items);
+  if (updated.length > 0) {
+    await api(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`, { method: "PUT", body: updated });
+  } else {
+    await api(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`, { method: "DELETE" });
+  }
 }
 
 function findIndex(kind: Kind, items: Json[], target: Json): number {
@@ -702,7 +711,10 @@ export function ProvidersPage() {
   const results = useQueries({
     queries: KINDS.map((kind) => ({
       queryKey: ["cpa", "providers", kind.endpoint],
-      queryFn: () => api<Json>(`/v0/management/${kind.endpoint}`),
+      queryFn: () =>
+        api<Json[]>(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`)
+          .then((res) => ({ [kind.endpoint]: Array.isArray(res) ? res : [] }))
+          .catch(() => ({ [kind.endpoint]: [] })),
     })),
   });
 

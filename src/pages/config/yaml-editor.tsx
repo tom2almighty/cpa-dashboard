@@ -17,7 +17,7 @@ export function YamlEditor() {
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "config.yaml"],
-    queryFn: () => api<string>("/v0/management/config.yaml"),
+    queryFn: () => api<string>("/v8/management/config.yaml"),
     refetchOnWindowFocus: false,
   });
 
@@ -36,7 +36,7 @@ export function YamlEditor() {
 
   const save = useMutation({
     mutationFn: () =>
-      api("/v0/management/config.yaml", {
+      api("/v8/management/config.yaml", {
         method: "PUT",
         body: draft,
         raw: true,

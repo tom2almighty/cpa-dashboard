@@ -39,7 +39,8 @@ type CatalogModel = { id: string; display_name?: string; owned_by?: string; cont
 function useCatalog(channel: string) {
   return useQuery({
     queryKey: ["cpa", "model-definitions", channel],
-    queryFn: () => api<{ models?: CatalogModel[] }>(`/v0/management/model-definitions/${encodeURIComponent(channel)}`),
+    queryFn: () =>
+      api<{ models?: CatalogModel[] }>(`/v8/management/routing/model-definitions/${encodeURIComponent(channel)}`),
     select: (res) => res.models ?? [],
     enabled: Boolean(channel),
     retry: false,
@@ -100,8 +101,10 @@ function AliasDialog({
           if (!out["force-mapping"]) delete out["force-mapping"];
           return out;
         });
-      // 空数组会删除该渠道
-      return api("/v0/management/oauth-model-alias", { method: "PATCH", body: { channel, aliases: clean } });
+      // v8: /config/oauth/model-alias/<channel>，数组整体替换或删除
+      return clean.length
+        ? api(`/v8/management/config/oauth/model-alias/${encodeURIComponent(channel)}`, { method: "PUT", body: clean })
+        : api(`/v8/management/config/oauth/model-alias/${encodeURIComponent(channel)}`, { method: "DELETE" });
     },
     onSuccess: () => {
       toast.success("模型别名已保存");
@@ -218,8 +221,8 @@ function Aliases() {
   const [editing, setEditing] = useState<{ channel: string; aliases: Alias[] } | null>(null);
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "oauth-model-alias"],
-    queryFn: () => api<{ "oauth-model-alias"?: AliasMap }>("/v0/management/oauth-model-alias"),
-    select: (res) => Object.entries(res["oauth-model-alias"] ?? {}).filter(([, list]) => list?.length),
+    queryFn: () => api<AliasMap>("/v8/management/config/oauth/model-alias").catch(() => ({})),
+    select: (res) => Object.entries(res ?? {}).filter(([, list]) => list?.length),
   });
 
   if (isError) {
@@ -349,9 +352,13 @@ function ExcludedDialog({
   const save = useMutation({
     mutationFn: () => {
       const clean = rules.map((s) => s.trim()).filter(Boolean);
+      // v8: /config/oauth/excluded-models/<provider>
       return clean.length
-        ? api("/v0/management/oauth-excluded-models", { method: "PATCH", body: { provider, models: clean } })
-        : api(`/v0/management/oauth-excluded-models?provider=${encodeURIComponent(provider)}`, { method: "DELETE" });
+        ? api(`/v8/management/config/oauth/excluded-models/${encodeURIComponent(provider)}`, {
+            method: "PUT",
+            body: clean,
+          })
+        : api(`/v8/management/config/oauth/excluded-models/${encodeURIComponent(provider)}`, { method: "DELETE" });
     },
     onSuccess: () => {
       toast.success("排除模型已保存");
@@ -591,8 +598,8 @@ function Excluded() {
   const [editing, setEditing] = useState<{ provider: string; models: string[] } | null>(null);
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "oauth-excluded-models"],
-    queryFn: () => api<{ "oauth-excluded-models"?: Record<string, string[]> }>("/v0/management/oauth-excluded-models"),
-    select: (res) => Object.entries(res["oauth-excluded-models"] ?? {}).filter(([, list]) => list?.length),
+    queryFn: () => api<Record<string, string[]>>("/v8/management/config/oauth/excluded-models").catch(() => ({})),
+    select: (res) => Object.entries(res ?? {}).filter(([, list]) => list?.length),
   });
 
   if (isError) {

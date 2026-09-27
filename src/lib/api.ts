@@ -71,10 +71,10 @@ export function clearKey() {
 // 管理接口带管理密钥;/v1 接口只认客户端 Key,每次现取配置里的第一个,没配置时 CPA 不校验
 async function withAuth(path: string, headers?: HeadersInit): Promise<Headers> {
   const out = new Headers(headers);
-  if (path.includes("/v0/management")) {
+  if (path.includes("/v8/management")) {
     out.set("Authorization", `Bearer ${storedKey()}`);
   } else if (path.includes("/v1/") && !out.has("Authorization")) {
-    const key = (await api<{ "api-keys"?: string[] }>("/v0/management/api-keys"))["api-keys"]?.[0];
+    const key = (await api<string[]>("/v8/management/config/access/api-keys").catch(() => []))?.[0];
     if (key) out.set("Authorization", `Bearer ${key}`);
   }
   return out;

@@ -57,7 +57,7 @@ const ROW_TINT: Record<Level, string> = {
 
 async function downloadRequestLog(id: string) {
   try {
-    await download(`/v0/management/request-log-by-id/${encodeURIComponent(id)}`, `request-${id}.log`);
+    await download(`/v8/management/observability/logs/requests/${encodeURIComponent(id)}`, `request-${id}.log`);
   } catch (error) {
     toast.error(
       error instanceof ApiError && error.status === 404
@@ -139,7 +139,7 @@ function LiveLogs() {
       try {
         const used = cursor.current;
         const query = used ? `cursor=${encodeURIComponent(used)}&limit=1000` : "limit=1000";
-        const res = await api<LogsResponse>(`/v0/management/logs?${query}`);
+        const res = await api<LogsResponse>(`/v8/management/observability/logs?${query}`);
         if (stopped) return;
         cursor.current = res["next-cursor"];
         // 没带游标(或游标失效)时返回的是最新的一段,直接替换
@@ -201,7 +201,7 @@ function LiveLogs() {
   }
 
   const enable = useMutation({
-    mutationFn: () => api("/v0/management/logging-to-file", { method: "PUT", body: { value: true } }),
+    mutationFn: () => api("/v8/management/config/observability/logs/logging-to-file", { method: "PUT", body: true }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
       restart();
@@ -209,7 +209,7 @@ function LiveLogs() {
   });
 
   const clear = useMutation({
-    mutationFn: () => api("/v0/management/logs", { method: "DELETE" }),
+    mutationFn: () => api("/v8/management/observability/logs", { method: "DELETE" }),
     onSuccess: () => {
       toast.success("日志已清空");
       restart();
@@ -345,17 +345,20 @@ function RequestLogs() {
   const [requestId, setRequestId] = useState("");
   const config = useQuery({
     queryKey: ["cpa", "config"],
-    queryFn: () => api<Record<string, unknown>>("/v0/management/config"),
+    queryFn: () => api<Record<string, unknown>>("/v8/management/config"),
   });
   const files = useQuery({
     queryKey: ["cpa", "request-error-logs"],
     queryFn: () =>
-      api<{ files?: { name: string; size: number; modified: number }[] }>("/v0/management/request-error-logs"),
+      api<{ files?: { name: string; size: number; modified: number }[] }>("/v8/management/observability/logs/errors"),
     select: (res) => res.files ?? [],
   });
-  const requestLog = config.data?.["request-log"] === true;
+  const requestLog =
+    config.data?.["request-log"] === true ||
+    (config.data?.observability as { logs?: { "request-log"?: boolean } })?.logs?.["request-log"] === true;
   const toggle = useMutation({
-    mutationFn: (value: boolean) => api("/v0/management/request-log", { method: "PUT", body: { value } }),
+    mutationFn: (value: boolean) =>
+      api("/v8/management/config/observability/logs/request-log", { method: "PUT", body: value }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
       queryClient.invalidateQueries({ queryKey: ["cpa", "request-error-logs"] });
@@ -443,9 +446,10 @@ function RequestLogs() {
                       size="icon-sm"
                       aria-label={`下载 ${f.name}`}
                       onClick={() =>
-                        download(`/v0/management/request-error-logs/${encodeURIComponent(f.name)}`, f.name).catch(
-                          (e: Error) => toast.error(e.message),
-                        )
+                        download(
+                          `/v8/management/observability/logs/errors/${encodeURIComponent(f.name)}`,
+                          f.name,
+                        ).catch((e: Error) => toast.error(e.message))
                       }
                     >
                       <Download />

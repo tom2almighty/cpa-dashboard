@@ -77,20 +77,20 @@ export function ApiKeysPage() {
   };
   const { data, isPending } = useQuery({
     queryKey: ["cpa", "api-keys"],
-    queryFn: () => api<{ "api-keys": string[] }>("/v0/management/api-keys"),
-    select: (res) => res["api-keys"] ?? [],
+    queryFn: () => api<string[]>("/v8/management/config/access/api-keys"),
+    select: (res) => (Array.isArray(res) ? res : []),
   });
 
   const save = useMutation({
-    mutationFn: (keys: string[]) => api("/v0/management/api-keys", { method: "PUT", body: keys }),
+    mutationFn: (keys: string[]) => api("/v8/management/config/access/api-keys", { method: "PUT", body: keys }),
     onSuccess: () => {
       setAdding("");
       queryClient.invalidateQueries({ queryKey: ["cpa", "api-keys"] });
       queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
+      queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
       toast.success("API Key 已更新");
     },
   });
-
   const keys = data ?? [];
 
   const copy = (text: string, message: string) => {
@@ -119,14 +119,14 @@ export function ApiKeysPage() {
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle>已配置的 Key</CardTitle>
                   <CardDescription className="mt-1">
                     CPA 启动后会校验传入的 Bearer Token 是否包含在以下列表中。
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-start sm:self-auto">
                   {keys.length > 0 && (
                     <Button variant="ghost" size="xs" onClick={toggleShowAll} className="text-muted-foreground">
                       {showAll ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
@@ -147,10 +147,12 @@ export function ApiKeysPage() {
               ) : (
                 <ul className="divide-y rounded-lg border">
                   {keys.map((key) => (
-                    <li key={key} className="flex items-center gap-3 px-3 py-2.5">
-                      <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <li key={key} className="flex flex-col gap-2.5 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3">
                       <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <code className="truncate font-mono text-sm">{visibleKeys[key] ? key : maskKey(key)}</code>
+                        <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <code className="truncate font-mono text-xs sm:text-sm">
+                          {visibleKeys[key] ? key : maskKey(key)}
+                        </code>
                         {notes[key] ? (
                           <Badge
                             variant="outline"
@@ -166,7 +168,7 @@ export function ApiKeysPage() {
                         ) : (
                           <button
                             type="button"
-                            className="shrink-0 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                            className="shrink-0 text-xs text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
                             onClick={() => {
                               setEditingNoteKey(key);
                               setEditingNoteValue("");
@@ -176,51 +178,53 @@ export function ApiKeysPage() {
                           </button>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={visibleKeys[key] ? "隐藏 Key" : "显示 Key"}
-                        onClick={() => toggleVisible(key)}
-                      >
-                        {visibleKeys[key] ? <EyeOff /> : <Eye />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="复制 Key"
-                        onClick={() => copy(key, "已复制 API Key")}
-                      >
-                        {copied === key ? <Check className="text-primary" /> : <Copy />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="修改备注"
-                        onClick={() => {
-                          setEditingNoteKey(key);
-                          setEditingNoteValue(notes[key] || "");
-                        }}
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`删除 ${key}`}
-                        className="text-muted-foreground hover:text-destructive"
-                        disabled={save.isPending}
-                        onClick={() => {
-                          save.mutate(keys.filter((k) => k !== key));
-                          if (notes[key]) {
-                            const next = { ...notes };
-                            delete next[key];
-                            setNotes(next);
-                            saveNotes(next);
-                          }
-                        }}
-                      >
-                        <Trash2 />
-                      </Button>
+                      <div className="flex items-center gap-1 self-end sm:self-auto shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={visibleKeys[key] ? "隐藏 Key" : "显示 Key"}
+                          onClick={() => toggleVisible(key)}
+                        >
+                          {visibleKeys[key] ? <EyeOff /> : <Eye />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label="复制 Key"
+                          onClick={() => copy(key, "已复制 API Key")}
+                        >
+                          {copied === key ? <Check className="text-primary" /> : <Copy />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label="修改备注"
+                          onClick={() => {
+                            setEditingNoteKey(key);
+                            setEditingNoteValue(notes[key] || "");
+                          }}
+                        >
+                          <Pencil />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`删除 ${key}`}
+                          className="text-muted-foreground hover:text-destructive"
+                          disabled={save.isPending}
+                          onClick={() => {
+                            save.mutate(keys.filter((k) => k !== key));
+                            if (notes[key]) {
+                              const next = { ...notes };
+                              delete next[key];
+                              setNotes(next);
+                              saveNotes(next);
+                            }
+                          }}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
                     </li>
                   ))}
                   {keys.length === 0 && (
@@ -232,7 +236,7 @@ export function ApiKeysPage() {
               )}
 
               <form
-                className="mt-4 flex flex-wrap gap-2"
+                className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap"
                 onSubmit={(e) => {
                   e.preventDefault();
                   const key = adding.trim();
@@ -252,22 +256,29 @@ export function ApiKeysPage() {
                   onChange={(e) => setAdding(e.target.value)}
                   placeholder="输入或生成一个新的 Key"
                   aria-label="新的 API Key"
-                  className="w-full font-mono sm:w-72"
+                  className="w-full font-mono sm:w-64 md:w-72"
                 />
                 <Input
                   value={addingNote}
                   onChange={(e) => setAddingNote(e.target.value)}
                   placeholder="备注（例如：Cursor、生产环境）"
                   aria-label="Key 备注"
-                  className="w-full sm:w-48"
+                  className="w-full sm:w-44 md:w-48"
                 />
-                <Button type="button" variant="outline" onClick={() => setAdding(randomKey())}>
-                  随机生成
-                </Button>
-                <Button type="submit" disabled={!adding.trim() || save.isPending}>
-                  <Plus />
-                  添加 Key
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 sm:flex-none"
+                    onClick={() => setAdding(randomKey())}
+                  >
+                    随机生成
+                  </Button>
+                  <Button type="submit" className="flex-1 sm:flex-none" disabled={!adding.trim() || save.isPending}>
+                    <Plus />
+                    添加 Key
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
