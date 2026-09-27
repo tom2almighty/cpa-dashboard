@@ -878,7 +878,7 @@ export function PluginsPage() {
     <>
       <PageHeader title="插件" />
       <Tabs defaultValue="installed">
-        <TabsList variant="line" className="mb-6">
+        <TabsList className="mb-6">
           <TabsTrigger value="installed">已安装</TabsTrigger>
           <TabsTrigger value="store">插件商店</TabsTrigger>
         </TabsList>

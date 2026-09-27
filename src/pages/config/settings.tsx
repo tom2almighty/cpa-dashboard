@@ -1,70 +1,99 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Check, Copy, Eye, EyeOff, RotateCcw, Save } from "lucide-react";
+import React, { createContext, useCallback, useContext, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
-import YAML from "yaml";
+import * as YAML from "yaml";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { api, saveKey } from "@/lib/api";
 
 export type Json = Record<string, unknown>;
 
-type Setting = {
-  // 对应 /v8/management/config/<endpoint>，请求体为原始配置值
+export type Setting = {
   endpoint: string;
   label: string;
   hint?: string;
   type: "bool" | "int" | "text" | "password" | "select";
   options?: { value: string; label: string }[];
-  // 配置里没写这一项时 CPA 使用的默认值
   fallback?: string;
 };
 
-type ConfigGroup = {
+export type ConfigGroup = {
   id: string;
   title: string;
+  description?: string;
   items: Setting[];
 };
 
+/**
+ * 严格参照 CPA 8.0 官方文档 (configuration/options) 与生产实践构建的分组结构
+ */
 export const GROUPS: ConfigGroup[] = [
   {
-    id: "connectivity",
-    title: "服务与连接",
+    id: "server",
+    title: "服务器 (Server)",
+    description: "HTTP/HTTPS 监听地址、端口与通用服务行为",
     items: [
       {
         endpoint: "server/host",
-        label: "监听主机",
-        hint: "CPA 绑定的主机 IP 地址，例如 0.0.0.0 或 127.0.0.1",
+        label: "监听主机 (Host)",
+        hint: "绑定地址，空值或 0.0.0.0 监听所有接口，127.0.0.1 仅限本机",
         type: "text",
-        fallback: "0.0.0.0",
+        fallback: "",
       },
       {
         endpoint: "server/port",
-        label: "服务端口",
-        hint: "CPA 服务监听端口，默认 8317",
+        label: "服务端口 (Port)",
+        hint: "CPA 核心监听端口，默认 8317",
         type: "int",
         fallback: "8317",
       },
       {
-        endpoint: "oauth/auth-dir",
-        label: "认证凭证目录",
-        hint: "认证文件存储目录路径，支持 ~ 路径，默认 ~/.cli-proxy-api",
-        type: "text",
-        fallback: "~/.cli-proxy-api",
+        endpoint: "server/commercial-mode",
+        label: "高并发模式 (Commercial Mode)",
+        hint: "关闭高开销请求日志与非必要中间件以最小化内存占用",
+        type: "bool",
       },
       {
+        endpoint: "server/tls/enable",
+        label: "启用 HTTPS (TLS)",
+        hint: "开启内置 HTTPS 服务",
+        type: "bool",
+      },
+      {
+        endpoint: "server/tls/cert",
+        label: "TLS 证书路径",
+        hint: "服务器 SSL/TLS 证书文件路径（.crt 或 .pem）",
+        type: "text",
+      },
+      {
+        endpoint: "server/tls/key",
+        label: "TLS 私钥路径",
+        hint: "服务器 SSL/TLS 私钥文件路径（.key）",
+        type: "text",
+      },
+    ],
+  },
+  {
+    id: "management",
+    title: "管理 API (Management)",
+    description: "管理接口权限与内置管理面板控制",
+    items: [
+      {
         endpoint: "management/allow-remote",
-        label: "允许远程管理",
-        hint: "允许非本机（如局域网、公网反代）访问 /v8/management 接口与管理面板",
+        label: "允许远程管理 (Allow Remote)",
+        hint: "允许来自非 localhost 的客户端访问管理 API。注：环境变量 MANAGEMENT_PASSWORD 即使在此处为 false 也允许远程访问",
         type: "bool",
       },
       {
         endpoint: "management/secret-key",
         label: "管理密钥 (Secret Key)",
-        hint: "留空保持已有密钥不变；输入新密钥并保存后，将重置管理密钥并写回配置",
+        hint: "管理密钥原文。保存后由 CPA 进行 bcrypt 哈希存储，留空保持不变",
         type: "password",
       },
       {
@@ -76,60 +105,26 @@ export const GROUPS: ConfigGroup[] = [
       {
         endpoint: "management/disable-auto-update-panel",
         label: "禁用面板后台自动更新",
-        hint: "禁用 CPA 在后台定时自动拉取并更新 management.html",
+        hint: "禁用 CPA 在后台定时检查并下载管理面板最新 Release",
         type: "bool",
       },
       {
         endpoint: "management/panel-github-repository",
         label: "面板更新发布仓库",
-        hint: "管理面板发布的 GitHub 仓库地址，用于自动拉取更新",
-        type: "text",
-      },
-      {
-        endpoint: "server/tls/enable",
-        label: "启用 HTTPS (TLS)",
-        hint: "开启内置 HTTPS 服务",
-        type: "bool",
-      },
-      {
-        endpoint: "server/tls/cert",
-        label: "TLS 证书路径",
-        hint: "服务器 SSL/TLS 证书路径（.crt 或 .pem）",
-        type: "text",
-      },
-      {
-        endpoint: "server/tls/key",
-        label: "TLS 私钥路径",
-        hint: "服务器 SSL/TLS 私钥路径（.key）",
+        hint: "管理面板自动拉取的 GitHub 仓库，默认 tom2almighty/cpa-dashboard",
         type: "text",
       },
     ],
   },
   {
-    id: "network",
-    title: "网络与路由",
+    id: "routing",
+    title: "凭据路由与容灾 (Routing)",
+    description: "负载均衡算法、会话粘性、轮次重试与冷却熔断机制",
     items: [
       {
-        endpoint: "requests/proxy-url",
-        label: "全局代理",
-        hint: "上游请求走的代理，例如 socks5://127.0.0.1:1080，留空表示直连",
-        type: "text",
-      },
-      {
-        endpoint: "routing/force-model-prefix",
-        label: "强制模型前缀",
-        hint: "只允许用带前缀的模型名访问配置了前缀的凭据",
-        type: "bool",
-      },
-      {
-        endpoint: "oauth/providers/aistudio/ws-auth",
-        label: "WebSocket 鉴权",
-        hint: "/v1/ws 路由要求携带 API Key",
-        type: "bool",
-      },
-      {
         endpoint: "routing/strategy",
-        label: "凭据选择策略",
+        label: "凭据选择策略 (Strategy)",
+        hint: "支持轮询、加权轮询以及贪婪用满单凭据 (fill-first)",
         type: "select",
         options: [
           { value: "round-robin", label: "轮询 (round-robin)" },
@@ -140,48 +135,193 @@ export const GROUPS: ConfigGroup[] = [
       },
       {
         endpoint: "routing/session-affinity",
-        label: "会话粘性路由 (Session Affinity)",
-        hint: "针对同一会话固定路由到同一账号/凭据，最大化 Prompt Cache 命中率",
+        label: "会话粘性 (Session Affinity)",
+        hint: "将会话固定路由到同一账号以最大化 Prompt Cache 命中率",
         type: "bool",
       },
       {
         endpoint: "routing/session-affinity-subagents",
         label: "子代理会话继承",
-        hint: "子会话继承父会话绑定的凭据，优化 Prompt Cache",
+        hint: "子会话继承父级绑定的凭据，优化 Claude、Codex 多 Agent 缓存",
         type: "bool",
         fallback: "true",
       },
       {
         endpoint: "routing/session-affinity-ttl",
-        label: "会话粘性保留时长",
+        label: "会话粘性保留时长 (TTL)",
         hint: "例如 1h、30m",
         type: "text",
         fallback: "1h",
       },
       {
+        endpoint: "routing/force-model-prefix",
+        label: "强制模型前缀匹配",
+        hint: "无前缀请求仅使用无前缀凭据，防止模型名污染",
+        type: "bool",
+      },
+      {
         endpoint: "routing/retry/request-retry",
-        label: "每轮请求重试次数",
-        hint: "请求失败后向上游重试的最大次数，默认 3",
+        label: "故障重试轮次",
+        hint: "发生 429/500/503 时的额外重试轮次，默认 3",
         type: "int",
         fallback: "3",
       },
       {
         endpoint: "routing/retry/max-retry-credentials",
         label: "每轮最大重试凭据数",
-        hint: "0 表示尝试所有可用凭据",
+        hint: "0 表示尝试所有符合条件的可用凭据",
         type: "int",
       },
-      { endpoint: "routing/retry/max-retry-interval", label: "最大重试等待（秒）", type: "int" },
       {
-        endpoint: "requests/passthrough-headers",
-        label: "透传客户端请求头",
-        hint: "将客户端请求中携带的自定义 Header 原样透传给上游",
+        endpoint: "routing/retry/max-retry-interval",
+        label: "两轮间最大冷却等待（秒）",
+        hint: "两轮重试之间等待凭据冷却的最大秒数",
+        type: "int",
+      },
+      {
+        endpoint: "routing/cooldown/disable-cooling",
+        label: "全局禁用冷却",
+        hint: "完全关闭凭据或模型失败后的拉黑与冷却等待",
         type: "bool",
       },
       {
+        endpoint: "routing/cooldown/save-cooldown-status",
+        label: "持久化冷却状态",
+        hint: "将凭据冷却状态以 .cds 文件持久化保存在凭据目录",
+        type: "bool",
+      },
+      {
+        endpoint: "routing/cooldown/transient-error-cooldown-seconds",
+        label: "瞬态网络错误冷却时间（秒）",
+        hint: "408/500/502/504 等临时错误的冷却秒数，0 为 60 秒，-1 为禁用",
+        type: "int",
+      },
+    ],
+  },
+  {
+    id: "requests",
+    title: "出站请求与流式 (Requests)",
+    description: "上游全局代理、响应头透传与长连接心跳保活",
+    items: [
+      {
+        endpoint: "requests/proxy-url",
+        label: "全局出站代理 (Proxy URL)",
+        hint: "所有上游请求默认走的网络代理，例如 socks5://127.0.0.1:1080 或 http://proxy:7890，留空直连",
+        type: "text",
+      },
+      {
+        endpoint: "requests/passthrough-headers",
+        label: "透传上游响应头",
+        hint: "将筛选后的上游响应 Header 原样转发给客户端",
+        type: "bool",
+      },
+      {
+        endpoint: "requests/streaming/keepalive-seconds",
+        label: "流式 SSE 保活心跳（秒）",
+        hint: "SSE 流式连接保活注释发送间隔，0 表示禁用",
+        type: "int",
+      },
+      {
+        endpoint: "requests/streaming/bootstrap-retries",
+        label: "流式启动安全重试次数",
+        hint: "首字节发送前发生网络协议错误时的重试次数",
+        type: "int",
+      },
+      {
+        endpoint: "requests/nonstream-keepalive-interval",
+        label: "非流式长请求保活间隔",
+        hint: "为非流式长请求定期发送空行保活，例如 10s、30s",
+        type: "text",
+      },
+    ],
+  },
+  {
+    id: "oauth",
+    title: "OAuth 与凭据存储 (OAuth & Credentials)",
+    description: "认证文件目录、自动刷新并发及各大官方上游参数",
+    items: [
+      {
+        endpoint: "oauth/auth-dir",
+        label: "凭据存储目录 (Auth Dir)",
+        hint: "存放账号 JSON 认证文件的目录，支持 ~ 路径。默认 ~/.cli-proxy-api",
+        type: "text",
+        fallback: "~/.cli-proxy-api",
+      },
+      {
+        endpoint: "oauth/auth-auto-refresh-workers",
+        label: "凭据自动刷新工作线程数",
+        hint: "后台自动刷新 OAuth Token 的并发并发数，默认 16",
+        type: "int",
+        fallback: "16",
+      },
+      {
+        endpoint: "oauth/providers/aistudio/ws-auth",
+        label: "AI Studio /ws 路由鉴权",
+        hint: "为 /v1/ws 路由强制要求客户端携带有效密钥",
+        type: "bool",
+        fallback: "true",
+      },
+      {
+        endpoint: "oauth/providers/codex/identity-confuse",
+        label: "Codex 身份混淆映射",
+        hint: "按选定凭据重映射 Codex 缓存 key 与安装标识",
+        type: "bool",
+      },
+      {
+        endpoint: "oauth/providers/claude/disable-claude-cloak-mode",
+        label: "禁用 Claude 伪装",
+        hint: "不伪装 Claude Code 客户端指纹和系统提示词，原样透传",
+        type: "bool",
+      },
+      {
+        endpoint: "oauth/providers/antigravity/antigravity-credits",
+        label: "Antigravity 超额使用 Credits",
+        hint: "免费额度耗尽（429/503）时，允许使用带有付费积分的凭据重试",
+        type: "bool",
+        fallback: "true",
+      },
+      {
+        endpoint: "oauth/providers/antigravity/signature-cache-enabled",
+        label: "Antigravity 思考签名缓存",
+        hint: "缓存并验证思考块签名以大幅提升多并发吞吐与稳定性",
+        type: "bool",
+        fallback: "true",
+      },
+      {
+        endpoint: "oauth/providers/antigravity/signature-bypass-strict",
+        label: "Antigravity 严格签名绕过",
+        hint: "绕过严格 Protobuf 签名校验（实验性），用于兼容特定调用",
+        type: "bool",
+      },
+      {
+        endpoint: "oauth/providers/claude/header-defaults/stabilize-device-profile",
+        label: "Claude 设备配置指纹稳定化",
+        hint: "为每个凭据将 OS 与系统架构固定为基准值，降低风控概率",
+        type: "bool",
+      },
+      {
+        endpoint: "oauth/providers/claude/header-defaults/user-agent",
+        label: "Claude 默认 User-Agent",
+        hint: "客户端未携带时填补的 Claude Code CLI 基准 User-Agent",
+        type: "text",
+      },
+      {
+        endpoint: "oauth/providers/codex/header-defaults/user-agent",
+        label: "Codex 默认 User-Agent",
+        hint: "客户端未提供时使用的官方 Codex User-Agent",
+        type: "text",
+      },
+    ],
+  },
+  {
+    id: "multimedia",
+    title: "多媒体 (Multimedia)",
+    description: "图像与视频生成的重定向与缓存参数",
+    items: [
+      {
         endpoint: "multimedia/disable-image-generation",
-        label: "生图行为控制",
-        hint: "控制模型图片生成行为",
+        label: "图像生成行为控制",
+        hint: "控制模型图片生成行为：允许、全局禁用、仅允许图像接口或原样透传",
         type: "select",
         options: [
           { value: "false", label: "允许生图（默认）" },
@@ -193,52 +333,10 @@ export const GROUPS: ConfigGroup[] = [
       },
       {
         endpoint: "multimedia/gpt-image-2-base-model",
-        label: "生图转基础模型",
-        hint: "例如 gpt-5.4-mini，该模型用于解析与理解生图指令",
+        label: "生图基础模型",
+        hint: "用于解析与理解生图指令的模型，默认 gpt-5.4-mini",
         type: "text",
-      },
-      {
-        endpoint: "routing/cooldown/disable-cooling",
-        label: "全局禁用冷却",
-        hint: "禁用凭据或模型失败后的拉黑冷却机制",
-        type: "bool",
-      },
-      {
-        endpoint: "routing/cooldown/save-cooldown-status",
-        label: "持久化冷却状态",
-        hint: "将凭据冷却状态以 .cds 文件保存在认证目录",
-        type: "bool",
-      },
-      {
-        endpoint: "routing/cooldown/transient-error-cooldown-seconds",
-        label: "瞬态错误冷却（秒）",
-        hint: "408/500/502/503/504 等临时网络错误的冷却秒数，0 为默认（60秒），-1 为禁用",
-        type: "int",
-      },
-      {
-        endpoint: "oauth/auth-auto-refresh-workers",
-        label: "认证自动刷新线程数",
-        hint: "后台自动刷新 OAuth Token 的并发线程数，默认 16",
-        type: "int",
-      },
-      {
-        endpoint: "oauth/providers/codex/identity-confuse",
-        label: "Codex 身份混淆映射",
-        hint: "使用 fill-first 或会话粘性时，按选定凭据重映射 Codex 缓存和安装标识",
-        type: "bool",
-      },
-      { endpoint: "observability/logs/debug", label: "调试模式", hint: "输出更详细的调试日志", type: "bool" },
-      {
-        endpoint: "server/commercial-mode",
-        label: "高并发模式（Commercial Mode）",
-        hint: "关闭高开销日志以最小化内存占用，适合高并发生产环境",
-        type: "bool",
-      },
-      {
-        endpoint: "oauth/providers/claude/disable-claude-cloak-mode",
-        label: "禁用 Claude 伪装",
-        hint: "不伪装 Claude Code 客户端指纹和系统提示词，原样透传",
-        type: "bool",
+        fallback: "gpt-5.4-mini",
       },
       {
         endpoint: "multimedia/video-result-auth-cache-ttl",
@@ -250,60 +348,44 @@ export const GROUPS: ConfigGroup[] = [
     ],
   },
   {
-    id: "quota",
-    title: "配额回退",
+    id: "observability",
+    title: "可观测性 (Observability)",
+    description: "调试日志、滚动文件日志、用量统计及性能分析",
     items: [
       {
-        endpoint: "oauth/providers/antigravity/antigravity-credits",
-        label: "Antigravity 超额使用 Credits",
-        hint: "当所有免费账号额度耗尽时，允许使用付费积分兜底",
+        endpoint: "observability/logs/debug",
+        label: "调试模式 (Debug)",
+        hint: "输出更详细的网关内部运行与路由调度日志",
         type: "bool",
       },
-    ],
-  },
-  {
-    id: "streaming",
-    title: "流式保活",
-    items: [
-      {
-        endpoint: "requests/streaming/keepalive-seconds",
-        label: "流式心跳保持（秒）",
-        hint: "SSE 流式响应保活心跳发送间隔，0 表示禁用心跳",
-        type: "int",
-      },
-      {
-        endpoint: "requests/streaming/bootstrap-retries",
-        label: "流式启动重试次数",
-        hint: "流式连接建立阶段发生网络或协议错误时的重试次数",
-        type: "int",
-      },
-      {
-        endpoint: "requests/nonstream-keepalive-interval",
-        label: "非流式保活间隔",
-        hint: "非流式长请求心跳保活间隔，例如 10s、30s",
-        type: "text",
-      },
-    ],
-  },
-  {
-    id: "logging",
-    title: "日志与性能",
-    items: [
       {
         endpoint: "observability/logs/logging-to-file",
-        label: "日志写入文件",
-        hint: "将应用日志输出到日志目录中的文件",
+        label: "应用日志写入文件",
+        hint: "将应用日志输出到日志目录中的滚动文件",
         type: "bool",
       },
       {
         endpoint: "observability/logs/request-log",
-        label: "请求详细日志",
-        hint: "记录完整的 HTTP 请求报文与响应体，排查错误时开启",
+        label: "记录完整请求报文",
+        hint: "记录完整的 HTTP 请求报文与响应体，排查错误时建议临时开启",
         type: "bool",
       },
       {
+        endpoint: "observability/logs/logs-max-total-size-mb",
+        label: "日志总大小上限（MB）",
+        hint: "0 表示不限制",
+        type: "int",
+      },
+      {
+        endpoint: "observability/logs/error-logs-max-files",
+        label: "错误日志保留个数",
+        hint: "请求日志关闭时保留的 error-*.log 文件数",
+        type: "int",
+        fallback: "10",
+      },
+      {
         endpoint: "observability/usage/usage-statistics-enabled",
-        label: "用量统计",
+        label: "启用用量统计",
         hint: "开启后 CPA 会将请求推入用量队列供面板采集；若关闭则面板无法统计用量",
         type: "bool",
       },
@@ -312,14 +394,8 @@ export const GROUPS: ConfigGroup[] = [
         label: "用量队列内存保留时间（秒）",
         hint: "用量记录在内存队列中的保留时限，最大 3600 秒",
         type: "int",
+        fallback: "60",
       },
-      {
-        endpoint: "observability/logs/logs-max-total-size-mb",
-        label: "日志总大小上限（MB）",
-        hint: "0 表示不限制",
-        type: "int",
-      },
-      { endpoint: "observability/logs/error-logs-max-files", label: "错误日志保留个数", type: "int" },
       {
         endpoint: "observability/pprof/enable",
         label: "启用 pprof 性能分析",
@@ -329,15 +405,16 @@ export const GROUPS: ConfigGroup[] = [
       {
         endpoint: "observability/pprof/addr",
         label: "pprof 监听地址",
-        hint: "建议仅绑定本机如 127.0.0.1:8316",
+        hint: "建议仅绑定本机例如 127.0.0.1:8316",
         type: "text",
         fallback: "127.0.0.1:8316",
       },
     ],
   },
   {
-    id: "advanced",
-    title: "高级与默认头",
+    id: "plugins",
+    title: "插件系统 (Plugins)",
+    description: "动态二进制插件发现与受信任执行控制",
     items: [
       {
         endpoint: "plugins/enabled",
@@ -352,74 +429,10 @@ export const GROUPS: ConfigGroup[] = [
         type: "text",
         fallback: "plugins",
       },
-      {
-        endpoint: "oauth/providers/antigravity/signature-cache-enabled",
-        label: "Antigravity 签名缓存",
-        hint: "开启后缓存会话签名以提升多并发请求吞吐与凭据稳定性",
-        type: "bool",
-        fallback: "true",
-      },
-      {
-        endpoint: "oauth/providers/antigravity/signature-bypass-strict",
-        label: "Antigravity 严格签名绕过",
-        hint: "绕过严格签名校验（实验性），用于兼容特定上游调用",
-        type: "bool",
-      },
-      {
-        endpoint: "oauth/providers/claude/header-defaults/user-agent",
-        label: "Claude 默认 User-Agent",
-        hint: "客户端未携带时填补的默认 User-Agent",
-        type: "text",
-      },
-      {
-        endpoint: "oauth/providers/claude/header-defaults/package-version",
-        label: "Claude 默认 Package Version",
-        hint: "如 0.74.0",
-        type: "text",
-      },
-      {
-        endpoint: "oauth/providers/claude/header-defaults/runtime-version",
-        label: "Claude 默认 Runtime Version",
-        hint: "如 v24.3.0",
-        type: "text",
-      },
-      {
-        endpoint: "oauth/providers/claude/header-defaults/os",
-        label: "Claude 默认操作系统基准",
-        hint: "如 MacOS，配合设备配置稳定化生效",
-        type: "text",
-      },
-      {
-        endpoint: "oauth/providers/claude/header-defaults/arch",
-        label: "Claude 默认架构基准",
-        hint: "如 arm64",
-        type: "text",
-      },
-      {
-        endpoint: "oauth/providers/claude/header-defaults/timeout",
-        label: "Claude 默认超时（秒）",
-        type: "text",
-      },
-      {
-        endpoint: "oauth/providers/claude/header-defaults/stabilize-device-profile",
-        label: "Claude 设备配置指纹稳定化",
-        hint: "为每个凭据固定 OS/架构为配置的基准值以降低风控",
-        type: "bool",
-      },
-      {
-        endpoint: "oauth/providers/codex/header-defaults/user-agent",
-        label: "Codex 默认 User-Agent",
-        type: "text",
-      },
-      {
-        endpoint: "oauth/providers/codex/header-defaults/beta-features",
-        label: "Codex 默认 Beta Features",
-        hint: "如 multi_agent，仅适用于 WebSocket 请求",
-        type: "text",
-      },
     ],
   },
 ];
+
 type ConfigYamlContextType = {
   rawYaml: string | undefined;
   doc: YAML.Document | null;
@@ -510,7 +523,6 @@ export function ConfigYamlProvider({ children }: { children: React.ReactNode }) 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      // v8 RESTful: 对修改的配置节点直接调用 PUT 或 DELETE
       for (const [endpoint, value] of Object.entries(patch)) {
         const path = endpoint;
         if (value === undefined || value === null || value === "") {
@@ -565,22 +577,36 @@ export function ConfigYamlProvider({ children }: { children: React.ReactNode }) 
   );
 }
 
-function SettingRow({ setting }: { setting: Setting }) {
+export function SettingField({ setting }: { setting: Setting }) {
   const { getValue, setValue, patch } = useConfigYaml();
-  const currentValue = getValue(setting.endpoint, setting.fallback);
-  const isModified = Object.hasOwn(patch, setting.endpoint);
-  const isSecretKey = setting.endpoint === "remote-management/secret-key";
-  const initial = isSecretKey
-    ? String(patch[setting.endpoint] ?? "")
-    : currentValue === undefined || currentValue === null
-      ? ""
-      : String(currentValue);
-  const [draft, setDraft] = useState(initial);
+  const id = useId();
+  const isSecretKey = setting.endpoint === "management/secret-key";
   const [showPassword, setShowPassword] = useState(false);
-  useEffect(() => setDraft(initial), [initial]);
+  const [copied, setCopied] = useState(false);
 
-  const id = `setting-${setting.endpoint.replace("/", "-")}`;
-  let control: React.ReactNode;
+  const isModified = Object.hasOwn(patch, setting.endpoint);
+  const currentValue = getValue(setting.endpoint, setting.fallback);
+
+  const initial = currentValue !== undefined && currentValue !== null ? String(currentValue) : "";
+  const [draft, setDraft] = useState(initial);
+
+  React.useEffect(() => {
+    setDraft(initial);
+  }, [initial]);
+
+  const copyValue = () => {
+    if (!draft) return;
+    navigator.clipboard.writeText(draft).then(
+      () => {
+        setCopied(true);
+        toast.success("已复制配置值");
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => toast.error("复制失败"),
+    );
+  };
+
+  let control: React.ReactNode = null;
 
   if (setting.type === "bool") {
     control = (
@@ -658,24 +684,38 @@ function SettingRow({ setting }: { setting: Setting }) {
     const isInt = setting.type === "int";
     const invalid = isInt && draft !== "" && !/^\d+$/.test(draft);
     control = (
-      <Input
-        id={id}
-        value={draft}
-        inputMode={isInt ? "numeric" : undefined}
-        onChange={(e) => {
-          const val = e.target.value;
-          setDraft(val);
-          if (isInt) {
-            if (val === "" || /^\d+$/.test(val)) {
-              setValue(setting.endpoint, val === "" ? "" : Number(val));
+      <div className="flex items-center gap-1.5 w-full sm:w-80">
+        <Input
+          id={id}
+          value={draft}
+          inputMode={isInt ? "numeric" : undefined}
+          onChange={(e) => {
+            const val = e.target.value;
+            setDraft(val);
+            if (isInt) {
+              if (val === "" || /^\d+$/.test(val)) {
+                setValue(setting.endpoint, val === "" ? "" : Number(val));
+              }
+            } else {
+              setValue(setting.endpoint, val);
             }
-          } else {
-            setValue(setting.endpoint, val);
-          }
-        }}
-        aria-invalid={invalid || undefined}
-        className={isInt ? "w-28 text-xs font-mono" : "w-full sm:w-80 text-xs font-mono"}
-      />
+          }}
+          className={`flex-1 text-xs ${isInt ? "font-mono" : ""} ${invalid ? "border-destructive focus-visible:ring-destructive" : ""}`}
+        />
+        {draft && setting.type === "text" && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground hover:text-foreground shrink-0"
+            title="复制"
+            aria-label="复制配置值"
+            onClick={copyValue}
+          >
+            {copied ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
+          </Button>
+        )}
+      </div>
     );
   }
 
@@ -687,44 +727,75 @@ function SettingRow({ setting }: { setting: Setting }) {
     >
       <div className="min-w-0 pr-4">
         <div className="flex items-center gap-2">
-          <label htmlFor={id} className="text-sm font-medium">
+          <Label htmlFor={id} className="cursor-pointer font-medium text-sm">
             {setting.label}
-          </label>
+          </Label>
           {isModified && (
-            <span className="rounded bg-chart-1/15 px-1.5 py-0.2 text-[10px] font-medium text-chart-1">
-              已修改待保存
-            </span>
+            <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 text-chart-1 border-chart-1/30 font-normal">
+              已修改
+            </Badge>
           )}
         </div>
-        {setting.hint && <p className="mt-0.5 text-xs text-muted-foreground">{setting.hint}</p>}
+        {setting.hint && <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{setting.hint}</p>}
       </div>
       <div className="shrink-0">{control}</div>
     </div>
   );
 }
-
 export function SettingsGroup({ groupId }: { groupId: string }) {
-  const { isPending, isError, error } = useConfigYaml();
-
-  if (isError) {
-    return (
-      <p role="alert" className="text-sm text-destructive">
-        读取配置失败：{error?.message}
-      </p>
-    );
-  }
-  if (isPending) return <Skeleton className="h-96" />;
-
   const group = GROUPS.find((g) => g.id === groupId);
   if (!group) return null;
 
   return (
-    <div className="max-w-3xl">
-      <div className="divide-y">
-        {group.items.map((s) => (
-          <SettingRow key={s.endpoint} setting={s} />
+    <div className="space-y-4">
+      {group.description && <p className="text-sm text-muted-foreground">{group.description}</p>}
+      <div className="divide-y border-y">
+        {group.items.map((setting) => (
+          <SettingField key={setting.endpoint} setting={setting} />
         ))}
       </div>
+    </div>
+  );
+}
+export function SettingsForm() {
+  const { dirtyCount, resetPatch, saveAll, isSaving } = useConfigYaml();
+
+  return (
+    <div className="space-y-10">
+      {dirtyCount > 0 && (
+        <div className="sticky top-16 z-20 flex items-center justify-between gap-4 rounded-xl border border-chart-1/30 bg-background/95 p-4 shadow-lg backdrop-blur">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-chart-1 animate-pulse" />
+            <span className="text-sm font-medium">有 {dirtyCount} 项配置已修改</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={resetPatch} disabled={isSaving}>
+              <RotateCcw className="size-3.5" />
+              放弃修改
+            </Button>
+            <Button size="sm" onClick={() => saveAll()} disabled={isSaving}>
+              {isSaving ? <Spinner className="size-3.5" /> : <Save className="size-3.5" />}
+              保存并热加载
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {GROUPS.map((g) => (
+        <section key={g.id} aria-labelledby={`group-${g.id}`} className="space-y-2">
+          <div className="border-b pb-2">
+            <h2 id={`group-${g.id}`} className="text-lg font-semibold tracking-tight">
+              {g.title}
+            </h2>
+            {g.description && <p className="text-xs text-muted-foreground mt-0.5">{g.description}</p>}
+          </div>
+          <div className="divide-y">
+            {g.items.map((setting) => (
+              <SettingField key={setting.endpoint} setting={setting} />
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

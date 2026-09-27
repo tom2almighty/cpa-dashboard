@@ -115,9 +115,9 @@ export function ApiKeysPage() {
         description="管理客户端（Cursor、Cline、Chatbox、OpenAI SDK 等）调用 CPA 的 /v1 接口时使用的凭据。"
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
+      <div className="grid gap-6 lg:grid-cols-3 max-w-full overflow-hidden">
+        <div className="space-y-6 lg:col-span-2 min-w-0">
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -145,12 +145,15 @@ export function ApiKeysPage() {
               {isPending ? (
                 <Skeleton className="h-32 w-full" />
               ) : (
-                <ul className="divide-y rounded-lg border">
+                <ul className="divide-y rounded-lg border min-w-0 overflow-hidden">
                   {keys.map((key) => (
-                    <li key={key} className="flex flex-col gap-2.5 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3">
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <li
+                      key={key}
+                      className="flex flex-col gap-2.5 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3 min-w-0"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                         <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                        <code className="truncate font-mono text-xs sm:text-sm">
+                        <code className="truncate font-mono text-xs sm:text-sm min-w-0 flex-1">
                           {visibleKeys[key] ? key : maskKey(key)}
                         </code>
                         {notes[key] ? (
@@ -284,8 +287,8 @@ export function ApiKeysPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
-          <Card>
+        <div className="space-y-6 min-w-0">
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Terminal className="size-4" />
@@ -296,8 +299,8 @@ export function ApiKeysPage() {
             <CardContent className="space-y-4">
               <div>
                 <span className="text-xs font-medium text-muted-foreground">Base URL (接口地址)</span>
-                <div className="mt-1 flex items-center justify-between gap-2 rounded-md border bg-muted/50 px-3 py-1.5">
-                  <code className="truncate font-mono text-xs">{cpaBaseUrl}</code>
+                <div className="mt-1 flex items-center justify-between gap-2 rounded-md border bg-muted/50 px-3 py-1.5 min-w-0">
+                  <code className="truncate font-mono text-xs min-w-0 flex-1">{cpaBaseUrl}</code>
                   <Button
                     variant="ghost"
                     size="icon-xs"
@@ -311,8 +314,8 @@ export function ApiKeysPage() {
 
               <div>
                 <span className="text-xs font-medium text-muted-foreground">测试接口连通性 (cURL)</span>
-                <div className="relative mt-1">
-                  <pre className="overflow-x-auto rounded-md border bg-muted/50 p-2.5 pr-10 font-mono text-xs text-muted-foreground">
+                <div className="relative mt-1 min-w-0 overflow-hidden">
+                  <pre className="overflow-x-auto rounded-md border bg-muted/50 p-2.5 pr-10 font-mono text-xs text-muted-foreground max-w-full">
                     <code>{curl}</code>
                   </pre>
                   <Button

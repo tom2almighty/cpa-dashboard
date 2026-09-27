@@ -37,35 +37,57 @@ function ConfigHeaderActions() {
   );
 }
 
+// 简明标签名称，避免完整长标题导致横向折行与拥挤
+const TAB_TITLES: Record<string, string> = {
+  server: "服务器",
+  management: "管理",
+  routing: "路由",
+  requests: "请求",
+  oauth: "OAuth",
+  multimedia: "多媒体",
+  observability: "可观测",
+  plugins: "插件",
+};
+
 function ConfigPageInner() {
   const [tab, setTab] = useState(GROUPS[0].id);
 
   return (
     <>
       <PageHeader
-        title="配置"
+        title="系统配置"
         description="统一基于 config.yaml 原生配置读写，修改原子写入并由 CPA 自动重载生效。"
         actions={<ConfigHeaderActions />}
       />
+
       <Tabs value={tab} onValueChange={(v) => v && setTab(v)}>
-        <TabsList variant="line" className="mb-6 flex-wrap">
-          {GROUPS.map((g) => (
-            <TabsTrigger key={g.id} value={g.id}>
-              {g.title}
+        <div className="mb-6 -mx-4 px-4 overflow-x-auto no-scrollbar">
+          <TabsList className="h-9 gap-1">
+            {GROUPS.map((g) => (
+              <TabsTrigger key={g.id} value={g.id} className="px-2.5 py-1 text-xs sm:text-sm">
+                {TAB_TITLES[g.id] || g.title}
+              </TabsTrigger>
+            ))}
+            <div className="h-4 w-px bg-border my-auto mx-1 shrink-0" aria-hidden />
+            <TabsTrigger value="payload" className="px-2.5 py-1 text-xs sm:text-sm">
+              Payload 规则
             </TabsTrigger>
-          ))}
-          <TabsTrigger value="payload">Payload 规则</TabsTrigger>
-          <TabsTrigger value="yaml">源文件</TabsTrigger>
-        </TabsList>
+            <TabsTrigger value="yaml" className="px-2.5 py-1 text-xs sm:text-sm">
+              YAML 源码
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {GROUPS.map((g) => (
           <TabsContent key={g.id} value={g.id}>
             <SettingsGroup groupId={g.id} />
           </TabsContent>
         ))}
+
         <TabsContent value="payload">
           <PayloadRules onGoYaml={() => setTab("yaml")} />
         </TabsContent>
+
         <TabsContent value="yaml">
           <YamlEditor />
         </TabsContent>

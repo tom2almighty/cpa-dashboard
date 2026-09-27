@@ -721,7 +721,7 @@ export function ProvidersPage() {
     <>
       <PageHeader title="提供商" description="通过 API Key 接入的上游。OAuth 登录的账号在认证文件页管理。" />
       <Tabs defaultValue={KINDS[0].endpoint}>
-        <TabsList variant="line" className="mb-6 flex-wrap">
+        <TabsList className="mb-6 flex-wrap">
           {KINDS.map((kind, i) => (
             <TabsTrigger key={kind.endpoint} value={kind.endpoint}>
               {kind.label}

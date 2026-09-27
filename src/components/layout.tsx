@@ -19,6 +19,7 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -61,6 +62,14 @@ const SYSTEM_NAV: NavItem[] = [
 
 function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
   const { pathname } = useLocation();
+  const { setOpenMobile, isMobile } = useSidebar();
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
@@ -71,6 +80,7 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
               <SidebarMenuButton
                 isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
                 tooltip={item.label}
+                onClick={handleNavClick}
                 render={<NavLink to={item.to} end={item.to === "/"} />}
               >
                 <item.icon />
@@ -85,15 +95,21 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
 }
 
 // 桌面端收起/展开,收起后只保留图标;快捷键 Ctrl/⌘ + B
-function CollapseButton() {
+function HeaderCollapseButton() {
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
   const label = collapsed ? "展开侧边栏" : "收起侧边栏";
   return (
-    <SidebarMenuButton tooltip={label} onClick={toggleSidebar} className="hidden md:flex">
-      {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-      <span>{label}</span>
-    </SidebarMenuButton>
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      title={label}
+      aria-label={label}
+      onClick={toggleSidebar}
+      className="hidden md:inline-flex text-muted-foreground hover:text-foreground shrink-0 group-data-[collapsible=icon]:mt-1"
+    >
+      {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+    </Button>
   );
 }
 
@@ -104,15 +120,16 @@ export function Layout() {
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
-        <SidebarHeader>
+        <SidebarHeader className="flex flex-row items-center justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1 p-2">
           <NavLink
             to="/"
-            className="flex h-8 items-center gap-2 px-2 font-semibold transition-opacity hover:opacity-80 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+            className="flex h-8 items-center gap-2 px-1 font-semibold transition-opacity hover:opacity-80 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
             title="返回首页"
           >
             <Logo className="size-5 shrink-0" />
             <span className="group-data-[collapsible=icon]:hidden">CPA Dashboard</span>
           </NavLink>
+          <HeaderCollapseButton />
         </SidebarHeader>
         <SidebarContent>
           <NavGroup label="概览" items={OVERVIEW_NAV} />
@@ -155,9 +172,6 @@ export function Layout() {
             </SidebarMenuItem>
             <SidebarMenuItem>
               <ThemeToggle />
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <CollapseButton />
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="退出登录" onClick={() => logout.mutate()}>

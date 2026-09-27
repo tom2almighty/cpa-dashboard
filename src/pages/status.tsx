@@ -205,24 +205,24 @@ export function StatusPage() {
       </div>
 
       {/* v8 实时调用事件流监控 */}
-      <section className="mt-10 rounded-xl border bg-card p-5" aria-labelledby="live-stream-title">
-        <div className="flex items-center justify-between pb-3 border-b">
+      <section className="mt-10" aria-labelledby="live-stream-title">
+        <div className="mb-3 flex items-baseline justify-between">
           <div className="flex items-center gap-2">
             <Activity className="size-4 text-primary" />
-            <h2 id="live-stream-title" className="text-base font-semibold">
+            <h2 id="live-stream-title" className="font-medium text-base">
               实时请求动态 (Usage Queue)
             </h2>
           </div>
           <span className="text-xs text-muted-foreground">每 5 秒同步</span>
         </div>
         {recentUsage.length === 0 ? (
-          <p className="py-6 text-center text-xs text-muted-foreground">
+          <p className="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground">
             暂无最新请求事件。启用 observability.usage.usage-statistics-enabled 后，新请求将实时呈现在此。
           </p>
         ) : (
-          <ul className="divide-y text-xs">
+          <ul className="divide-y rounded-lg border">
             {recentUsage.map((u) => (
-              <li key={u.id} className="flex items-center justify-between py-2">
+              <li key={u.id} className="flex items-center justify-between px-3.5 py-2.5 text-xs">
                 <div className="flex items-center gap-2 min-w-0">
                   <Badge variant="outline" className="text-[10px] font-mono">
                     {u.provider || "gateway"}
@@ -230,10 +230,14 @@ export function StatusPage() {
                   <span className="font-mono text-foreground truncate">{u.model || "unknown-model"}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 text-muted-foreground">
-                  <span className={u.status === "error" ? "text-destructive" : "text-emerald-500"}>
+                  <span
+                    className={u.status === "error" ? "text-destructive font-medium" : "text-emerald-500 font-medium"}
+                  >
                     {u.status === "error" ? "失败" : "成功"}
                   </span>
-                  <span>{new Date(u.timestamp ?? Date.now()).toLocaleTimeString()}</span>
+                  <span className="font-mono tabular-nums">
+                    {new Date(u.timestamp ?? Date.now()).toLocaleTimeString()}
+                  </span>
                 </div>
               </li>
             ))}

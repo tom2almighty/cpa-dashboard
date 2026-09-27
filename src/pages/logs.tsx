@@ -470,7 +470,7 @@ export function LogsPage() {
     <>
       <PageHeader title="日志" />
       <Tabs defaultValue="live">
-        <TabsList variant="line" className="mb-5">
+        <TabsList className="mb-5">
           <TabsTrigger value="live">运行日志</TabsTrigger>
           <TabsTrigger value="requests">请求日志</TabsTrigger>
         </TabsList>

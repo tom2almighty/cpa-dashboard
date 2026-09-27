@@ -847,7 +847,7 @@ export function ModelsPage() {
         description="查看可用模型、OAuth 账号的模型别名与屏蔽规则。API Key 提供商的模型在提供商页单独配置。"
       />
       <Tabs defaultValue="available">
-        <TabsList variant="line" className="mb-6">
+        <TabsList className="mb-6 flex-wrap">
           <TabsTrigger value="available">可用模型</TabsTrigger>
           <TabsTrigger value="alias">别名</TabsTrigger>
           <TabsTrigger value="excluded">排除</TabsTrigger>

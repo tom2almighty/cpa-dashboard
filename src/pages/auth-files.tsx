@@ -714,7 +714,7 @@ export function AuthFilesPage() {
       ) : (
         <Tabs value={tab} onValueChange={(v) => setTab((v as typeof tab) ?? "list")}>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <TabsList variant="line">
+            <TabsList>
               <TabsTrigger value="list">列表</TabsTrigger>
               <TabsTrigger value="quota">额度</TabsTrigger>
             </TabsList>
