@@ -104,6 +104,27 @@ const KIND_CHANNEL_MAP: Record<string, string[]> = {
   meta: ["meta"],
 };
 
+// 上游模型列表格式不一(数组、{data: [...]}、{models: [...]});非 JSON 内容返回空数组
+function upstreamModelIds(payload: unknown): string[] {
+  let entries: unknown[] = [];
+  if (Array.isArray(payload)) {
+    entries = payload;
+  } else if (payload && typeof payload === "object") {
+    const data = "data" in payload ? payload.data : undefined;
+    const models = "models" in payload ? payload.models : undefined;
+    if (Array.isArray(data)) entries = data;
+    else if (Array.isArray(models)) entries = models;
+  }
+
+  const ids: string[] = [];
+  for (const item of entries) {
+    if (!item || typeof item !== "object") continue;
+    const id = ("id" in item ? item.id : undefined) ?? ("name" in item ? item.name : undefined);
+    if (typeof id === "string" && id) ids.push(id);
+  }
+  return ids;
+}
+
 export async function fetchProviderModels(
   kind: Kind,
   baseUrl: string,
@@ -114,7 +135,8 @@ export async function fetchProviderModels(
   const cleanBase = baseUrl.trim().replace(/\/+$/, "");
 
   if (cleanBase) {
-    const customHeaders: Record<string, string> = {};
+    // 要求 JSON,避免上游把 SPA/错误页的 HTML 当成模型列表
+    const customHeaders: Record<string, string> = { Accept: "application/json" };
     const trimmedKey = apiKey.trim();
 
     if (trimmedKey) {
@@ -147,23 +169,24 @@ export async function fetchProviderModels(
         body: { method: "GET", url, header: customHeaders },
       });
 
-      if (res.status_code >= 200 && res.status_code < 300) {
-        const parsed = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
-        const list = Array.isArray(parsed)
-          ? parsed
-          : Array.isArray((parsed as { data?: unknown[] })?.data)
-            ? (parsed as { data: unknown[] }).data
-            : Array.isArray((parsed as { models?: unknown[] })?.models)
-              ? (parsed as { models: unknown[] }).models
-              : [];
-        for (const item of list) {
-          const id = (item as { id?: string })?.id || (item as { name?: string })?.name;
-          if (id) models.add(id);
-        }
-        if (models.size > 0) return Array.from(models).sort();
-      } else {
+      if (res.status_code < 200 || res.status_code >= 300) {
         lastError = i18n.t("provider_form.fetch_models_failed", { status: res.status_code });
+        continue;
       }
+
+      // 上游可能返回 HTML(SPA 页面、网关错误页)而不是 JSON,解析失败就试下一个候选地址
+      let payload: unknown = res.body;
+      if (typeof payload === "string") {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          lastError = i18n.t("provider_form.not_json", { status: res.status_code });
+          continue;
+        }
+      }
+
+      for (const id of upstreamModelIds(payload)) models.add(id);
+      if (models.size > 0) return Array.from(models).sort();
     }
     if (models.size === 0) throw new Error(lastError);
   }

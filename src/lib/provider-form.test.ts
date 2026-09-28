@@ -144,3 +144,32 @@ test("fetchProviderModels 自定义 Base URL 若以 /models 结尾不重复追�
     expect(list).toEqual(["m1"]);
     expect(calls.map((c) => c.url)).toEqual(["https://custom.api.com/v1/models"]);
   }));
+
+// 按上游地址返回不同响应,复现 SPA 式上游:未知路径返回 200 HTML
+async function withRoutes(routes: Record<string, string>, run: (urls: string[]) => Promise<void>) {
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    const call = JSON.parse(String(init?.body)) as { url: string };
+    urls.push(call.url);
+    return Response.json({ status_code: 200, body: routes[call.url] ?? "<!doctype html>" });
+  }) as typeof fetch;
+  try {
+    await run(urls);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test("fetchProviderModels 上游 /models 返回 HTML 时继续试 /v1/models", () =>
+  withRoutes({ "https://relay.example.com/v1/models": JSON.stringify({ data: [{ id: "m1" }] }) }, async (urls) => {
+    expect(await fetchProviderModels(openai, "https://relay.example.com", "sk-test")).toEqual(["m1"]);
+    expect(urls).toEqual(["https://relay.example.com/models", "https://relay.example.com/v1/models"]);
+  }));
+
+test("fetchProviderModels 上游全返回 HTML 时给出可读错误", () =>
+  withRoutes({}, async () => {
+    await expect(fetchProviderModels(openai, "https://relay.example.com", "sk-test")).rejects.toThrow(
+      /不是 JSON.*HTTP 200/,
+    );
+  }));
