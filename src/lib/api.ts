@@ -1,3 +1,4 @@
+import i18n from "@/i18n";
 import { deobfuscate, obfuscate } from "@/lib/encryption";
 
 export class ApiError extends Error {
@@ -98,7 +99,10 @@ async function toError(res: Response): Promise<ApiError> {
   const data: unknown = type.includes("json") ? await res.json().catch(() => null) : await res.text().catch(() => "");
   const record = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
   const text = typeof data === "string" ? data.trim() : "";
-  const message = String(record?.message ?? record?.error ?? "") || text || `请求失败（${res.status}）`;
+  const message =
+    String(record?.message ?? record?.error ?? "") ||
+    text ||
+    i18n.t("common.request_failed_status", { status: res.status });
   return new ApiError(res.status, message);
 }
 

@@ -47,7 +47,7 @@ export function YamlEditor() {
     onSuccess: () => {
       queryClient.setQueryData(["cpa", "config.yaml"], draft);
       queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
-      toast.success("配置已保存，CPA 会自动重新加载");
+      toast.success(t("config.save_success"));
     },
   });
 
@@ -144,7 +144,7 @@ export function YamlEditor() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        读取配置失败：{error.message}
+        {t("config.yaml.load_failed", { message: error.message })}
       </p>
     );
   }
@@ -168,19 +168,21 @@ export function YamlEditor() {
                   else handleNext();
                 }
               }}
-              placeholder="搜索代码配置 (Enter 下一个，Ctrl+F)..."
+              placeholder={t("config.yaml.search_placeholder")}
               className="h-8 pl-8 pr-16 text-xs font-mono"
             />
             {searchQuery && (
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 <span className="text-[11px] tabular-nums text-muted-foreground font-mono">
-                  {searchResults.total > 0 ? `${searchResults.current}/${searchResults.total}` : "无匹配"}
+                  {searchResults.total > 0
+                    ? `${searchResults.current}/${searchResults.total}`
+                    : t("config.yaml.no_match")}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleSearchChange("")}
                   className="text-muted-foreground hover:text-foreground"
-                  aria-label="清空搜索"
+                  aria-label={t("config.yaml.clear_search")}
                 >
                   <X className="size-3" />
                 </button>
@@ -193,8 +195,8 @@ export function YamlEditor() {
               type="button"
               variant="outline"
               size="icon-xs"
-              title="上一个匹配项 (Shift+Enter)"
-              aria-label="上一个匹配项"
+              title={`${t("config.yaml.prev_match")} (Shift+Enter)`}
+              aria-label={t("config.yaml.prev_match")}
               disabled={!searchQuery || searchResults.total === 0}
               onClick={handlePrev}
             >
@@ -204,8 +206,8 @@ export function YamlEditor() {
               type="button"
               variant="outline"
               size="icon-xs"
-              title="下一个匹配项 (Enter)"
-              aria-label="下一个匹配项"
+              title={`${t("config.yaml.next_match")} (Enter)`}
+              aria-label={t("config.yaml.next_match")}
               disabled={!searchQuery || searchResults.total === 0}
               onClick={handleNext}
             >
@@ -216,7 +218,7 @@ export function YamlEditor() {
 
         {/* 撤销修改与保存操作 */}
         <div className="flex items-center gap-2">
-          <p className="hidden text-xs text-muted-foreground lg:block">Ctrl/⌘ + S 保存配置</p>
+          <p className="hidden text-xs text-muted-foreground lg:block">{t("config.yaml.save_hint")}</p>
           <Button
             variant="outline"
             size="sm"

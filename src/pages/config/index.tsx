@@ -63,7 +63,7 @@ function ConfigPageInner() {
           <TabsList className="h-9 gap-1">
             {GROUPS.map((g) => (
               <TabsTrigger key={g.id} value={g.id} className="px-2.5 py-1 text-xs sm:text-sm">
-                {tabTitles[g.id] || g.title}
+                {tabTitles[g.id]}
               </TabsTrigger>
             ))}
             <div className="h-4 w-px bg-border my-auto mx-1 shrink-0" aria-hidden />

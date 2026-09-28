@@ -33,6 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 import {
@@ -102,7 +103,7 @@ async function mutateList(kind: Kind, change: (items: Json[]) => Json[]) {
 
 function findIndex(kind: Kind, items: Json[], target: Json): number {
   const i = items.findIndex((x) => identity(kind, x) === identity(kind, target));
-  if (i < 0) throw new Error("该条目已被修改或删除，请刷新后重试");
+  if (i < 0) throw new Error(i18n.t("providers.err_stale"));
   return i;
 }
 
@@ -119,6 +120,7 @@ function ModelMappingEditor({
   form: Form;
   update: (patch: Partial<Form>) => void;
 }) {
+  const { t } = useI18n();
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [textMode, setTextMode] = useState(false);
@@ -135,18 +137,18 @@ function ModelMappingEditor({
     try {
       const key = kind.openai ? lines(form.keys)[0] || "" : form.apiKey.trim();
       if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) {
-        toast.error("请先填写 Base URL");
+        toast.error(t("providers.base_url_required"));
         return;
       }
       const list = await fetchProviderModels(kind, form.baseUrl, key, form.headers);
       if (list.length === 0) {
-        toast.info("未获取到可用模型，请确认地址与密钥，或直接输入模型名");
+        toast.info(t("providers.no_models_fetched"));
       } else {
         setFetchedModels(list);
-        toast.success(`成功获取 ${list.length} 个模型`);
+        toast.success(t("providers.fetch_models_success", { count: list.length }));
       }
     } catch (err) {
-      toast.error((err as Error).message || "获取模型失败");
+      toast.error((err as Error).message || t("providers.fetch_models_failed"));
     } finally {
       setIsFetching(false);
     }
@@ -167,7 +169,7 @@ function ModelMappingEditor({
   const handleAddAll = () => {
     const toAdd = fetchedModels.filter((m) => !selected.includes(m));
     select([...selected, ...toAdd]);
-    toast.success(`已添加 ${toAdd.length} 个模型`);
+    toast.success(t("providers.models_added", { count: toAdd.length }));
   };
 
   const setAlias = (id: string, alias: string) => {
@@ -189,8 +191,8 @@ function ModelMappingEditor({
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <Label htmlFor={`${p}-models`}>模型与映射</Label>
-          <p className="text-xs text-muted-foreground">不添加则使用全部默认模型，客户端按别名请求时转发到上游模型</p>
+          <Label htmlFor={`${p}-models`}>{t("providers.mapping_label")}</Label>
+          <p className="text-xs text-muted-foreground">{t("providers.mapping_hint")}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <Button
@@ -202,7 +204,9 @@ function ModelMappingEditor({
             className="h-7 text-xs"
           >
             {isFetching ? <Spinner className="size-3" /> : <RefreshCw className="size-3" />}
-            {fetchedModels.length > 0 ? `重新获取 (${fetchedModels.length})` : "获取模型"}
+            {fetchedModels.length > 0
+              ? t("providers.refetch_models", { count: fetchedModels.length })
+              : t("providers.fetch_models_short")}
           </Button>
           <Button
             type="button"
@@ -211,7 +215,7 @@ function ModelMappingEditor({
             onClick={handleToggleMode}
             className="h-7 text-xs text-muted-foreground"
           >
-            {textMode ? "列表编辑" : "文本编辑"}
+            {textMode ? t("providers.list_mode") : t("providers.text_mode")}
           </Button>
         </div>
       </div>
@@ -225,7 +229,7 @@ function ModelMappingEditor({
             className="min-h-24 font-mono text-sm"
             placeholder={"gpt-4o => 4o\ngpt-4o-mini"}
           />
-          <p className="text-xs text-muted-foreground">每行一个，起别名写成 上游模型 =&gt; 别名</p>
+          <p className="text-xs text-muted-foreground">{t("providers.mapping_text_hint")}</p>
         </>
       ) : (
         <>
@@ -248,7 +252,9 @@ function ModelMappingEditor({
               <ComboboxInput
                 id={`${p}-models`}
                 placeholder={
-                  fetchedModels.length > 0 ? `搜索 ${fetchedModels.length} 个模型，或输入模型名` : "输入模型名添加"
+                  fetchedModels.length > 0
+                    ? t("providers.search_fetched", { count: fetchedModels.length })
+                    : t("providers.enter_model")
                 }
                 className="flex-1"
                 onKeyDown={(e) => {
@@ -257,14 +263,14 @@ function ModelMappingEditor({
                 }}
               />
               <ComboboxContent>
-                <ComboboxEmpty>点击「获取模型」拉取上游模型，或直接输入模型名</ComboboxEmpty>
+                <ComboboxEmpty>{t("providers.combobox_empty")}</ComboboxEmpty>
                 <ComboboxList>
                   {(m: string) => (
                     <ComboboxItem key={m} value={m} className="font-mono text-xs">
                       {m === creatable ? (
                         <>
                           <Plus className="size-3.5" />
-                          添加「{m}」
+                          {t("providers.add_custom", { name: m })}
                         </>
                       ) : (
                         m
@@ -282,7 +288,7 @@ function ModelMappingEditor({
                 disabled={fetchedModels.every((m) => selected.includes(m))}
                 className="shrink-0"
               >
-                全部添加
+                {t("providers.add_all")}
               </Button>
             )}
           </div>
@@ -290,8 +296,8 @@ function ModelMappingEditor({
           {rows.length > 0 && (
             <div className="grid gap-1.5">
               <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1 text-xs font-medium text-muted-foreground">
-                <span>上游模型</span>
-                <span>映射别名</span>
+                <span>{t("providers.upstream_model")}</span>
+                <span>{t("providers.mapped_alias")}</span>
                 <span className="w-6" />
               </div>
               <ul className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
@@ -301,9 +307,9 @@ function ModelMappingEditor({
                       {r.name}
                     </span>
                     <Input
-                      aria-label={`${r.name} 的映射别名`}
+                      aria-label={t("providers.alias_aria", { name: r.name })}
                       value={r.alias}
-                      placeholder="留空保持原名"
+                      placeholder={t("providers.alias_placeholder")}
                       onChange={(e) => setAlias(r.id, e.target.value)}
                       className="h-8 font-mono text-xs"
                     />
@@ -313,7 +319,7 @@ function ModelMappingEditor({
                       size="icon-xs"
                       onClick={() => removeRow(r.id)}
                       className="text-muted-foreground hover:text-destructive"
-                      aria-label={`移除 ${r.name}`}
+                      aria-label={t("providers.remove_aria", { name: r.name })}
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
@@ -362,8 +368,8 @@ function EditDialog({
     try {
       const res = await testProviderConnectivity(kind, form);
       setTestResult(res);
-      if (res.ok) toast.success(`连通性测试通过：${res.message}`);
-      else toast.error(`连通性测试失败：${res.message}`);
+      if (res.ok) toast.success(t("providers.test_ok", { message: res.message }));
+      else toast.error(t("providers.test_failed_msg", { message: res.message }));
     } catch (err: unknown) {
       setTestResult({ ok: false, message: (err as Error).message });
       toast.error((err as Error).message);
@@ -380,7 +386,7 @@ function EditDialog({
         return items;
       }),
     onSuccess: () => {
-      toast.success(target ? "已保存" : "已添加");
+      toast.success(target ? t("providers.saved") : t("providers.added"));
       queryClient.invalidateQueries({ queryKey: ["cpa", "providers"] });
       onClose();
     },
@@ -405,10 +411,10 @@ function EditDialog({
         <form id={`form-${p}`} onSubmit={submit} className="grid gap-4">
           {kind.openai ? (
             <>
-              <Field id={`${p}-name`} label="名称" hint="用于区分提供商，也会作为模型前缀">
+              <Field id={`${p}-name`} label={t("common.name")} hint={t("providers.name_hint")}>
                 <Input id={`${p}-name`} value={form.name} onChange={(e) => update({ name: e.target.value })} />
               </Field>
-              <Field id={`${p}-keys`} label="API Key" hint="每行一个，请求时轮流使用">
+              <Field id={`${p}-keys`} label="API Key" hint={t("providers.keys_hint")}>
                 <Textarea
                   id={`${p}-keys`}
                   value={form.keys}
@@ -430,11 +436,11 @@ function EditDialog({
           <Field
             id={`${p}-base`}
             label="Base URL"
-            hint={kind.openai || kind.baseUrlRequired ? undefined : "留空使用官方地址"}
+            hint={kind.openai || kind.baseUrlRequired ? undefined : t("providers.base_url_hint")}
           >
             <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
           </Field>
-          <Field id={`${p}-proxy`} label="代理" hint="留空使用全局代理">
+          <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
             <Input
               id={`${p}-proxy`}
               value={form.proxyUrl}
@@ -443,10 +449,10 @@ function EditDialog({
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id={`${p}-prefix`} label="模型前缀" hint="设置后用 前缀/模型名 访问">
+            <Field id={`${p}-prefix`} label={t("providers.prefix")} hint={t("providers.prefix_hint")}>
               <Input id={`${p}-prefix`} value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
             </Field>
-            <Field id={`${p}-priority`} label="优先级" hint="数值越大越优先">
+            <Field id={`${p}-priority`} label={t("providers.priority")} hint={t("providers.priority_hint")}>
               <Input
                 id={`${p}-priority`}
                 inputMode="numeric"
@@ -458,14 +464,14 @@ function EditDialog({
           {kind.websockets && (
             <div className="flex items-center justify-between gap-4">
               <div>
-                <Label htmlFor={`${p}-ws`}>使用 WebSocket</Label>
-                <p className="text-xs text-muted-foreground">上游支持时通过 WebSocket 发起请求</p>
+                <Label htmlFor={`${p}-ws`}>{t("providers.websockets")}</Label>
+                <p className="text-xs text-muted-foreground">{t("providers.websockets_hint")}</p>
               </div>
               <Switch id={`${p}-ws`} checked={form.websockets} onCheckedChange={(v) => update({ websockets: v })} />
             </div>
           )}
           <ModelMappingEditor kind={kind} form={form} update={update} />
-          <Field id={`${p}-excluded`} label="排除的模型" hint="每行或逗号分隔一个，支持 * 通配">
+          <Field id={`${p}-excluded`} label={t("providers.excluded_models")} hint={t("providers.excluded_hint")}>
             <Textarea
               id={`${p}-excluded`}
               value={form.excluded}
@@ -473,7 +479,7 @@ function EditDialog({
               className="min-h-16 font-mono text-sm"
             />
           </Field>
-          <Field id={`${p}-headers`} label="额外请求头" hint="每行一个，格式为 名称: 值">
+          <Field id={`${p}-headers`} label={t("providers.extra_headers")} hint={t("providers.headers_hint")}>
             <Textarea
               id={`${p}-headers`}
               value={form.headers}
@@ -539,10 +545,10 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
     try {
       const f = toForm(item);
       const res = await testProviderConnectivity(kind, f);
-      if (res.ok) toast.success(`连通性测试通过：${res.message}`);
-      else toast.error(`连通性测试失败：${res.message}`);
+      if (res.ok) toast.success(t("providers.test_ok", { message: res.message }));
+      else toast.error(t("providers.test_failed_msg", { message: res.message }));
     } catch (e: unknown) {
-      toast.error((e as Error).message || "连通性测试失败");
+      toast.error((e as Error).message || t("providers.test_failed"));
     } finally {
       setTestingId(null);
     }
@@ -554,7 +560,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
         return all.filter((_, j) => j !== i);
       }),
     onSuccess: () => {
-      toast.success("已删除");
+      toast.success(t("providers.deleted"));
       setDeleting(null);
       refresh();
     },
@@ -585,15 +591,15 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>分组名称 / 密钥</TableHead>
+            <TableHead>{t("providers.th_group")}</TableHead>
             <TableHead>Base URL</TableHead>
-            <TableHead className="text-right">密钥数</TableHead>
-            <TableHead className="text-right">模型</TableHead>
-            <TableHead>代理</TableHead>
-            <TableHead>最近 200 分钟</TableHead>
-            <TableHead className="w-16">启用</TableHead>
+            <TableHead className="text-right">{t("providers.th_key_count")}</TableHead>
+            <TableHead className="text-right">{t("providers.th_model_count")}</TableHead>
+            <TableHead>{t("providers.proxy")}</TableHead>
+            <TableHead>{t("providers.th_recent")}</TableHead>
+            <TableHead className="w-16">{t("common.enabled")}</TableHead>
             <TableHead className="w-28">
-              <span className="sr-only">操作</span>
+              <span className="sr-only">{t("common.actions")}</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -601,12 +607,13 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
           {isPending ? (
             <SkeletonRows columns={columns} />
           ) : items.length === 0 ? (
-            <EmptyRow columns={columns}>还没有配置 {kind.label}</EmptyRow>
+            <EmptyRow columns={columns}>{t("providers.empty", { kind: kind.label })}</EmptyRow>
           ) : (
             items.map((item) => {
               const keysList = list(item.keys);
               const title =
-                str(item.name) || (keysList[0]?.["api-key"] ? mask(str(keysList[0]["api-key"])) : "未命名分组");
+                str(item.name) ||
+                (keysList[0]?.["api-key"] ? mask(str(keysList[0]["api-key"])) : t("providers.unnamed_group"));
               const keysCount = keysList.length || (item["api-key"] ? 1 : 0);
               return (
                 <TableRow key={identity(kind, item)} className={item.disabled ? "text-muted-foreground" : undefined}>
@@ -619,13 +626,15 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                     )}
                   </TableCell>
                   <TableCell className="max-w-72 truncate text-muted-foreground" title={str(item["base-url"])}>
-                    {str(item["base-url"]) || "官方地址"}
+                    {str(item["base-url"]) || t("providers.official_url")}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{keysCount}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {list(item.models).length || "全部"}
+                    {list(item.models).length || t("common.all")}
                     {list(item["excluded-models"]).length > 0 && (
-                      <span className="text-muted-foreground">，排除 {list(item["excluded-models"]).length}</span>
+                      <span className="text-muted-foreground">
+                        {t("providers.excluded_count", { count: list(item["excluded-models"]).length })}
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="max-w-48 truncate text-muted-foreground">
@@ -639,15 +648,17 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                       checked={!item.disabled}
                       disabled={toggle.isPending}
                       onCheckedChange={() => toggle.mutate(item)}
-                      aria-label={`${item.disabled ? "启用" : "停用"} ${title}`}
+                      aria-label={t(item.disabled ? "providers.enable_aria" : "providers.disable_aria", {
+                        name: title,
+                      })}
                     />
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`测试 ${title} 的连通性`}
-                      title="测试连通性"
+                      aria-label={t("providers.test_aria", { name: title })}
+                      title={t("providers.test_connectivity")}
                       disabled={testingId === identity(kind, item)}
                       onClick={() => handleTestItem(item)}
                     >
@@ -660,7 +671,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`编辑 ${title}`}
+                      aria-label={t("providers.edit_aria", { name: title })}
                       onClick={() => setEditing(item)}
                     >
                       <Pencil />
@@ -668,7 +679,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`删除 ${title}`}
+                      aria-label={t("providers.delete_aria", { name: title })}
                       className="text-muted-foreground hover:text-destructive"
                       onClick={() => setDeleting(item)}
                     >
@@ -687,20 +698,23 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除 {kind.label} 配置</AlertDialogTitle>
+            <AlertDialogTitle>{t("providers.delete_title", { kind: kind.label })}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleting && (kind.openai ? str(deleting.name) : mask(str(deleting["api-key"])))} 会从 CPA 配置中移除。
+              {deleting &&
+                t("providers.delete_desc", {
+                  name: kind.openai ? str(deleting.name) : mask(str(deleting["api-key"])),
+                })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => deleting && remove.mutate(deleting)}
             >
               {remove.isPending && <Spinner />}
-              删除
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -741,7 +755,7 @@ export function ProvidersPage() {
           <TabsContent key={kind.endpoint} value={kind.endpoint}>
             {results[i].isError ? (
               <p role="alert" className="text-sm text-destructive">
-                读取失败：{results[i].error?.message}
+                {t("providers.load_failed", { message: results[i].error?.message })}
               </p>
             ) : (
               <ProviderTable

@@ -27,7 +27,7 @@ function Stat({ label, value, detail }: { label: string; value: string; detail?:
 }
 
 export function StatusPage() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const files = useQuery({
     queryKey: ["cpa", "auth-files"],
     queryFn: () => api<{ files: AuthFile[] }>("/v8/management/credentials"),
@@ -86,7 +86,7 @@ export function StatusPage() {
         <PageHeader title={t("overview.title")} />
         {files.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            读取失败：{files.error.message}
+            {t("overview.load_failed", { message: files.error.message })}
           </p>
         ) : (
           <Skeleton className="h-96" />
@@ -101,7 +101,7 @@ export function StatusPage() {
 
   const groups = new Map<string, { total: number; usable: number }>();
   for (const f of accounts) {
-    const key = f.provider || "未知";
+    const key = f.provider || t("overview.unknown_provider");
     const g = groups.get(key) ?? { total: 0, usable: 0 };
     g.total += 1;
     if (!f.disabled && !needsAttention(f)) g.usable += 1;
@@ -120,7 +120,7 @@ export function StatusPage() {
       <PageHeader title={t("overview.title")} />
 
       <section
-        aria-label="运行概况"
+        aria-label={t("overview.summary_label")}
         className="grid grid-cols-2 gap-x-4 gap-y-6 border-y py-6 sm:grid-cols-4 sm:gap-0 sm:divide-x"
       >
         <Stat
@@ -136,7 +136,8 @@ export function StatusPage() {
           value={providersReady ? formatInteger(configured.reduce((sum, p) => sum + p.count, 0)) : "—"}
           detail={
             providersReady
-              ? configured.map((p) => `${p.label} ${p.count}`).join("、") || t("overview.not_configured")
+              ? configured.map((p) => `${p.label} ${p.count}`).join(t("overview.list_separator")) ||
+                t("overview.not_configured")
               : undefined
           }
         />
@@ -239,10 +240,10 @@ export function StatusPage() {
                   <span
                     className={u.status === "error" ? "text-destructive font-medium" : "text-emerald-500 font-medium"}
                   >
-                    {u.status === "error" ? t("common.failed") : t("common.success")}
+                    {u.status === "error" ? t("overview.failed") : t("common.success")}
                   </span>
                   <span className="font-mono tabular-nums">
-                    {new Date(u.timestamp ?? Date.now()).toLocaleTimeString()}
+                    {new Date(u.timestamp ?? Date.now()).toLocaleTimeString(language)}
                   </span>
                 </div>
               </li>

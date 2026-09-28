@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 import type { Json } from "./settings";
 
@@ -72,6 +73,7 @@ function RuleDialog({
   onSave: (rule: EditingRule) => void;
   isSaving: boolean;
 }) {
+  const { t } = useI18n();
   const [section, setSection] = useState<"default" | "override" | "filter">(rule.section);
   const [modelName, setModelName] = useState(rule.modelName);
   const [protocol, setProtocol] = useState(rule.protocol);
@@ -105,12 +107,14 @@ function RuleDialog({
       <DialogContent className="sm:max-w-xl">
         <form onSubmit={submit}>
           <DialogHeader>
-            <DialogTitle>{rule.index !== null ? "编辑 Payload 规则" : "添加 Payload 规则"}</DialogTitle>
+            <DialogTitle>
+              {rule.index !== null ? t("config.payload.dialog_edit") : t("config.payload.dialog_add")}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div>
-              <Label className="text-xs text-muted-foreground">快捷预设模板</Label>
+              <Label className="text-xs text-muted-foreground">{t("config.payload.presets")}</Label>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 <Button
                   type="button"
@@ -126,7 +130,7 @@ function RuleDialog({
                   }
                 >
                   <Wand2 className="size-3" />
-                  Gemini 思考预算 32k
+                  {t("config.payload.preset_gemini_budget")}
                 </Button>
                 <Button
                   type="button"
@@ -142,7 +146,7 @@ function RuleDialog({
                   }
                 >
                   <Wand2 className="size-3" />
-                  全局温度 0.7
+                  {t("config.payload.preset_global_temp")}
                 </Button>
                 <Button
                   type="button"
@@ -158,19 +162,19 @@ function RuleDialog({
                   }
                 >
                   <Wand2 className="size-3" />
-                  过滤思考预算
+                  {t("config.payload.preset_filter_budget")}
                 </Button>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="rule-section">规则类型</Label>
+                <Label htmlFor="rule-section">{t("config.payload.rule_type")}</Label>
                 <Select
                   items={[
-                    { value: "default", label: "缺省注入 (Default - 缺失时补全)" },
-                    { value: "override", label: "强制覆盖 (Override - 始终生效)" },
-                    { value: "filter", label: "参数过滤 (Filter - 移除字段)" },
+                    { value: "default", label: t("config.payload.section_default_full") },
+                    { value: "override", label: t("config.payload.section_override_full") },
+                    { value: "filter", label: t("config.payload.section_filter_full") },
                   ]}
                   value={section}
                   onValueChange={(v) => v && setSection(v as "default" | "override" | "filter")}
@@ -179,18 +183,18 @@ function RuleDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">缺省注入 (Default)</SelectItem>
-                    <SelectItem value="override">强制覆盖 (Override)</SelectItem>
-                    <SelectItem value="filter">参数过滤 (Filter)</SelectItem>
+                    <SelectItem value="default">{t("config.payload.section_default")}</SelectItem>
+                    <SelectItem value="override">{t("config.payload.section_override")}</SelectItem>
+                    <SelectItem value="filter">{t("config.payload.section_filter")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label htmlFor="rule-protocol">协议限制 (可选)</Label>
+                <Label htmlFor="rule-protocol">{t("config.payload.protocol")}</Label>
                 <Select
                   items={[
-                    { value: "all", label: "全部协议 (不限制)" },
+                    { value: "all", label: t("config.payload.protocol_all") },
                     { value: "gemini", label: "Gemini" },
                     { value: "openai", label: "OpenAI" },
                     { value: "claude", label: "Claude" },
@@ -204,7 +208,7 @@ function RuleDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">全部协议 (不限制)</SelectItem>
+                    <SelectItem value="all">{t("config.payload.protocol_all")}</SelectItem>
                     <SelectItem value="gemini">Gemini</SelectItem>
                     <SelectItem value="openai">OpenAI</SelectItem>
                     <SelectItem value="claude">Claude</SelectItem>
@@ -216,12 +220,12 @@ function RuleDialog({
             </div>
 
             <div>
-              <Label htmlFor="rule-model">目标模型名称 / 通配符</Label>
+              <Label htmlFor="rule-model">{t("config.payload.model")}</Label>
               <Input
                 id="rule-model"
                 value={modelName}
                 onChange={(e) => setModelName(e.target.value)}
-                placeholder="例如 gemini-*、gpt-4o、* (全部模型)"
+                placeholder={t("config.payload.model_placeholder")}
                 className="mt-1 font-mono text-sm"
                 required
               />
@@ -229,7 +233,7 @@ function RuleDialog({
 
             <div>
               <Label htmlFor="rule-params">
-                {section === "filter" ? "待移除的参数路径列表（每行一个）" : "注入/覆盖的参数（JSON 格式）"}
+                {section === "filter" ? t("config.payload.filter_params") : t("config.payload.json_params")}
               </Label>
               <Textarea
                 id="rule-params"
@@ -244,20 +248,18 @@ function RuleDialog({
                 required
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                {section === "filter"
-                  ? "支持 gjson/sjson 路径语法，将指定字段从发往上游的请求中剔除。"
-                  : "必须是合法的 JSON 对象，键为 JSON 路径，值为要注入的参数内容。"}
+                {section === "filter" ? t("config.payload.filter_hint") : t("config.payload.json_hint")}
               </p>
             </div>
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
-              取消
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving && <Spinner />}
-              保存规则
+              {t("config.payload.save_rule")}
             </Button>
           </DialogFooter>
         </form>
@@ -285,6 +287,7 @@ function RuleCard({
   onEdit: (rule: PayloadRuleItem, index: number) => void;
   onDelete: (index: number) => void;
 }) {
+  const { t } = useI18n();
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -295,7 +298,7 @@ function RuleCard({
           </div>
           <Button size="xs" variant="outline" onClick={onAdd}>
             <Plus className="size-3" />
-            添加
+            {t("common.add")}
           </Button>
         </div>
         <CardDescription className="text-xs">{description}</CardDescription>
@@ -303,7 +306,7 @@ function RuleCard({
       <CardContent className="space-y-3">
         {!rules?.length ? (
           <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-            暂未配置此类规则
+            {t("config.payload.empty")}
           </div>
         ) : (
           rules.map((rule, idx) => {
@@ -312,7 +315,7 @@ function RuleCard({
               <div key={ruleKey} className="rounded-lg border bg-muted/20 p-3 text-xs space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-muted-foreground font-medium">目标模型:</span>
+                    <span className="text-muted-foreground font-medium">{t("config.payload.target_models")}</span>
                     {rule.models?.length ? (
                       rule.models.map((m) => (
                         <Badge key={`${m.name}-${m.protocol ?? ""}`} variant="secondary" className="font-mono text-xs">
@@ -321,18 +324,23 @@ function RuleCard({
                         </Badge>
                       ))
                     ) : (
-                      <span className="text-muted-foreground">全部匹配 (*)</span>
+                      <span className="text-muted-foreground">{t("config.payload.match_all")}</span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <Button size="icon-xs" variant="ghost" aria-label="编辑规则" onClick={() => onEdit(rule, idx)}>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={t("config.payload.edit_rule")}
+                      onClick={() => onEdit(rule, idx)}
+                    >
                       <Pencil />
                     </Button>
                     <Button
                       size="icon-xs"
                       variant="ghost"
-                      aria-label="删除规则"
+                      aria-label={t("config.payload.delete_rule")}
                       className="text-muted-foreground hover:text-destructive"
                       onClick={() => onDelete(idx)}
                     >
@@ -343,7 +351,7 @@ function RuleCard({
 
                 {rule.params && (
                   <div>
-                    <span className="text-muted-foreground font-medium">参数规则:</span>
+                    <span className="text-muted-foreground font-medium">{t("config.payload.param_rules")}</span>
                     <pre className="mt-1 overflow-x-auto rounded bg-muted/50 p-2 font-mono text-xs text-foreground">
                       {Array.isArray(rule.params) ? rule.params.join("\n") : JSON.stringify(rule.params, null, 2)}
                     </pre>
@@ -359,6 +367,7 @@ function RuleCard({
 }
 
 export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [dialogRule, setDialogRule] = useState<EditingRule | null>(null);
 
@@ -379,7 +388,7 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
         try {
           parsedParams = JSON.parse(rule.paramsText);
         } catch {
-          throw new Error("参数格式错误：必须是合法的 JSON 对象");
+          throw new Error(t("config.payload.invalid_json"));
         }
       }
 
@@ -395,7 +404,7 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
       });
     },
     onSuccess: () => {
-      toast.success("Payload 规则已更新并自动生效");
+      toast.success(t("config.payload.updated"));
       queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
       queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
       setDialogRule(null);
@@ -410,11 +419,11 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
       await updatePayload((payload) => {
         payload[section]?.splice(index, 1);
       });
-      toast.success("规则已删除");
+      toast.success(t("config.payload.deleted"));
       queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
       queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
     } catch (e) {
-      toast.error(`删除失败：${(e as Error).message}`);
+      toast.error(t("config.payload.delete_failed", { message: (e as Error).message }));
     }
   };
 
@@ -424,10 +433,8 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
     <div className="space-y-6 max-w-4xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-medium">请求 Payload 参数规则可视化</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            可视化配置 CPA 向各上游转发请求时自动缺省注入（Default）、强行覆盖（Override）或移除指定参数（Filter）。
-          </p>
+          <h2 className="text-base font-medium">{t("config.payload.title")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("config.payload.desc")}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -443,11 +450,11 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
             }
           >
             <Plus className="size-4" />
-            添加规则
+            {t("config.payload.add_rule")}
           </Button>
           <Button variant="outline" size="sm" onClick={onGoYaml}>
             <FileCode className="size-4" />
-            查看完整源文件
+            {t("config.payload.view_source")}
           </Button>
         </div>
       </div>
@@ -457,8 +464,8 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
           <RuleCard
-            title="缺省参数规则 (Default)"
-            description="仅在客户端未传该参数时自动注入默认值。"
+            title={t("config.payload.default_title")}
+            description={t("config.payload.default_desc")}
             badge="Default"
             section="default"
             rules={payload.default}
@@ -484,8 +491,8 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
           />
 
           <RuleCard
-            title="强制覆盖规则 (Override)"
-            description="始终覆盖客户端传参，强制指定对应参数值。"
+            title={t("config.payload.override_title")}
+            description={t("config.payload.override_desc")}
             badge="Override"
             section="override"
             rules={payload.override}
@@ -512,8 +519,8 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
 
           <div className="md:col-span-2">
             <RuleCard
-              title="参数过滤移除 (Filter)"
-              description="将客户端请求中的指定 JSON 路径字段剔除后转发。"
+              title={t("config.payload.filter_title")}
+              description={t("config.payload.filter_desc")}
               badge="Filter"
               section="filter"
               rules={payload.filter}

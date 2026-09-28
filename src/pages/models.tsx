@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { type FormEvent, useId, useMemo, useState } from "react";
+import { Trans } from "react-i18next";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
@@ -50,6 +51,7 @@ function useCatalog(channel: string) {
 }
 
 function ChannelInput({ value, onChange, id }: { value: string; onChange: (v: string) => void; id: string }) {
+  const { t } = useI18n();
   return (
     <>
       <Input
@@ -57,7 +59,7 @@ function ChannelInput({ value, onChange, id }: { value: string; onChange: (v: st
         list={`${id}-options`}
         value={value}
         onChange={(e) => onChange(e.target.value.trim().toLowerCase())}
-        placeholder="例如 codex"
+        placeholder={t("models.channel_placeholder")}
       />
       <datalist id={`${id}-options`}>
         {CHANNELS.map((c) => (
@@ -81,6 +83,7 @@ function AliasDialog({
   aliases: Alias[];
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const uid = useId();
   const [channel, setChannel] = useState(initial);
@@ -108,7 +111,7 @@ function AliasDialog({
         : api(`/v8/management/config/oauth/model-alias/${encodeURIComponent(channel)}`, { method: "DELETE" });
     },
     onSuccess: () => {
-      toast.success("模型别名已保存");
+      toast.success(t("models.alias_saved"));
       queryClient.invalidateQueries({ queryKey: ["cpa", "oauth-model-alias"] });
       onClose();
     },
@@ -123,12 +126,14 @@ function AliasDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{initial ? `编辑 ${initial} 的模型别名` : "添加模型别名"}</DialogTitle>
+          <DialogTitle>
+            {initial ? t("models.edit_alias_title", { channel: initial }) : t("models.add_alias_title")}
+          </DialogTitle>
         </DialogHeader>
         <form id={`${uid}-form`} onSubmit={submit} className="grid gap-4">
           {!initial && (
             <div className="grid max-w-xs gap-1.5">
-              <Label htmlFor={`${uid}-channel`}>渠道</Label>
+              <Label htmlFor={`${uid}-channel`}>{t("models.channel")}</Label>
               <ChannelInput id={`${uid}-channel`} value={channel} onChange={setChannel} />
             </div>
           )}
@@ -139,41 +144,41 @@ function AliasDialog({
           </datalist>
           <div className="grid gap-2">
             <div className="hidden grid-cols-[1fr_1fr_1fr_auto_auto_auto] gap-2 px-1 text-xs text-muted-foreground sm:grid">
-              <span>上游模型</span>
-              <span>别名</span>
-              <span>显示名称</span>
-              <span title="保留原模型名，同时新增别名">保留原名</span>
-              <span title="响应里的模型名改写回别名">改写响应</span>
+              <span>{t("models.upstream_model")}</span>
+              <span>{t("models.alias_name")}</span>
+              <span>{t("models.display_name")}</span>
+              <span title={t("models.fork_hint")}>{t("models.fork")}</span>
+              <span title={t("models.force_mapping_hint")}>{t("models.force_mapping")}</span>
               <span className="w-8" />
             </div>
             {rows.map((r) => (
               <div key={r.key} className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto_auto_auto] sm:items-center">
                 <Input
-                  aria-label="上游模型"
+                  aria-label={t("models.upstream_model")}
                   list={`${uid}-models`}
                   value={r.name}
                   onChange={(e) => update(r.key, { name: e.target.value })}
                   className="font-mono"
                 />
                 <Input
-                  aria-label="别名"
+                  aria-label={t("models.alias_name")}
                   value={r.alias}
                   onChange={(e) => update(r.key, { alias: e.target.value })}
                   className="font-mono"
                 />
                 <Input
-                  aria-label="显示名称"
+                  aria-label={t("models.display_name")}
                   value={r["display-name"] ?? ""}
                   onChange={(e) => update(r.key, { "display-name": e.target.value })}
                 />
                 <Switch
-                  aria-label="保留原名"
+                  aria-label={t("models.fork")}
                   className="justify-self-center"
                   checked={r.fork === true}
                   onCheckedChange={(v) => update(r.key, { fork: v })}
                 />
                 <Switch
-                  aria-label="改写响应"
+                  aria-label={t("models.force_mapping")}
                   className="justify-self-center"
                   checked={r["force-mapping"] === true}
                   onCheckedChange={(v) => update(r.key, { "force-mapping": v })}
@@ -182,7 +187,7 @@ function AliasDialog({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="删除这一行"
+                  aria-label={t("models.delete_row")}
                   onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
                 >
                   <Trash2 />
@@ -197,20 +202,18 @@ function AliasDialog({
               onClick={() => setRows((rs) => [...rs, { name: "", alias: "", key: Date.now() }])}
             >
               <Plus />
-              添加一行
+              {t("models.add_row")}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            客户端用别名请求时，CPA 会改用上游模型。开启「保留原名」时两个名字都能用，清空所有行即删除该渠道的别名。
-          </p>
+          <p className="text-xs text-muted-foreground">{t("models.alias_hint")}</p>
         </form>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" form={`${uid}-form`} disabled={!channel || save.isPending}>
             {save.isPending && <Spinner />}
-            保存
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -230,7 +233,7 @@ function Aliases() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        读取失败：{error.message}
+        {t("models.load_failed", { message: error.message })}
       </p>
     );
   }
@@ -258,16 +261,16 @@ function Aliases() {
                 <h3 className="font-medium">{channel}</h3>
                 <Button variant="ghost" size="sm" onClick={() => setEditing({ channel, aliases: list })}>
                   <Pencil />
-                  编辑
+                  {t("common.edit")}
                 </Button>
               </div>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>别名</TableHead>
-                    <TableHead>上游模型</TableHead>
-                    <TableHead>显示名称</TableHead>
-                    <TableHead>选项</TableHead>
+                    <TableHead>{t("models.th_alias")}</TableHead>
+                    <TableHead>{t("models.upstream_model")}</TableHead>
+                    <TableHead>{t("models.display_name")}</TableHead>
+                    <TableHead>{t("models.th_options")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -277,8 +280,8 @@ function Aliases() {
                       <TableCell className="font-mono text-sm text-muted-foreground">{a.name}</TableCell>
                       <TableCell>{a["display-name"] || "—"}</TableCell>
                       <TableCell className="space-x-1.5">
-                        {a.fork && <Badge variant="outline">保留原名</Badge>}
-                        {a["force-mapping"] && <Badge variant="outline">改写响应</Badge>}
+                        {a.fork && <Badge variant="outline">{t("models.fork")}</Badge>}
+                        {a["force-mapping"] && <Badge variant="outline">{t("models.force_mapping")}</Badge>}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -304,6 +307,7 @@ function ExcludedDialog({
   models: string[];
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const uid = useId();
   const [provider, setProvider] = useState(initial);
@@ -347,7 +351,7 @@ function ExcludedDialog({
     const toAdd = upstreamModels.filter((m) => !rules.includes(m));
     if (toAdd.length > 0) {
       setRules((prev) => [...prev, ...toAdd]);
-      toast.success(`已添加 ${toAdd.length} 个上游模型至排除列表`);
+      toast.success(t("models.excluded_added", { count: toAdd.length }));
     }
   };
 
@@ -363,7 +367,7 @@ function ExcludedDialog({
         : api(`/v8/management/config/oauth/excluded-models/${encodeURIComponent(provider)}`, { method: "DELETE" });
     },
     onSuccess: () => {
-      toast.success("排除模型已保存");
+      toast.success(t("models.excluded_saved"));
       queryClient.invalidateQueries({ queryKey: ["cpa", "oauth-excluded-models"] });
       onClose();
     },
@@ -379,23 +383,23 @@ function ExcludedDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{initial ? `编辑 ${initial} 的排除模型` : "添加排除模型"}</DialogTitle>
+          <DialogTitle>
+            {initial ? t("models.edit_excluded_title", { channel: initial }) : t("models.add_excluded_title")}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4">
           {!initial && (
             <div className="grid gap-1.5">
-              <Label htmlFor={`${uid}-provider`}>渠道</Label>
+              <Label htmlFor={`${uid}-provider`}>{t("models.channel")}</Label>
               <ChannelInput id={`${uid}-provider`} value={provider} onChange={setProvider} />
             </div>
           )}
 
           <div className="flex items-center justify-between gap-2 border-b pb-2">
             <div>
-              <Label className="text-sm font-medium">排除规则配置</Label>
-              <p className="text-xs text-muted-foreground">
-                支持直接勾选上游模型，或输入 * 通配符（如 gpt-5-*、*-mini）
-              </p>
+              <Label className="text-sm font-medium">{t("models.rules_label")}</Label>
+              <p className="text-xs text-muted-foreground">{t("models.rules_hint")}</p>
             </div>
             <div className="flex items-center gap-1.5">
               <Button
@@ -407,7 +411,9 @@ function ExcludedDialog({
                 onClick={() => catalog.refetch()}
               >
                 {catalog.isFetching ? <Spinner className="size-3" /> : <RefreshCw className="size-3" />}
-                {upstreamModels.length > 0 ? `上游模型 (${upstreamModels.length})` : "获取模型"}
+                {upstreamModels.length > 0
+                  ? t("models.upstream_count", { count: upstreamModels.length })
+                  : t("models.fetch_models")}
               </Button>
               <Button
                 type="button"
@@ -416,7 +422,7 @@ function ExcludedDialog({
                 className="h-7 text-xs text-muted-foreground"
                 onClick={() => setTextMode((prev) => !prev)}
               >
-                {textMode ? "可视化选择" : "文本编辑"}
+                {textMode ? t("models.visual_mode") : t("models.text_mode")}
               </Button>
             </div>
           </div>
@@ -438,29 +444,29 @@ function ExcludedDialog({
                 className="min-h-56 font-mono text-xs leading-relaxed"
                 placeholder={"gpt-5-codex-mini\n*-mini\nclaude-3-haiku*"}
               />
-              <p className="text-xs text-muted-foreground">
-                每行一个或逗号分隔，支持 * 通配。清空后保存即删除该渠道的所有排除规则。
-              </p>
+              <p className="text-xs text-muted-foreground">{t("models.rules_text_hint")}</p>
             </div>
           ) : (
             <div className="space-y-4">
               <div>
                 <div className="mb-2 flex items-center justify-between text-xs">
-                  <span className="font-medium text-foreground">已排除规则 ({rules.length})</span>
+                  <span className="font-medium text-foreground">
+                    {t("models.rules_count", { count: rules.length })}
+                  </span>
                   {rules.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setRules([])}
                       className="text-xs text-destructive hover:underline cursor-pointer"
                     >
-                      清空全部
+                      {t("models.clear_all")}
                     </button>
                   )}
                 </div>
 
                 {rules.length === 0 ? (
                   <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                    暂未排除任何模型，可通过下方候选模型一键点击添加，或直接输入通配符规则。
+                    {t("models.no_rules")}
                   </div>
                 ) : (
                   <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto rounded-lg border bg-muted/20 p-2.5">
@@ -474,7 +480,7 @@ function ExcludedDialog({
                           type="button"
                           onClick={() => removeRule(rule)}
                           className="hover:opacity-75 cursor-pointer"
-                          aria-label={`移除规则 ${rule}`}
+                          aria-label={t("models.remove_rule_aria", { rule })}
                         >
                           <X className="size-3" />
                         </button>
@@ -495,7 +501,7 @@ function ExcludedDialog({
                       setCustomInput("");
                     }
                   }}
-                  placeholder="输入自定义模型名或通配符（如 *-preview），回车添加..."
+                  placeholder={t("models.custom_rule_placeholder")}
                   className="h-8 text-xs font-mono"
                 />
                 <Button
@@ -510,20 +516,22 @@ function ExcludedDialog({
                   disabled={!customInput.trim()}
                 >
                   <Plus className="size-3" />
-                  添加
+                  {t("common.add")}
                 </Button>
               </div>
 
               <div className="space-y-2 border-t pt-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-medium text-muted-foreground">上游模型候选列表 ({upstreamModels.length})</span>
+                  <span className="font-medium text-muted-foreground">
+                    {t("models.candidates", { count: upstreamModels.length })}
+                  </span>
                   {upstreamModels.length > 0 && (
                     <button
                       type="button"
                       onClick={handleExcludeAllUpstream}
                       className="text-xs text-primary hover:underline cursor-pointer"
                     >
-                      排除全部候选
+                      {t("models.exclude_all")}
                     </button>
                   )}
                 </div>
@@ -532,7 +540,7 @@ function ExcludedDialog({
                   <Skeleton className="h-24 w-full" />
                 ) : upstreamModels.length === 0 ? (
                   <div className="rounded-lg border border-dashed py-6 text-center text-xs text-muted-foreground">
-                    未从该渠道获取到模型定义，您可以直接使用上方输入框输入模型名或通配符。
+                    {t("models.no_catalog")}
                   </div>
                 ) : (
                   <>
@@ -541,14 +549,14 @@ function ExcludedDialog({
                       <Input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="过滤上游模型候选..."
+                        placeholder={t("models.filter_candidates")}
                         className="h-7 pl-7 text-xs font-mono"
                       />
                     </div>
 
                     <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-lg border p-2.5">
                       {filteredUpstream.length === 0 ? (
-                        <p className="w-full text-center text-xs text-muted-foreground py-2">无匹配模型</p>
+                        <p className="w-full text-center text-xs text-muted-foreground py-2">{t("models.no_match")}</p>
                       ) : (
                         filteredUpstream.map((m) => {
                           const isExcluded = rules.includes(m);
@@ -562,7 +570,7 @@ function ExcludedDialog({
                                   ? "border-destructive/40 bg-destructive/15 text-destructive font-medium"
                                   : "border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground"
                               }`}
-                              title={isExcluded ? "点击取消排除" : "点击加入排除"}
+                              title={isExcluded ? t("models.click_unexclude") : t("models.click_exclude")}
                             >
                               <span>{m}</span>
                               {isExcluded ? (
@@ -584,11 +592,11 @@ function ExcludedDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button disabled={!provider || save.isPending} onClick={() => save.mutate()}>
             {save.isPending && <Spinner />}
-            保存
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -608,7 +616,7 @@ function Excluded() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        读取失败：{error.message}
+        {t("models.load_failed", { message: error.message })}
       </p>
     );
   }
@@ -654,7 +662,7 @@ function Excluded() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`编辑 ${provider}`}
+                    aria-label={t("models.edit_aria", { name: provider })}
                     onClick={() => setEditing({ provider, models })}
                   >
                     <Pencil />
@@ -675,18 +683,19 @@ function Excluded() {
 // ---------- 模型目录 ----------
 
 function Catalog() {
+  const { t } = useI18n();
   const [channel, setChannel] = useState(CHANNELS[0]);
   const { data, isPending, isError, error } = useCatalog(channel);
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">CPA 内置的模型定义，决定各渠道默认对外提供哪些模型。</p>
+        <p className="text-sm text-muted-foreground">{t("models.catalog_hint")}</p>
         <Select
           items={CHANNELS.map((c) => ({ value: c, label: c }))}
           value={channel}
           onValueChange={(v) => v && setChannel(v)}
         >
-          <SelectTrigger className="w-44" aria-label="选择渠道">
+          <SelectTrigger className="w-44" aria-label={t("models.select_channel")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -701,18 +710,18 @@ function Catalog() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>模型</TableHead>
-            <TableHead>显示名称</TableHead>
-            <TableHead>提供方</TableHead>
+            <TableHead>{t("models.th_model")}</TableHead>
+            <TableHead>{t("models.display_name")}</TableHead>
+            <TableHead>{t("models.th_owner")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isPending ? (
             <SkeletonRows columns={3} />
           ) : isError ? (
-            <EmptyRow columns={3}>这个渠道没有内置模型定义（{error.message}）</EmptyRow>
+            <EmptyRow columns={3}>{t("models.catalog_error", { message: error.message })}</EmptyRow>
           ) : data.length === 0 ? (
-            <EmptyRow columns={3}>没有模型</EmptyRow>
+            <EmptyRow columns={3}>{t("models.no_models")}</EmptyRow>
           ) : (
             data.map((m) => (
               <TableRow key={m.id}>
@@ -733,6 +742,7 @@ type V1Model = { id: string };
 const byName = new Intl.Collator(undefined, { numeric: true }).compare;
 
 function AvailableModels() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
@@ -762,7 +772,7 @@ function AvailableModels() {
   const copy = (id: string) => {
     navigator.clipboard.writeText(id).then(() => {
       setCopied(id);
-      toast.success(`已复制模型名：${id}`);
+      toast.success(t("models.copied_model", { id }));
       setTimeout(() => setCopied(null), 2000);
     });
   };
@@ -776,12 +786,14 @@ function AvailableModels() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">
-            CPA 通过 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">/v1/models</code>{" "}
-            对外提供的模型，点击即可复制模型名。
+            <Trans
+              i18nKey="models.available_hint"
+              components={{ code: <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs" /> }}
+            />
           </p>
           {data && (
             <Badge variant="secondary" className="tabular-nums">
-              共 {data.length} 个模型
+              {t("models.total_models", { count: data.length })}
             </Badge>
           )}
         </div>
@@ -790,8 +802,8 @@ function AvailableModels() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索模型"
-            aria-label="搜索模型"
+            placeholder={t("models.search")}
+            aria-label={t("models.search")}
             className="w-48 sm:w-64"
           />
           <Button
@@ -799,7 +811,7 @@ function AvailableModels() {
             size="icon"
             onClick={refresh}
             disabled={isPending || isRefetching}
-            aria-label="刷新"
+            aria-label={t("common.refresh")}
           >
             {isPending || isRefetching ? <Spinner /> : <RefreshCw />}
           </Button>
@@ -810,11 +822,11 @@ function AvailableModels() {
         <Skeleton className="h-40" />
       ) : isError ? (
         <p role="alert" className="text-sm text-destructive">
-          获取可用模型失败：{error.message}
+          {t("models.fetch_failed", { message: error.message })}
         </p>
       ) : models.length === 0 ? (
         <p className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-          {search.trim() ? "没有匹配的模型" : "暂无可用模型，请确认账号或提供商配置正常"}
+          {search.trim() ? t("models.no_matching_models") : t("models.no_available")}
         </p>
       ) : (
         <ul className="columns-xs gap-x-6">
@@ -823,7 +835,7 @@ function AvailableModels() {
               <Button
                 variant="ghost"
                 title={id}
-                aria-label={`复制 ${id}`}
+                aria-label={t("models.copy_aria", { id })}
                 onClick={() => copy(id)}
                 className="w-full justify-between font-mono font-normal"
               >

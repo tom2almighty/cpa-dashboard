@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
 import { Eye, EyeOff, Globe, Server } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { LanguageToggle } from "@/components/language-toggle";
@@ -22,7 +23,7 @@ function detectDefaultBase(): string {
   }
 }
 
-async function login(base: string, key: string, remember: boolean) {
+async function login(base: string, key: string, remember: boolean, t: TFunction) {
   // 保存选中的地址和密钥
   saveBaseUrl(base, remember);
   saveKey(key, remember);
@@ -33,20 +34,17 @@ async function login(base: string, key: string, remember: boolean) {
     clearKey();
     if (!remember) clearBaseUrl();
     if (error instanceof ApiError && error.status === 401) {
-      throw new ApiError(401, "管理密钥不正确");
+      throw new ApiError(401, t("login.error_unauthorized"));
     }
     if (error instanceof ApiError && error.status === 403) {
-      throw new ApiError(403, "CPA 不允许远程管理，需要在配置中设置 management.allow-remote: true");
+      throw new ApiError(403, t("login.error_forbidden"));
     }
     if (error instanceof ApiError && error.status === 404) {
-      throw new ApiError(
-        404,
-        "CPA 没有开启管理接口，需要在配置中设置 management.secret-key 或启动环境变量 MANAGEMENT_PASSWORD",
-      );
+      throw new ApiError(404, t("login.error_not_found"));
     }
     const msg = (error as Error)?.message || String(error);
     if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-      throw new ApiError(0, "无法连接到 CPA 服务，请确认 CPA 地址是否正确，且已允许跨域（CORS）或网络可达");
+      throw new ApiError(0, t("login.error_network"));
     }
     throw error;
   }
@@ -65,7 +63,7 @@ export function LoginPage() {
   const activeBase = showCustomBase ? customBase.trim() : "";
 
   const mutation = useMutation({
-    mutationFn: () => login(activeBase, key.trim(), remember),
+    mutationFn: () => login(activeBase, key.trim(), remember, t),
     meta: { quiet: true },
     onSuccess: () => queryClient.setQueryData(["session"], true),
   });

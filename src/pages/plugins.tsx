@@ -223,6 +223,7 @@ function FieldControl({
 }
 
 function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () => void }) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [values, setValues] = useState<Record<string, unknown>>({});
   const fields = plugin ? fieldsOf(plugin) : [];
@@ -243,14 +244,15 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
   const save = useMutation({
     mutationFn: () => {
       const value = useForm ? values : (JSON.parse(draft) as unknown);
-      if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("配置必须是 JSON 对象");
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new Error(t("plugins.config_must_be_object"));
       return api(`/v8/management/config/plugins/configs/${encodeURIComponent(plugin?.id ?? "")}`, {
         method: "PUT",
         body: value,
       });
     },
     onSuccess: () => {
-      toast.success("插件配置已保存");
+      toast.success(t("plugins.config_saved"));
       onClose();
     },
   });
@@ -259,7 +261,7 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
     <Dialog open={plugin !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{plugin?.metadata?.name || plugin?.id} 配置</DialogTitle>
+          <DialogTitle>{t("plugins.config_title", { name: plugin?.metadata?.name || plugin?.id })}</DialogTitle>
         </DialogHeader>
         {fields.length > 0 && (
           <div className="flex justify-end">
@@ -279,7 +281,7 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
                 setAsJson((v) => !v);
               }}
             >
-              {asJson ? "用表单编辑" : "编辑 JSON"}
+              {asJson ? t("plugins.edit_as_form") : t("plugins.edit_as_json")}
             </Button>
           </div>
         )}
@@ -298,7 +300,7 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
           </div>
         ) : (
           <CodeEditor
-            label="插件配置"
+            label={t("plugins.config_label")}
             language="json"
             height="20rem"
             value={draft}
@@ -308,11 +310,11 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
         )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button onClick={() => save.mutate()} disabled={isPending || save.isPending}>
             {save.isPending && <Spinner />}
-            保存
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -331,6 +333,7 @@ function PluginViewerDialog({
   url: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);
 
   return (
@@ -348,8 +351,8 @@ function PluginViewerDialog({
             <Button
               variant="ghost"
               size="icon-sm"
-              title="刷新页面"
-              aria-label="刷新页面"
+              title={t("plugins.reload_page")}
+              aria-label={t("plugins.reload_page")}
               onClick={() => setReloadKey((k) => k + 1)}
             >
               <RefreshCw className="size-3.5" />
@@ -357,8 +360,8 @@ function PluginViewerDialog({
             <Button
               variant="ghost"
               size="icon-sm"
-              title="在新标签页中打开"
-              aria-label="在新标签页中打开"
+              title={t("plugins.open_in_new_tab")}
+              aria-label={t("plugins.open_in_new_tab")}
               render={
                 <a href={url} target="_blank" rel="noreferrer">
                   <ExternalLink className="size-3.5" />
@@ -408,7 +411,7 @@ function Installed() {
     mutationFn: (p: Plugin) =>
       api<{ restart_required?: boolean }>(`/v8/management/plugins/${encodeURIComponent(p.id)}`, { method: "DELETE" }),
     onSuccess: (res, p) => {
-      toast.success(res.restart_required ? `已删除 ${p.id}，重启 CPA 后生效` : `已删除 ${p.id}`);
+      toast.success(t(res.restart_required ? "plugins.deleted_restart" : "plugins.deleted", { id: p.id }));
       setDeleting(null);
       refresh();
     },
@@ -417,7 +420,7 @@ function Installed() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        读取插件失败：{error.message}
+        {t("plugins.load_failed", { message: error.message })}
       </p>
     );
   }
@@ -426,7 +429,7 @@ function Installed() {
     <>
       {data?.plugins_enabled === false && (
         <p role="alert" className="mb-4 text-sm text-muted-foreground">
-          CPA 没有开启插件功能，需要在 config.yaml 的 plugins 里开启后才会加载插件。
+          {t("plugins.plugins_disabled")}
         </p>
       )}
       <Table>
@@ -445,7 +448,7 @@ function Installed() {
           {isPending ? (
             <SkeletonRows columns={5} />
           ) : !data?.plugins?.length ? (
-            <EmptyRow columns={5}>还没有插件，可以从插件商店安装。</EmptyRow>
+            <EmptyRow columns={5}>{t("plugins.empty_installed")}</EmptyRow>
           ) : (
             data.plugins.map((p) => (
               <TableRow key={p.id}>
@@ -512,8 +515,8 @@ function Installed() {
                               href={href}
                               target="_blank"
                               rel="noreferrer"
-                              title="在新标签页中打开"
-                              aria-label={`在新标签页中打开 ${label}`}
+                              title={t("plugins.open_in_new_tab")}
+                              aria-label={t("plugins.open_named_in_new_tab", { name: label })}
                               className="border-l p-1.5 text-muted-foreground hover:text-foreground"
                             >
                               <ExternalLink className="size-3" />
@@ -539,17 +542,24 @@ function Installed() {
                     checked={p.enabled === true}
                     disabled={toggle.isPending && toggle.variables?.id === p.id}
                     onCheckedChange={() => toggle.mutate(p)}
-                    aria-label={`${p.enabled ? "停用" : "启用"} ${p.metadata?.name || p.id}`}
+                    aria-label={t(p.enabled ? "plugins.disable_named" : "plugins.enable_named", {
+                      name: p.metadata?.name || p.id,
+                    })}
                   />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon-sm" aria-label={`配置 ${p.id}`} onClick={() => setConfiguring(p)}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("plugins.configure_named", { name: p.id })}
+                    onClick={() => setConfiguring(p)}
+                  >
                     <Settings2 />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`删除 ${p.id}`}
+                    aria-label={t("plugins.delete_named", { name: p.id })}
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => setDeleting(p)}
                   >
@@ -575,18 +585,18 @@ function Installed() {
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除插件</AlertDialogTitle>
-            <AlertDialogDescription>会删除 {deleting?.id} 的插件文件和已保存的配置。</AlertDialogDescription>
+            <AlertDialogTitle>{t("plugins.delete_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("plugins.delete_desc", { id: deleting?.id })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => deleting && remove.mutate(deleting)}
             >
               {remove.isPending && <Spinner />}
-              删除
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -626,7 +636,12 @@ function Store() {
       );
     },
     onSuccess: (res, { plugin: p }) => {
-      toast.success(`已安装 ${p.name || p.id} ${res.version ?? ""}${res.restart_required ? "，重启 CPA 后生效" : ""}`);
+      toast.success(
+        t(res.restart_required ? "plugins.installed_restart" : "plugins.installed_toast", {
+          name: p.name || p.id,
+          version: res.version ?? "",
+        }),
+      );
       queryClient.invalidateQueries({ queryKey: ["cpa", "plugin-store"] });
       queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
       setInstallingTarget(null);
@@ -650,7 +665,7 @@ function Store() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        读取插件商店失败：{error.message}
+        {t("plugins.store_load_failed", { message: error.message })}
       </p>
     );
   }
@@ -659,12 +674,12 @@ function Store() {
     <>
       {sourceErrors.map((s) => (
         <p key={s.id} role="alert" className="mb-2 text-sm text-destructive">
-          商店源 {s.name || s.id} 读取失败：{s.error}
+          {t("plugins.source_load_failed", { name: s.name || s.id, error: s.error })}
         </p>
       ))}
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">插件会以宿主进程二进制形式运行，请仅从受信任的来源安装。</p>
+        <p className="text-sm text-muted-foreground">{t("plugins.store_hint")}</p>
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -680,7 +695,7 @@ function Store() {
         </div>
       ) : plugins.length === 0 ? (
         <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-          {search.trim() ? "未找到符合搜索条件的插件" : "商店里没有插件"}
+          {search.trim() ? t("plugins.store_no_match") : t("plugins.store_empty")}
         </div>
       ) : (
         <>
@@ -800,18 +815,22 @@ function Store() {
                     {/* 规格明细：许可证、安装类型、系统平台 */}
                     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground/80 pt-1">
                       {p.license && (
-                        <span>
-                          {t("plugins.license")}：{p.license}
-                        </span>
+                        <span>{t("plugins.label_value", { label: t("plugins.license"), value: p.license })}</span>
                       )}
                       {p.install_type && (
                         <span>
-                          {t("plugins.install_type")}：{p.install_type.replace(/-/g, " ")}
+                          {t("plugins.label_value", {
+                            label: t("plugins.install_type"),
+                            value: p.install_type.replace(/-/g, " "),
+                          })}
                         </span>
                       )}
                       {platformList.length > 0 && (
                         <span title={platformList.join(", ")}>
-                          {t("plugins.platforms")}：{platformList.slice(0, 2).join(", ")}
+                          {t("plugins.label_value", {
+                            label: t("plugins.platforms"),
+                            value: platformList.slice(0, 2).join(", "),
+                          })}
                           {platformList.length > 2 && ` +${platformList.length - 2}`}
                         </span>
                       )}
@@ -875,7 +894,7 @@ function Store() {
         <Button
           variant="outline"
           size="icon"
-          aria-label="返回顶部"
+          aria-label={t("plugins.back_to_top")}
           className="fixed bottom-6 right-6 z-40 rounded-full shadow-md bg-background/80 backdrop-blur transition-all"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         >
@@ -888,40 +907,37 @@ function Store() {
           <AlertDialogHeader>
             <div className="flex items-center gap-2 text-destructive">
               <ShieldAlert className="size-5 shrink-0" />
-              <AlertDialogTitle>插件安装安全风险确认</AlertDialogTitle>
+              <AlertDialogTitle>{t("plugins.install_confirm_title")}</AlertDialogTitle>
             </div>
             <AlertDialogDescription className="space-y-3 pt-2 text-sm leading-relaxed">
               <p>
-                您准备安装/更新插件：<strong>「{installingTarget?.name || installingTarget?.id}」</strong>（版本：
-                {installingTarget?.version || "未知"}，来源：
-                {installingTarget?.source_name || installingTarget?.source_id}）。
+                {t("plugins.install_confirm_target", {
+                  name: installingTarget?.name || installingTarget?.id,
+                  version: installingTarget?.version || t("plugins.version_unknown"),
+                  source: installingTarget?.source_name || installingTarget?.source_id,
+                })}
               </p>
               <div className="grid gap-1.5 pt-1">
                 <Label htmlFor="plugin-version-input" className="text-xs text-muted-foreground">
-                  安装版本（可指定特定 tag 或版本）：
+                  {t("plugins.install_version_label")}
                 </Label>
                 <Input
                   id="plugin-version-input"
                   value={customVersion}
                   onChange={(e) => setCustomVersion(e.target.value)}
-                  placeholder="例如 1.0.0"
+                  placeholder={t("plugins.install_version_placeholder")}
                   className="h-8 text-xs font-mono"
                 />
               </div>
               <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-foreground/90 space-y-1.5">
-                <p className="font-semibold text-destructive">安全风险提示：</p>
-                <p className="text-muted-foreground">
-                  CPA 插件以本地动态链接库或二进制进程的形式执行，与 CPA
-                  拥有完全相同的系统权限，能够直接读取环境变量、所有账号认证密钥、请求报文并可发起任意网络通信。
-                </p>
+                <p className="font-semibold text-destructive">{t("plugins.security_risk_title")}</p>
+                <p className="text-muted-foreground">{t("plugins.security_risk_desc")}</p>
               </div>
-              <p className="text-xs text-muted-foreground font-medium">
-                请务必确保您完全信任该插件及其来源。是否确认继续安装？
-              </p>
+              <p className="text-xs text-muted-foreground font-medium">{t("plugins.install_confirm_question")}</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={install.isPending}
               onClick={() => {
@@ -931,7 +947,7 @@ function Store() {
               }}
             >
               {install.isPending && <Spinner />}
-              信任并安装
+              {t("plugins.trust_and_install")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

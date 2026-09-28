@@ -1,3 +1,4 @@
+import { useI18n } from "@/i18n/context";
 import type { RecentBucket } from "@/lib/types";
 
 const BAR = 4;
@@ -6,6 +7,7 @@ const HEIGHT = 20;
 
 // CPA 的 recent_requests:最近 20 个 10 分钟桶,成功在下、失败叠在上
 export function RequestSparkline({ buckets, label }: { buckets: RecentBucket[]; label: string }) {
+  const { t } = useI18n();
   if (buckets.length === 0) return <span className="text-muted-foreground">—</span>;
   const max = Math.max(1, ...buckets.map((b) => b.success + b.failed));
   const success = buckets.reduce((sum, b) => sum + b.success, 0);
@@ -13,7 +15,7 @@ export function RequestSparkline({ buckets, label }: { buckets: RecentBucket[]; 
   return (
     <svg
       role="img"
-      aria-label={`${label}最近 ${buckets.length * 10} 分钟：成功 ${success}，失败 ${failed}`}
+      aria-label={t("sparkline.aria", { label, minutes: buckets.length * 10, success, failed })}
       width={buckets.length * (BAR + GAP) - GAP}
       height={HEIGHT}
       className="block overflow-visible"
@@ -28,7 +30,7 @@ export function RequestSparkline({ buckets, label }: { buckets: RecentBucket[]; 
         const okH = (b.success / max) * HEIGHT;
         return (
           <g key={b.time}>
-            <title>{`${b.time} 成功 ${b.success}，失败 ${b.failed}`}</title>
+            <title>{t("sparkline.bucket", { time: b.time, success: b.success, failed: b.failed })}</title>
             {okH > 0 && <rect x={x} y={HEIGHT - okH} width={BAR} height={okH} rx={1} className="fill-primary" />}
             {failH > 0 && (
               <rect x={x} y={HEIGHT - okH - failH} width={BAR} height={failH} rx={1} className="fill-destructive" />

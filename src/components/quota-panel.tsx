@@ -19,7 +19,7 @@ export function accountName(file: AuthFile): string {
 }
 
 const CHANNELS: { id: string; label: string }[] = [
-  { id: "all", label: "全部" },
+  { id: "all", label: "" },
   { id: "claude", label: "Claude" },
   { id: "codex", label: "Codex" },
   { id: "devin", label: "Devin" },
@@ -40,6 +40,7 @@ function level(remaining: number | null): "ok" | "warn" | "danger" {
 }
 
 function MeterRow({ window: w }: { window: QuotaWindow }) {
+  const { t } = useI18n();
   const remaining = w.usedPercent === null ? null : Math.max(0, Math.min(100, 100 - Math.round(w.usedPercent)));
   const state = level(remaining);
 
@@ -61,13 +62,13 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
                   : ""
             }
           >
-            {remaining === null ? "—" : `剩余 ${remaining}%`}
+            {remaining === null ? "—" : t("quota.remaining_percent", { n: remaining })}
           </span>
         </span>
       </div>
       <div
         role="progressbar"
-        aria-label={`${w.label}剩余额度`}
+        aria-label={t("quota.remaining_aria", { label: w.label })}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={remaining ?? undefined}
@@ -80,9 +81,7 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
       </div>
       {(w.resetAt || w.detail) && (
         <div className="flex w-full min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span title={w.resetAt ? formatDateTime(w.resetAt) : undefined}>
-            {w.resetAt ? `${formatCountdown(w.resetAt)}后重置` : ""}
-          </span>
+          <span title={w.resetAt ? formatDateTime(w.resetAt) : undefined}>{formatCountdown(w.resetAt)}</span>
           {w.detail && <span className="tabular-nums">{w.detail}</span>}
         </div>
       )}
@@ -234,8 +233,8 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
   const handleRefreshAll = async () => {
     const done = await Promise.all(results.map((r) => r.refetch()));
     const failed = done.filter((r) => r.isError).length;
-    if (failed) toast.error(`${failed} 个认证文件额度查询失败`);
-    else toast.success("额度已刷新");
+    if (failed) toast.error(t("quota.refresh_failed_count", { count: failed }));
+    else toast.success(t("quota.refreshed"));
   };
 
   if (targets.length === 0) {
@@ -252,7 +251,8 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>
-            共 <strong className="font-semibold text-foreground">{metrics.total}</strong> 个
+            {t("quota.total_prefix")} <strong className="font-semibold text-foreground">{metrics.total}</strong>{" "}
+            {t("quota.total_suffix")}
           </span>
           <span className="flex items-center gap-1 text-primary font-medium">
             <span className="size-1.5 rounded-full bg-primary" />
@@ -273,7 +273,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
           {metrics.failed > 0 && (
             <span className="flex items-center gap-1 font-medium">
               <span className="size-1.5 rounded-full bg-muted-foreground" />
-              {metrics.failed} 查询失败
+              {metrics.failed} {t("quota.query_failed_short")}
             </span>
           )}
         </div>
@@ -291,7 +291,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
 
       {/* 卡片回答"还剩多少",这里回答"紧张的额度什么时候回来" */}
       {upcomingResets.length > 0 && (
-        <section aria-label="即将恢复" className="rounded-lg border p-3">
+        <section aria-label={t("quota.upcoming_resets")} className="rounded-lg border p-3">
           <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Clock className="size-3.5" />
             {t("quota.upcoming_resets")}
@@ -308,9 +308,9 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                 </span>
                 <span className="shrink-0 tabular-nums" title={formatDateTime(r.resetAt)}>
                   <span className={r.remaining === 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"}>
-                    余 {r.remaining}%
+                    {t("quota.remaining_percent", { n: r.remaining })}
                   </span>
-                  <span className="text-muted-foreground"> · {formatCountdown(r.resetAt)}后</span>
+                  <span className="text-muted-foreground"> · {formatCountdown(r.resetAt)}</span>
                 </span>
               </li>
             ))}
@@ -400,14 +400,16 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                               {item.plan}
                             </Badge>
                           )}
-                          {q && q.dataUpdatedAt > 0 && <span>{formatRelative(q.dataUpdatedAt)}更新</span>}
+                          {q && q.dataUpdatedAt > 0 && (
+                            <span>{t("quota.updated_ago", { time: formatRelative(q.dataUpdatedAt) })}</span>
+                          )}
                         </div>
                       </div>
 
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`刷新 ${item.name} 的额度`}
+                        aria-label={t("quota.refresh_account", { name: item.name })}
                         disabled={q?.isFetching}
                         onClick={() => q?.refetch()}
                       >
@@ -419,7 +421,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                       <Skeleton className="h-20 w-full" />
                     ) : q?.isError ? (
                       <div className="rounded-md bg-destructive/10 p-3 text-xs text-destructive">
-                        <p className="font-medium">查询额度失败</p>
+                        <p className="font-medium">{t("quota.query_failed")}</p>
                         <p className="mt-1 break-words opacity-90">{q.error.message}</p>
                         <Button
                           variant="outline"
@@ -427,11 +429,11 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                           className="mt-2 h-6 text-xs text-destructive hover:bg-destructive/15"
                           onClick={() => q?.refetch()}
                         >
-                          重试
+                          {t("quota.retry")}
                         </Button>
                       </div>
                     ) : (q?.data?.windows ?? []).length === 0 ? (
-                      <p className="py-4 text-center text-xs text-muted-foreground">上游未返回额度明细</p>
+                      <p className="py-4 text-center text-xs text-muted-foreground">{t("quota.no_details")}</p>
                     ) : (
                       <div className="flex w-full min-w-0 flex-col gap-3.5">
                         {q?.data?.windows.map((w) => (

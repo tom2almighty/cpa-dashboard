@@ -2,12 +2,14 @@ import { SiGithub } from "@icons-pack/react-simple-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpCircle, CheckCircle2, Download, ExternalLink, Info, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { Trans } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { request } from "@/lib/api";
 
@@ -41,7 +43,7 @@ export function useVersionData() {
       const res = await request("/v8/management/server/latest-version");
       const body = res.ok ? ((await res.json().catch(() => ({}))) as { "latest-version"?: string }) : {};
       return {
-        current: res.headers.get("x-cpa-version") || "未知",
+        current: res.headers.get("x-cpa-version") || "",
         latest: body["latest-version"] ?? null,
       };
     },
@@ -56,14 +58,14 @@ export function useVersionData() {
         headers: { "User-Agent": "cpa-dashboard" },
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) throw new Error(`查询 GitHub Release 失败 (${res.status})`);
+      if (!res.ok) throw new Error(i18n.t("version.release_query_failed", { status: res.status }));
       return (await res.json()) as GitHubRelease;
     },
     staleTime: 600_000,
     refetchOnWindowFocus: false,
   });
 
-  const cpaCurrent = cpaQuery.data?.current || "未知";
+  const cpaCurrent = cpaQuery.data?.current || i18n.t("version.unknown");
   const cpaLatest = cpaQuery.data?.latest;
   const cpaHasUpdate = Boolean(cpaLatest && newer(cpaLatest, cpaCurrent));
 
@@ -163,10 +165,10 @@ function VersionCardContent() {
                   {t("version.found_new_version")} {panelLatest}！
                 </p>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  若已在 CPA 的 <code className="text-foreground font-mono">config.yaml</code> 中配置了{" "}
-                  <code className="text-foreground font-mono">panel-github-repository</code>
-                  ，CPA 后台会自动定时静默拉取最新单文件并热生效，无需手动下载。若急需立即生效，重启 CPA
-                  服务即可触发即时同步。
+                  <Trans
+                    i18nKey="version.auto_update_hint"
+                    components={{ code: <code className="text-foreground font-mono" /> }}
+                  />
                 </p>
                 <div className="flex flex-wrap gap-2 pt-0.5">
                   <Button
@@ -224,7 +226,7 @@ function VersionCardContent() {
                 </Badge>
               )}
             </div>
-            <CardDescription className="text-xs">CPA 代理核心网关引擎</CardDescription>
+            <CardDescription className="text-xs">{t("version.cpa_desc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
             <div className="flex items-center justify-between">
@@ -238,7 +240,7 @@ function VersionCardContent() {
 
             {cpaHasUpdate && (
               <div className="mt-3 rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
-                <p className="font-medium text-foreground">CPA 可升级至 {cpaLatest}！</p>
+                <p className="font-medium text-foreground">{t("version.cpa_upgrade_to", { version: cpaLatest })}</p>
                 <Button
                   variant="outline"
                   size="xs"
@@ -251,7 +253,7 @@ function VersionCardContent() {
                   }
                 >
                   <ExternalLink className="size-3" />
-                  CPA 官方 Release
+                  {t("version.cpa_release")}
                 </Button>
               </div>
             )}

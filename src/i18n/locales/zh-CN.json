@@ -46,7 +46,8 @@
     "view": "查看",
     "download": "下载",
     "upload": "上传",
-    "submit": "提交"
+    "submit": "提交",
+    "request_failed_status": "请求失败（{{status}}）"
   },
   "theme": {
     "title": "主题",
@@ -72,7 +73,8 @@
     "system_group": "系统运维",
     "plugins": "插件",
     "logs": "日志",
-    "config": "系统配置"
+    "config": "系统配置",
+    "back_home": "返回首页"
   },
   "footer": {
     "version_center": "版本与更新中心",
@@ -100,7 +102,11 @@
     "secret_key_hint": "可输入配置中的 management.secret-key，或环境变量 MANAGEMENT_PASSWORD（支持无配置远程连接）。",
     "remember_me": "在这台设备上记住连接信息与密钥（非明文安全存储）",
     "submit": "登录",
-    "submitting": "连接中..."
+    "submitting": "连接中...",
+    "error_unauthorized": "管理密钥不正确",
+    "error_forbidden": "CPA 不允许远程管理，需要在配置中设置 management.allow-remote: true",
+    "error_not_found": "CPA 没有开启管理接口，需要在配置中设置 management.secret-key 或启动环境变量 MANAGEMENT_PASSWORD",
+    "error_network": "无法连接到 CPA 服务，请确认 CPA 地址是否正确，且已允许跨域（CORS）或网络可达"
   },
   "overview": {
     "title": "运行概览",
@@ -131,7 +137,12 @@
     "live_requests": "实时请求动态 (Usage Queue)",
     "sync_interval": "每 5 秒同步",
     "no_recent_requests": "暂无最新请求事件。启用 observability.usage.usage-statistics-enabled 后，新请求将实时呈现在此。",
-    "cooldown": "冷却中"
+    "cooldown": "冷却中",
+    "load_failed": "读取失败：{{message}}",
+    "unknown_provider": "未知",
+    "summary_label": "运行概况",
+    "list_separator": "、",
+    "failed": "失败"
   },
   "auth_files": {
     "title": "认证文件",
@@ -210,7 +221,52 @@
       "not_found": "资源不存在 (404)",
       "model_not_supported": "模型不受支持",
       "transient_error": "临时网络错误"
-    }
+    },
+    "models_count": "{{count}} 个模型",
+    "saved": "已保存",
+    "priority_integer": "优先级必须是整数",
+    "field_note": "备注",
+    "field_prefix": "模型前缀",
+    "field_priority": "优先级",
+    "field_proxy": "代理",
+    "vertex_imported": "已导入 Vertex 项目 {{project}}",
+    "provider_label": "提供商：",
+    "status_label": "状态：",
+    "deleted_one": "已删除 {{name}}",
+    "deleted_count": "已删除 {{count}} 个认证文件",
+    "cooldown_reset_done": "已重置 {{name}} 的冷却状态{{models}}",
+    "cooldown_reset_models": "（{{models}}）",
+    "refreshed": "已刷新 {{name}} 的凭证",
+    "refresh_failed": "刷新失败：{{message}}",
+    "batch_deleted": "已批量删除 {{count}} 个认证文件",
+    "batch_delete_failed": "批量删除失败：{{message}}",
+    "batch_enabled": "已批量启用 {{count}} 个认证文件",
+    "batch_disabled": "已批量停用 {{count}} 个认证文件",
+    "batch_status_failed": "批量设置状态失败：{{message}}",
+    "no_downloadable": "选中的凭据没有可下载的文件",
+    "batch_downloaded": "已打包下载 {{count}} 个认证文件{{skipped}}",
+    "batch_download_skipped": "，跳过 {{skipped}} 个无文件的凭据",
+    "batch_download_failed": "批量下载失败：{{message}}",
+    "uploaded": "已上传 {{count}} 个认证文件",
+    "load_accounts_failed": "读取账号失败：{{message}}",
+    "filter_status_label": "按状态筛选",
+    "filter_provider_label": "按提供商筛选",
+    "search_short_placeholder": "搜索账号、备注",
+    "search_label": "搜索账号",
+    "select_page": "全选本页",
+    "select_item": "选择 {{name}}",
+    "enable_item": "启用 {{name}}",
+    "disable_item": "停用 {{name}}",
+    "item_actions": "{{name}} 的操作",
+    "no_match": "没有匹配的账号",
+    "empty": "还没有认证文件，可以上传 JSON 文件或在 OAuth 登录页添加。",
+    "delete_title": "删除认证文件",
+    "batch_delete_title": "批量删除认证文件（共 {{count}} 项）",
+    "delete_desc": "{{name}} 会从 CPA 的认证目录中删除，删除后无法恢复。",
+    "batch_delete_desc": "选中的 {{count}} 个文件将从 CPA 认证目录彻底删除，删除后无法恢复。",
+    "delete_all_desc": "认证目录下的所有 JSON 文件都会被删除，对应账号立即停止使用，无法恢复。",
+    "delete_all_btn": "全部删除",
+    "confirm_delete": "确认删除"
   },
   "oauth": {
     "title": "OAuth 登录",
@@ -238,7 +294,11 @@
       "kimi": "使用 Kimi 国内账号登录（kimi.com，设备码）",
       "kimi-ai": "使用 Kimi 国际账号登录（kimi.ai，设备码）",
       "meta": "设备码登录"
-    }
+    },
+    "login_success": "{{name}} 登录成功，认证文件已保存",
+    "callback_submitted": "回调已提交，等待 CPA 完成登录",
+    "xai_callback_placeholder": "完整回调地址或页面显示的 code",
+    "unknown_error": "未知错误"
   },
   "providers": {
     "title": "AI 提供商",
@@ -263,7 +323,67 @@
     "custom_headers": "自定义请求头",
     "models_label": "支持的模型",
     "models_hint": "未勾选模型时默认转发给上游处理所有模型。",
-    "delete_confirm": "确定要删除此提供商配置吗？"
+    "delete_confirm": "确定要删除此提供商配置吗？",
+    "err_stale": "该条目已被修改或删除，请刷新后重试",
+    "base_url_required": "请先填写 Base URL",
+    "no_models_fetched": "未获取到可用模型，请确认地址与密钥，或直接输入模型名",
+    "fetch_models_success": "成功获取 {{count}} 个模型",
+    "fetch_models_failed": "获取模型失败",
+    "models_added": "已添加 {{count}} 个模型",
+    "mapping_label": "模型与映射",
+    "mapping_hint": "不添加则使用全部默认模型，客户端按别名请求时转发到上游模型",
+    "refetch_models": "重新获取 ({{count}})",
+    "fetch_models_short": "获取模型",
+    "list_mode": "列表编辑",
+    "text_mode": "文本编辑",
+    "mapping_text_hint": "每行一个，起别名写成 上游模型 => 别名",
+    "search_fetched": "搜索 {{count}} 个模型，或输入模型名",
+    "enter_model": "输入模型名添加",
+    "combobox_empty": "点击「获取模型」拉取上游模型，或直接输入模型名",
+    "add_custom": "添加「{{name}}」",
+    "add_all": "全部添加",
+    "upstream_model": "上游模型",
+    "mapped_alias": "映射别名",
+    "alias_aria": "{{name}} 的映射别名",
+    "alias_placeholder": "留空保持原名",
+    "remove_aria": "移除 {{name}}",
+    "test_ok": "连通性测试通过：{{message}}",
+    "test_failed_msg": "连通性测试失败：{{message}}",
+    "test_failed": "连通性测试失败",
+    "saved": "已保存",
+    "added": "已添加",
+    "deleted": "已删除",
+    "name_hint": "用于区分提供商，也会作为模型前缀",
+    "keys_hint": "每行一个，请求时轮流使用",
+    "base_url_hint": "留空使用官方地址",
+    "proxy": "代理",
+    "proxy_hint": "留空使用全局代理",
+    "prefix": "模型前缀",
+    "prefix_hint": "设置后用 前缀/模型名 访问",
+    "priority": "优先级",
+    "priority_hint": "数值越大越优先",
+    "websockets": "使用 WebSocket",
+    "websockets_hint": "上游支持时通过 WebSocket 发起请求",
+    "excluded_models": "排除的模型",
+    "excluded_hint": "每行或逗号分隔一个，支持 * 通配",
+    "extra_headers": "额外请求头",
+    "headers_hint": "每行一个，格式为 名称: 值",
+    "th_group": "分组名称 / 密钥",
+    "th_key_count": "密钥数",
+    "th_model_count": "模型",
+    "th_recent": "最近 200 分钟",
+    "empty": "还没有配置 {{kind}}",
+    "unnamed_group": "未命名分组",
+    "official_url": "官方地址",
+    "excluded_count": "，排除 {{count}}",
+    "enable_aria": "启用 {{name}}",
+    "disable_aria": "停用 {{name}}",
+    "test_aria": "测试 {{name}} 的连通性",
+    "edit_aria": "编辑 {{name}}",
+    "delete_aria": "删除 {{name}}",
+    "delete_title": "删除 {{kind}} 配置",
+    "delete_desc": "{{name}} 会从 CPA 配置中移除。",
+    "load_failed": "读取失败：{{message}}"
   },
   "api_keys": {
     "title": "客户端 API Key",
@@ -292,7 +412,14 @@
     "generate_and_add": "生成并添加",
     "add_key": "添加 Key",
     "save_note": "保存备注",
-    "view_models": "查看可用模型列表"
+    "view_models": "查看可用模型列表",
+    "updated": "API Key 已更新",
+    "copy_failed": "复制失败，请手动选择复制",
+    "new_key_label": "新的 API Key",
+    "note_label": "Key 备注",
+    "note_saved": "备注已保存",
+    "edit_note_title": "修改 API Key 备注",
+    "edit_note_placeholder": "输入备注，例如：Cursor、开发测试"
   },
   "models": {
     "title": "模型管理",
@@ -318,7 +445,60 @@
     "no_aliases": "还没有模型别名",
     "no_excluded": "还没有排除模型规则",
     "channel": "渠道",
-    "search_models": "搜索模型名称或别名..."
+    "search_models": "搜索模型名称或别名...",
+    "channel_placeholder": "例如 codex",
+    "alias_saved": "模型别名已保存",
+    "edit_alias_title": "编辑 {{channel}} 的模型别名",
+    "add_alias_title": "添加模型别名",
+    "upstream_model": "上游模型",
+    "display_name": "显示名称",
+    "fork": "保留原名",
+    "fork_hint": "保留原模型名，同时新增别名",
+    "force_mapping": "改写响应",
+    "force_mapping_hint": "响应里的模型名改写回别名",
+    "delete_row": "删除这一行",
+    "add_row": "添加一行",
+    "alias_hint": "客户端用别名请求时，CPA 会改用上游模型。开启「保留原名」时两个名字都能用，清空所有行即删除该渠道的别名。",
+    "load_failed": "读取失败：{{message}}",
+    "th_options": "选项",
+    "excluded_saved": "排除模型已保存",
+    "edit_excluded_title": "编辑 {{channel}} 的排除模型",
+    "add_excluded_title": "添加排除模型",
+    "excluded_added": "已添加 {{count}} 个上游模型至排除列表",
+    "rules_label": "排除规则配置",
+    "rules_hint": "支持直接勾选上游模型，或输入 * 通配符（如 gpt-5-*、*-mini）",
+    "upstream_count": "上游模型 ({{count}})",
+    "fetch_models": "获取模型",
+    "visual_mode": "可视化选择",
+    "text_mode": "文本编辑",
+    "rules_text_hint": "每行一个或逗号分隔，支持 * 通配。清空后保存即删除该渠道的所有排除规则。",
+    "rules_count": "已排除规则 ({{count}})",
+    "clear_all": "清空全部",
+    "no_rules": "暂未排除任何模型，可通过下方候选模型一键点击添加，或直接输入通配符规则。",
+    "remove_rule_aria": "移除规则 {{rule}}",
+    "custom_rule_placeholder": "输入自定义模型名或通配符（如 *-preview），回车添加...",
+    "candidates": "上游模型候选列表 ({{count}})",
+    "exclude_all": "排除全部候选",
+    "no_catalog": "未从该渠道获取到模型定义，您可以直接使用上方输入框输入模型名或通配符。",
+    "filter_candidates": "过滤上游模型候选...",
+    "no_match": "无匹配模型",
+    "click_unexclude": "点击取消排除",
+    "click_exclude": "点击加入排除",
+    "edit_aria": "编辑 {{name}}",
+    "catalog_hint": "CPA 内置的模型定义，决定各渠道默认对外提供哪些模型。",
+    "select_channel": "选择渠道",
+    "th_model": "模型",
+    "th_owner": "提供方",
+    "catalog_error": "这个渠道没有内置模型定义（{{message}}）",
+    "no_models": "没有模型",
+    "copied_model": "已复制模型名：{{id}}",
+    "available_hint": "CPA 通过 <code>/v1/models</code> 对外提供的模型，点击即可复制模型名。",
+    "total_models": "共 {{count}} 个模型",
+    "search": "搜索模型",
+    "fetch_failed": "获取可用模型失败：{{message}}",
+    "no_matching_models": "没有匹配的模型",
+    "no_available": "暂无可用模型，请确认账号或提供商配置正常",
+    "copy_aria": "复制 {{id}}"
   },
   "plugins": {
     "title": "插件",
@@ -359,7 +539,44 @@
     "no_description": "暂无描述",
     "view_repo": "查看 GitHub 仓库",
     "view_homepage": "访问主页",
-    "open_in_new_tab": "在新标签页中打开"
+    "open_in_new_tab": "在新标签页中打开",
+    "config_must_be_object": "配置必须是 JSON 对象",
+    "config_saved": "插件配置已保存",
+    "config_title": "{{name}} 配置",
+    "edit_as_form": "用表单编辑",
+    "edit_as_json": "编辑 JSON",
+    "config_label": "插件配置",
+    "reload_page": "刷新页面",
+    "open_named_in_new_tab": "在新标签页中打开 {{name}}",
+    "deleted": "已删除 {{id}}",
+    "deleted_restart": "已删除 {{id}}，重启 CPA 后生效",
+    "load_failed": "读取插件失败：{{message}}",
+    "plugins_disabled": "CPA 没有开启插件功能，需要在 config.yaml 的 plugins 里开启后才会加载插件。",
+    "empty_installed": "还没有插件，可以从插件商店安装。",
+    "enable_named": "启用 {{name}}",
+    "disable_named": "停用 {{name}}",
+    "configure_named": "配置 {{name}}",
+    "delete_named": "删除 {{name}}",
+    "delete_title": "删除插件",
+    "delete_desc": "会删除 {{id}} 的插件文件和已保存的配置。",
+    "installed_toast": "已安装 {{name}} {{version}}",
+    "installed_restart": "已安装 {{name}} {{version}}，重启 CPA 后生效",
+    "store_load_failed": "读取插件商店失败：{{message}}",
+    "source_load_failed": "商店源 {{name}} 读取失败：{{error}}",
+    "store_hint": "插件会以宿主进程二进制形式运行，请仅从受信任的来源安装。",
+    "store_no_match": "未找到符合搜索条件的插件",
+    "store_empty": "商店里没有插件",
+    "label_value": "{{label}}：{{value}}",
+    "back_to_top": "返回顶部",
+    "install_confirm_title": "插件安装安全风险确认",
+    "install_confirm_target": "您准备安装/更新插件：「{{name}}」（版本：{{version}}，来源：{{source}}）。",
+    "version_unknown": "未知",
+    "install_version_label": "安装版本（可指定特定 tag 或版本）：",
+    "install_version_placeholder": "例如 1.0.0",
+    "security_risk_title": "安全风险提示：",
+    "security_risk_desc": "CPA 插件以本地动态链接库或二进制进程的形式执行，与 CPA 拥有完全相同的系统权限，能够直接读取环境变量、所有账号认证密钥、请求报文并可发起任意网络通信。",
+    "install_confirm_question": "请务必确保您完全信任该插件及其来源。是否确认继续安装？",
+    "trust_and_install": "信任并安装"
   },
   "logs": {
     "title": "运行日志",
@@ -376,7 +593,34 @@
     "level_error": "错误",
     "level_warn": "警告",
     "level_info": "信息",
-    "level_debug": "调试"
+    "level_debug": "调试",
+    "request_log_not_found": "找不到这次请求的日志，需要在配置中开启请求日志",
+    "download_request_log": "下载这次请求的完整日志",
+    "cleared": "日志已清空",
+    "file_logging_disabled": "CPA 没有把日志写入文件，所以这里读不到日志。",
+    "enable_file_logging": "开启日志写入文件",
+    "filter_by_level": "按级别筛选",
+    "pause": "暂停刷新",
+    "resume": "继续刷新",
+    "clear_desc": "会删除 CPA 的轮换日志并清空当前日志文件，无法恢复。",
+    "clear_confirm": "清空",
+    "load_failed": "读取日志失败：{{message}}",
+    "empty": "还没有日志",
+    "no_match": "没有符合条件的日志",
+    "jump_latest": "跳到最新",
+    "shown_count": "显示 {{shown}} / {{total}} 条，最多保留最近 {{max}} 条",
+    "request_log_settings": "请求日志设置",
+    "request_log_full": "记录完整请求",
+    "request_log_full_desc": "每个请求的请求体、上游往返和响应都会写成单独的文件。关闭时只保留失败请求。",
+    "download_by_id": "按请求 ID 下载",
+    "request_id_placeholder": "运行日志或用量明细里的请求 ID",
+    "error_logs": "失败请求日志",
+    "error_logs_hint": "已开启完整请求记录，失败请求不再单独归档，请用请求 ID 下载。",
+    "th_file": "文件",
+    "th_size": "大小",
+    "th_modified": "修改时间",
+    "no_error_logs": "没有失败请求日志",
+    "download_file": "下载 {{name}}"
   },
   "config": {
     "title": "系统配置",
@@ -397,7 +641,302 @@
     "save_changes": "保存更改",
     "reload": "重新加载",
     "pending_save": "项待保存",
-    "discard": "放弃修改"
+    "discard": "放弃修改",
+    "save_success": "配置已保存，CPA 会自动重新加载生效",
+    "save_failed": "保存失败：{{message}}",
+    "settings": {
+      "copied_value": "已复制配置值",
+      "copy_value": "复制配置值",
+      "secret_key_set": "已设置管理密钥（留空保持不变，输入新密钥覆盖）",
+      "secret_key_unset": "未设置管理密钥（输入以配置）",
+      "password_unset": "未设置密码",
+      "show_secret": "显示明文密钥",
+      "modified": "已修改"
+    },
+    "payload": {
+      "title": "请求 Payload 参数规则可视化",
+      "desc": "可视化配置 CPA 向各上游转发请求时自动缺省注入（Default）、强行覆盖（Override）或移除指定参数（Filter）。",
+      "add_rule": "添加规则",
+      "view_source": "查看完整源文件",
+      "default_title": "缺省参数规则 (Default)",
+      "default_desc": "仅在客户端未传该参数时自动注入默认值。",
+      "override_title": "强制覆盖规则 (Override)",
+      "override_desc": "始终覆盖客户端传参，强制指定对应参数值。",
+      "filter_title": "参数过滤移除 (Filter)",
+      "filter_desc": "将客户端请求中的指定 JSON 路径字段剔除后转发。",
+      "empty": "暂未配置此类规则",
+      "target_models": "目标模型:",
+      "match_all": "全部匹配 (*)",
+      "edit_rule": "编辑规则",
+      "delete_rule": "删除规则",
+      "param_rules": "参数规则:",
+      "dialog_edit": "编辑 Payload 规则",
+      "dialog_add": "添加 Payload 规则",
+      "presets": "快捷预设模板",
+      "preset_gemini_budget": "Gemini 思考预算 32k",
+      "preset_global_temp": "全局温度 0.7",
+      "preset_filter_budget": "过滤思考预算",
+      "rule_type": "规则类型",
+      "section_default_full": "缺省注入 (Default - 缺失时补全)",
+      "section_override_full": "强制覆盖 (Override - 始终生效)",
+      "section_filter_full": "参数过滤 (Filter - 移除字段)",
+      "section_default": "缺省注入 (Default)",
+      "section_override": "强制覆盖 (Override)",
+      "section_filter": "参数过滤 (Filter)",
+      "protocol": "协议限制 (可选)",
+      "protocol_all": "全部协议 (不限制)",
+      "model": "目标模型名称 / 通配符",
+      "model_placeholder": "例如 gemini-*、gpt-4o、* (全部模型)",
+      "filter_params": "待移除的参数路径列表（每行一个）",
+      "json_params": "注入/覆盖的参数（JSON 格式）",
+      "filter_hint": "支持 gjson/sjson 路径语法，将指定字段从发往上游的请求中剔除。",
+      "json_hint": "必须是合法的 JSON 对象，键为 JSON 路径，值为要注入的参数内容。",
+      "save_rule": "保存规则",
+      "invalid_json": "参数格式错误：必须是合法的 JSON 对象",
+      "updated": "Payload 规则已更新并自动生效",
+      "deleted": "规则已删除",
+      "delete_failed": "删除失败：{{message}}"
+    },
+    "yaml": {
+      "load_failed": "读取配置失败：{{message}}",
+      "search_placeholder": "搜索代码配置 (Enter 下一个，Ctrl+F)...",
+      "no_match": "无匹配",
+      "clear_search": "清空搜索",
+      "prev_match": "上一个匹配项",
+      "next_match": "下一个匹配项",
+      "save_hint": "Ctrl/⌘ + S 保存配置"
+    },
+    "groups": {
+      "server": "HTTP/HTTPS 监听地址、端口与通用服务行为",
+      "management": "管理接口权限与内置管理面板控制",
+      "routing": "负载均衡算法、会话粘性、轮次重试与冷却熔断机制",
+      "requests": "上游全局代理、响应头透传与长连接心跳保活",
+      "oauth": "认证文件目录、自动刷新并发及各大官方上游参数",
+      "multimedia": "图像与视频生成的重定向与缓存参数",
+      "observability": "调试日志、滚动文件日志、用量统计及性能分析",
+      "plugins": "动态二进制插件发现与受信任执行控制"
+    },
+    "fields": {
+      "server/host": {
+        "label": "监听主机 (Host)",
+        "hint": "绑定地址，空值或 0.0.0.0 监听所有接口，127.0.0.1 仅限本机"
+      },
+      "server/port": {
+        "label": "服务端口 (Port)",
+        "hint": "CPA 核心监听端口，默认 8317"
+      },
+      "server/commercial-mode": {
+        "label": "高并发模式 (Commercial Mode)",
+        "hint": "关闭高开销请求日志与非必要中间件以最小化内存占用"
+      },
+      "server/tls/enable": {
+        "label": "启用 HTTPS (TLS)",
+        "hint": "开启内置 HTTPS 服务"
+      },
+      "server/tls/cert": {
+        "label": "TLS 证书路径",
+        "hint": "服务器 SSL/TLS 证书文件路径（.crt 或 .pem）"
+      },
+      "server/tls/key": {
+        "label": "TLS 私钥路径",
+        "hint": "服务器 SSL/TLS 私钥文件路径（.key）"
+      },
+      "management/allow-remote": {
+        "label": "允许远程管理 (Allow Remote)",
+        "hint": "允许来自非 localhost 的客户端访问管理 API。注：环境变量 MANAGEMENT_PASSWORD 即使在此处为 false 也允许远程访问"
+      },
+      "management/secret-key": {
+        "label": "管理密钥 (Secret Key)",
+        "hint": "管理密钥原文。保存后由 CPA 进行 bcrypt 哈希存储，留空保持不变"
+      },
+      "management/disable-control-panel": {
+        "label": "禁用管理面板",
+        "hint": "禁用 CPA 内置管理面板资源托管与前端路由"
+      },
+      "management/disable-auto-update-panel": {
+        "label": "禁用面板后台自动更新",
+        "hint": "禁用 CPA 在后台定时检查并下载管理面板最新 Release"
+      },
+      "management/panel-github-repository": {
+        "label": "面板更新发布仓库",
+        "hint": "管理面板自动拉取的 GitHub 仓库，默认 tom2almighty/cpa-dashboard"
+      },
+      "routing/strategy": {
+        "label": "凭据选择策略 (Strategy)",
+        "hint": "支持轮询、加权轮询以及贪婪用满单凭据 (fill-first)",
+        "options": {
+          "round-robin": "轮询 (round-robin)",
+          "weighted-round-robin": "加权轮询 (weighted-round-robin)",
+          "fill-first": "优先用满一个 (fill-first)"
+        }
+      },
+      "routing/session-affinity": {
+        "label": "会话粘性 (Session Affinity)",
+        "hint": "将会话固定路由到同一账号以最大化 Prompt Cache 命中率"
+      },
+      "routing/session-affinity-subagents": {
+        "label": "子代理会话继承",
+        "hint": "子会话继承父级绑定的凭据，优化 Claude、Codex 多 Agent 缓存"
+      },
+      "routing/session-affinity-ttl": {
+        "label": "会话粘性保留时长 (TTL)",
+        "hint": "例如 1h、30m"
+      },
+      "routing/force-model-prefix": {
+        "label": "强制模型前缀匹配",
+        "hint": "无前缀请求仅使用无前缀凭据，防止模型名污染"
+      },
+      "routing/retry/request-retry": {
+        "label": "故障重试轮次",
+        "hint": "发生 429/500/503 时的额外重试轮次，默认 3"
+      },
+      "routing/retry/max-retry-credentials": {
+        "label": "每轮最大重试凭据数",
+        "hint": "0 表示尝试所有符合条件的可用凭据"
+      },
+      "routing/retry/max-retry-interval": {
+        "label": "两轮间最大冷却等待（秒）",
+        "hint": "两轮重试之间等待凭据冷却的最大秒数"
+      },
+      "routing/cooldown/disable-cooling": {
+        "label": "全局禁用冷却",
+        "hint": "完全关闭凭据或模型失败后的拉黑与冷却等待"
+      },
+      "routing/cooldown/save-cooldown-status": {
+        "label": "持久化冷却状态",
+        "hint": "将凭据冷却状态以 .cds 文件持久化保存在凭据目录"
+      },
+      "routing/cooldown/transient-error-cooldown-seconds": {
+        "label": "瞬态网络错误冷却时间（秒）",
+        "hint": "408/500/502/504 等临时错误的冷却秒数，0 为 60 秒，-1 为禁用"
+      },
+      "requests/proxy-url": {
+        "label": "全局出站代理 (Proxy URL)",
+        "hint": "所有上游请求默认走的网络代理，例如 socks5://127.0.0.1:1080 或 http://proxy:7890，留空直连"
+      },
+      "requests/passthrough-headers": {
+        "label": "透传上游响应头",
+        "hint": "将筛选后的上游响应 Header 原样转发给客户端"
+      },
+      "requests/streaming/keepalive-seconds": {
+        "label": "流式 SSE 保活心跳（秒）",
+        "hint": "SSE 流式连接保活注释发送间隔，0 表示禁用"
+      },
+      "requests/streaming/bootstrap-retries": {
+        "label": "流式启动安全重试次数",
+        "hint": "首字节发送前发生网络协议错误时的重试次数"
+      },
+      "requests/nonstream-keepalive-interval": {
+        "label": "非流式长请求保活间隔",
+        "hint": "为非流式长请求定期发送空行保活，例如 10s、30s"
+      },
+      "oauth/auth-dir": {
+        "label": "凭据存储目录 (Auth Dir)",
+        "hint": "存放账号 JSON 认证文件的目录，支持 ~ 路径。默认 ~/.cli-proxy-api"
+      },
+      "oauth/auth-auto-refresh-workers": {
+        "label": "凭据自动刷新工作线程数",
+        "hint": "后台自动刷新 OAuth Token 的并发并发数，默认 16"
+      },
+      "oauth/providers/aistudio/ws-auth": {
+        "label": "AI Studio /ws 路由鉴权",
+        "hint": "为 /v1/ws 路由强制要求客户端携带有效密钥"
+      },
+      "oauth/providers/codex/identity-confuse": {
+        "label": "Codex 身份混淆映射",
+        "hint": "按选定凭据重映射 Codex 缓存 key 与安装标识"
+      },
+      "oauth/providers/claude/disable-claude-cloak-mode": {
+        "label": "禁用 Claude 伪装",
+        "hint": "不伪装 Claude Code 客户端指纹和系统提示词，原样透传"
+      },
+      "oauth/providers/antigravity/antigravity-credits": {
+        "label": "Antigravity 超额使用 Credits",
+        "hint": "免费额度耗尽（429/503）时，允许使用带有付费积分的凭据重试"
+      },
+      "oauth/providers/antigravity/signature-cache-enabled": {
+        "label": "Antigravity 思考签名缓存",
+        "hint": "缓存并验证思考块签名以大幅提升多并发吞吐与稳定性"
+      },
+      "oauth/providers/antigravity/signature-bypass-strict": {
+        "label": "Antigravity 严格签名绕过",
+        "hint": "绕过严格 Protobuf 签名校验（实验性），用于兼容特定调用"
+      },
+      "oauth/providers/claude/header-defaults/stabilize-device-profile": {
+        "label": "Claude 设备配置指纹稳定化",
+        "hint": "为每个凭据将 OS 与系统架构固定为基准值，降低风控概率"
+      },
+      "oauth/providers/claude/header-defaults/user-agent": {
+        "label": "Claude 默认 User-Agent",
+        "hint": "客户端未携带时填补的 Claude Code CLI 基准 User-Agent"
+      },
+      "oauth/providers/codex/header-defaults/user-agent": {
+        "label": "Codex 默认 User-Agent",
+        "hint": "客户端未提供时使用的官方 Codex User-Agent"
+      },
+      "multimedia/disable-image-generation": {
+        "label": "图像生成行为控制",
+        "hint": "控制模型图片生成行为：允许、全局禁用、仅允许图像接口或原样透传",
+        "options": {
+          "false": "允许生图（默认）",
+          "true": "全局禁用生图",
+          "chat": "仅允许独立生图接口",
+          "passthrough": "原样透传"
+        }
+      },
+      "multimedia/gpt-image-2-base-model": {
+        "label": "生图基础模型",
+        "hint": "用于解析与理解生图指令的模型，默认 gpt-5.4-mini"
+      },
+      "multimedia/video-result-auth-cache-ttl": {
+        "label": "视频凭据绑定缓存时效",
+        "hint": "视频 ID 与创建凭据的绑定时长，默认 3h"
+      },
+      "observability/logs/debug": {
+        "label": "调试模式 (Debug)",
+        "hint": "输出更详细的网关内部运行与路由调度日志"
+      },
+      "observability/logs/logging-to-file": {
+        "label": "应用日志写入文件",
+        "hint": "将应用日志输出到日志目录中的滚动文件"
+      },
+      "observability/logs/request-log": {
+        "label": "记录完整请求报文",
+        "hint": "记录完整的 HTTP 请求报文与响应体，排查错误时建议临时开启"
+      },
+      "observability/logs/logs-max-total-size-mb": {
+        "label": "日志总大小上限（MB）",
+        "hint": "0 表示不限制"
+      },
+      "observability/logs/error-logs-max-files": {
+        "label": "错误日志保留个数",
+        "hint": "请求日志关闭时保留的 error-*.log 文件数"
+      },
+      "observability/usage/usage-statistics-enabled": {
+        "label": "启用用量统计",
+        "hint": "开启后 CPA 会将请求推入用量队列供面板采集；若关闭则面板无法统计用量"
+      },
+      "observability/usage/redis-usage-queue-retention-seconds": {
+        "label": "用量队列内存保留时间（秒）",
+        "hint": "用量记录在内存队列中的保留时限，最大 3600 秒"
+      },
+      "observability/pprof/enable": {
+        "label": "启用 pprof 性能分析",
+        "hint": "开启内置 Go 运行时性能分析 HTTP 服务"
+      },
+      "observability/pprof/addr": {
+        "label": "pprof 监听地址",
+        "hint": "建议仅绑定本机例如 127.0.0.1:8316"
+      },
+      "plugins/enabled": {
+        "label": "启用插件功能",
+        "hint": "开启受信任的进程内动态二进制插件系统"
+      },
+      "plugins/dir": {
+        "label": "插件发现目录",
+        "hint": "插件动态库或二进制发现目录，默认 plugins"
+      }
+    }
   },
   "quota": {
     "title": "额度监控",
@@ -414,7 +953,51 @@
     "healthy": "充裕",
     "no_target": "暂无可查询额度的有效 OAuth 账号。",
     "channels_support": "目前支持 Codex、Claude、Devin、Kimi、Meta、xAI、Antigravity。",
-    "no_matching": "没有找到符合当前筛选条件的额度信息"
+    "no_matching": "没有找到符合当前筛选条件的额度信息",
+    "remaining_percent": "剩余 {{n}}%",
+    "remaining_aria": "{{label}}剩余额度",
+    "refresh_failed_count": "{{count}} 个认证文件额度查询失败",
+    "refreshed": "额度已刷新",
+    "total_prefix": "共",
+    "total_suffix": "个",
+    "query_failed_short": "查询失败",
+    "query_failed": "查询额度失败",
+    "updated_ago": "{{time}}更新",
+    "refresh_account": "刷新 {{name}} 的额度",
+    "retry": "重试",
+    "no_details": "上游未返回额度明细",
+    "label": {
+      "quota": "额度",
+      "hours": "{{n}} 小时",
+      "days": "{{n}} 天",
+      "weekly": "每周",
+      "monthly": "每月",
+      "current_period": "当前周期",
+      "code_review": "代码审查",
+      "additional": "附加",
+      "credits_unlimited": "积分不限量",
+      "credits_balance": "积分余额 {{n}}",
+      "extra_usage": "每月额外用量",
+      "daily_quota": "每日额度",
+      "weekly_quota": "每周额度",
+      "minutes_window": "{{n}} 分钟窗口",
+      "session_window": "会话窗口",
+      "claude": {
+        "five_hour": "5 小时",
+        "seven_day": "每周",
+        "seven_day_opus": "每周 Opus",
+        "seven_day_sonnet": "每周 Sonnet",
+        "seven_day_oauth_apps": "每周 OAuth 应用",
+        "seven_day_cowork": "每周 Cowork"
+      }
+    },
+    "error": {
+      "upstream": "上游返回 {{status}}{{message}}",
+      "no_data": "没有返回额度数据",
+      "missing_dca_token": "认证文件中缺少 DCA Token",
+      "unsupported": "该提供商不支持额度查询",
+      "missing_auth_index": "凭据缺少 auth_index"
+    }
   },
   "version": {
     "title": "版本与更新",
@@ -437,6 +1020,50 @@
     "update_available": "可更新",
     "found_new_version": "发现新版本",
     "view_changelog": "更新日志",
-    "download_manual": "手动下载"
+    "download_manual": "手动下载",
+    "unknown": "未知",
+    "release_query_failed": "查询 GitHub Release 失败 ({{status}})",
+    "auto_update_hint": "若已在 CPA 的 <code>config.yaml</code> 中配置了 <code>panel-github-repository</code>，CPA 后台会自动定时静默拉取最新单文件并热生效，无需手动下载。若急需立即生效，重启 CPA 服务即可触发即时同步。",
+    "cpa_desc": "CPA 代理核心网关引擎",
+    "cpa_upgrade_to": "CPA 可升级至 {{version}}！",
+    "cpa_release": "CPA 官方 Release"
+  },
+  "time": {
+    "never": "从未",
+    "just_now": "刚刚",
+    "minutes_ago": "{{n}} 分钟前",
+    "hours_ago": "{{n}} 小时前",
+    "days_ago": "{{n}} 天前",
+    "reset_done": "已重置",
+    "reset_in_minutes": "{{m}} 分钟后重置",
+    "reset_in_hours": "{{h}} 小时 {{m}} 分后重置",
+    "reset_in_days": "{{d}} 天 {{h}} 小时后重置"
+  },
+  "pagination": {
+    "label": "分页",
+    "total": "共 {{total}} 项",
+    "first": "首页",
+    "prev": "上一页",
+    "next": "下一页",
+    "last": "末页"
+  },
+  "sparkline": {
+    "aria": "{{label}}最近 {{minutes}} 分钟：成功 {{success}}，失败 {{failed}}",
+    "bucket": "{{time}} 成功 {{success}}，失败 {{failed}}"
+  },
+  "provider_form": {
+    "openai_compat": "OpenAI 兼容",
+    "no_models": "未返回任何模型",
+    "fetch_models_failed": "获取上游模型失败：上游返回 HTTP {{status}}",
+    "name_required": "请填写名称",
+    "api_key_required": "请填写 API Key",
+    "base_url_required": "请填写 Base URL",
+    "base_url_required_test": "测试连通性必须填写 Base URL",
+    "base_url_required_for": "{{name}} 必须填写 Base URL",
+    "priority_integer": "优先级必须是整数",
+    "headers_format": "请求头每行格式为 名称: 值",
+    "test_ok": "成功响应 ({{ms}}ms)",
+    "upstream_http": "上游返回 HTTP {{status}}",
+    "request_failed": "请求失败"
   }
 }

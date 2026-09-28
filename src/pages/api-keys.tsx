@@ -88,7 +88,7 @@ export function ApiKeysPage() {
       queryClient.invalidateQueries({ queryKey: ["cpa", "api-keys"] });
       queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
       queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
-      toast.success("API Key 已更新");
+      toast.success(t("api_keys.updated"));
     },
   });
   const keys = data ?? [];
@@ -100,7 +100,7 @@ export function ApiKeysPage() {
         toast.success(message);
         setTimeout(() => setCopied(null), 2000);
       },
-      () => toast.error("复制失败，请手动选择复制"),
+      () => toast.error(t("api_keys.copy_failed")),
     );
   };
 
@@ -271,14 +271,14 @@ export function ApiKeysPage() {
             value={adding}
             onChange={(e) => setAdding(e.target.value)}
             placeholder={t("api_keys.new_key_placeholder")}
-            aria-label="新的 API Key"
+            aria-label={t("api_keys.new_key_label")}
             className="w-full font-mono sm:w-72"
           />
           <Input
             value={addingNote}
             onChange={(e) => setAddingNote(e.target.value)}
             placeholder={t("api_keys.note_placeholder")}
-            aria-label="Key 备注"
+            aria-label={t("api_keys.note_label")}
             className="w-full sm:w-56"
           />
           <div className="flex items-center gap-2">
@@ -312,26 +312,26 @@ export function ApiKeysPage() {
                 setNotes(next);
                 saveNotes(next);
                 setEditingNoteKey(null);
-                toast.success("备注已保存");
+                toast.success(t("api_keys.note_saved"));
               }}
             >
               <DialogHeader>
-                <DialogTitle>修改 API Key 备注</DialogTitle>
+                <DialogTitle>{t("api_keys.edit_note_title")}</DialogTitle>
               </DialogHeader>
               <div className="py-4 space-y-2">
                 <code className="text-xs text-muted-foreground block font-mono">{maskKey(editingNoteKey)}</code>
                 <Input
                   value={editingNoteValue}
                   onChange={(e) => setEditingNoteValue(e.target.value)}
-                  placeholder="输入备注，例如：Cursor、开发测试"
+                  placeholder={t("api_keys.edit_note_placeholder")}
                   autoFocus
                 />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setEditingNoteKey(null)}>
-                  取消
+                  {t("common.cancel")}
                 </Button>
-                <Button type="submit">保存备注</Button>
+                <Button type="submit">{t("api_keys.save_note")}</Button>
               </DialogFooter>
             </form>
           </DialogContent>

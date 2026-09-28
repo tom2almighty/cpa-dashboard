@@ -60,18 +60,6 @@ const QUERY_KEY = ["cpa", "auth-files"];
 const file = (name: string) => encodeURIComponent(name);
 const PAGE_SIZE = 50;
 
-const COOLDOWN_REASONS: Record<string, string> = {
-  quota: "额度超限",
-  credential_quota: "凭据额度限制",
-  cloudflare_challenge: "Cloudflare 验证拦截",
-  invalid_grant: "凭据授权失效",
-  unauthorized: "未授权 (401)",
-  payment_required: "需要付费 (402)",
-  not_found: "资源不存在 (404)",
-  model_not_supported: "模型不受支持",
-  transient_error: "临时网络错误",
-};
-
 function StatusCell({ file: f }: { file: AuthFile }) {
   const { t } = useI18n();
   if (f.disabled) return <Badge variant="outline">{t("auth_files.status_disabled")}</Badge>;
@@ -83,14 +71,14 @@ function StatusCell({ file: f }: { file: AuthFile }) {
     const title = f.cooldowns
       .map(
         (c) =>
-          `${c.scope === "credential" ? t("auth_files.scope_credential") : c.model_key}: ${t(`auth_files.cooldown_reasons.${c.reason}`) || c.reason} (${t("auth_files.remaining_seconds", { seconds: c.remaining_seconds })})`,
+          `${c.scope === "credential" ? t("auth_files.scope_credential") : c.model_key}: ${t(`auth_files.cooldown_reasons.${c.reason}`, { defaultValue: c.reason })} (${t("auth_files.remaining_seconds", { seconds: c.remaining_seconds })})`,
       )
       .join("\n");
 
     return (
       <span className="grid gap-0.5" title={title}>
         <Badge variant="destructive" className="w-fit">
-          {credWide ? t("auth_files.scope_credential") : `${modelCount} models`}
+          {credWide ? t("auth_files.scope_credential") : t("auth_files.models_count", { count: modelCount })}
         </Badge>
         {earliestSec > 0 && <span className="text-xs text-muted-foreground">~{earliestSec}s</span>}
       </span>
@@ -145,7 +133,7 @@ function ModelsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
           <Skeleton className="h-48" />
         ) : isError ? (
           <p role="alert" className="text-sm text-destructive">
-            读取失败：{error.message}
+            {t("overview.load_failed", { message: error.message })}
           </p>
         ) : data.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{t("auth_files.no_models")}</p>
@@ -226,7 +214,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
     mutationFn: (patch: Record<string, unknown>) =>
       api("/v8/management/credentials/fields", { method: "PATCH", body: { name: target.name, ...patch } }),
     onSuccess: () => {
-      toast.success("已保存");
+      toast.success(t("auth_files.saved"));
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ["cpa", "auth-file-content", target.name] });
       onClose();
@@ -237,7 +225,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
     event.preventDefault();
     if (!form || !source.data) return;
     if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) {
-      toast.error("优先级必须是整数");
+      toast.error(t("auth_files.priority_integer"));
       return;
     }
     const patch = diffFields(source.data, form);
@@ -258,16 +246,16 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
         ) : (
           <form id="fields-form" onSubmit={submit} className="grid gap-4">
             <div className="grid gap-1.5">
-              <Label htmlFor="f-note">备注</Label>
+              <Label htmlFor="f-note">{t("auth_files.field_note")}</Label>
               <Input id="f-note" value={form.note} onChange={(e) => update({ note: e.target.value })} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label htmlFor="f-prefix">模型前缀</Label>
+                <Label htmlFor="f-prefix">{t("auth_files.field_prefix")}</Label>
                 <Input id="f-prefix" value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="f-priority">优先级</Label>
+                <Label htmlFor="f-priority">{t("auth_files.field_priority")}</Label>
                 <Input
                   id="f-priority"
                   inputMode="numeric"
@@ -277,7 +265,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
               </div>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="f-proxy">代理</Label>
+              <Label htmlFor="f-proxy">{t("auth_files.field_proxy")}</Label>
               <Input
                 id="f-proxy"
                 value={form.proxy_url}
@@ -328,7 +316,7 @@ function VertexDialog({ onClose }: { onClose: () => void }) {
       });
     },
     onSuccess: (res) => {
-      toast.success(`已导入 Vertex 项目 ${res.project_id ?? ""}`);
+      toast.success(t("auth_files.vertex_imported", { project: res.project_id ?? "" }));
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       onClose();
     },
@@ -370,48 +358,53 @@ function VertexDialog({ onClose }: { onClose: () => void }) {
 }
 
 function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
+  const { t } = useI18n();
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>凭证详情 - {accountName(target)}</DialogTitle>
+          <DialogTitle>{t("auth_files.details_title", { name: accountName(target) })}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 text-xs">
           <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
             <div>
-              <span className="text-muted-foreground">文件名：</span>
+              <span className="text-muted-foreground">{t("auth_files.file_name")}</span>
               <p className="font-mono font-medium">{target.name}</p>
             </div>
             <div>
-              <span className="text-muted-foreground">提供商：</span>
+              <span className="text-muted-foreground">{t("auth_files.provider_label")}</span>
               <p className="font-medium">{target.provider || "—"}</p>
             </div>
             <div>
-              <span className="text-muted-foreground">账号标识：</span>
+              <span className="text-muted-foreground">{t("auth_files.account_id")}</span>
               <p className="font-medium">{target.email || target.account || "—"}</p>
             </div>
             <div>
-              <span className="text-muted-foreground">Auth Index：</span>
+              <span className="text-muted-foreground">{t("auth_files.auth_index")}</span>
               <p className="font-mono">{target.auth_index || "—"}</p>
             </div>
             {target.project_id && (
               <div>
-                <span className="text-muted-foreground">项目 ID：</span>
+                <span className="text-muted-foreground">{t("auth_files.project_id")}</span>
                 <p className="font-mono">{target.project_id}</p>
               </div>
             )}
             <div>
-              <span className="text-muted-foreground">状态：</span>
+              <span className="text-muted-foreground">{t("auth_files.status_label")}</span>
               <p className="font-medium">
-                {target.disabled ? "已禁用" : target.unavailable ? "冷却中" : target.status || "正常"}
+                {target.disabled
+                  ? t("auth_files.status_disabled")
+                  : target.unavailable
+                    ? t("overview.cooldown")
+                    : target.status || t("auth_files.status_normal")}
               </p>
             </div>
             <div>
-              <span className="text-muted-foreground">最近刷新：</span>
+              <span className="text-muted-foreground">{t("auth_files.last_refresh_label")}</span>
               <p>{target.last_refresh ? formatDateTime(Date.parse(target.last_refresh)) : "—"}</p>
             </div>
             <div>
-              <span className="text-muted-foreground">更新时间：</span>
+              <span className="text-muted-foreground">{t("auth_files.updated_at_label")}</span>
               <p>{target.updated_at ? formatDateTime(Date.parse(target.updated_at)) : "—"}</p>
             </div>
           </div>
@@ -419,7 +412,7 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
           {target.cooldowns && target.cooldowns.length > 0 && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
               <span className="font-medium text-amber-600 dark:text-amber-400">
-                当前冷却限制（{target.cooldowns.length} 项）
+                {t("auth_files.cooldown_limit_title", { count: target.cooldowns.length })}
               </span>
               <div className="mt-2 grid gap-1.5">
                 {target.cooldowns.map((c) => (
@@ -428,10 +421,16 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
                     className="flex items-center justify-between border-b pb-1 last:border-0 last:pb-0"
                   >
                     <div>
-                      <span className="font-medium">{c.scope === "credential" ? "整个凭据限制" : c.model_key}</span>
-                      <span className="ml-2 text-muted-foreground">（{COOLDOWN_REASONS[c.reason] || c.reason}）</span>
+                      <span className="font-medium">
+                        {c.scope === "credential" ? t("auth_files.scope_credential") : c.model_key}
+                      </span>
+                      <span className="ml-2 text-muted-foreground">
+                        ({t(`auth_files.cooldown_reasons.${c.reason}`, { defaultValue: c.reason })})
+                      </span>
                     </div>
-                    <span className="font-mono tabular-nums text-muted-foreground">剩余 ~{c.remaining_seconds}s</span>
+                    <span className="font-mono tabular-nums text-muted-foreground">
+                      {t("auth_files.remaining_seconds", { seconds: c.remaining_seconds })}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -442,25 +441,25 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
             <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
               {target.prefix && (
                 <div>
-                  <span className="text-muted-foreground">前缀路由：</span>
+                  <span className="text-muted-foreground">{t("auth_files.routing_prefix")}</span>
                   <p className="font-mono">{target.prefix}</p>
                 </div>
               )}
               {target.proxy_url && (
                 <div>
-                  <span className="text-muted-foreground">代理地址：</span>
+                  <span className="text-muted-foreground">{t("auth_files.proxy_url")}</span>
                   <p className="font-mono">{target.proxy_url}</p>
                 </div>
               )}
               {target.priority !== undefined && (
                 <div>
-                  <span className="text-muted-foreground">优先级：</span>
+                  <span className="text-muted-foreground">{t("auth_files.priority")}</span>
                   <p>{target.priority}</p>
                 </div>
               )}
               {target.note && (
                 <div className="col-span-2">
-                  <span className="text-muted-foreground">备注：</span>
+                  <span className="text-muted-foreground">{t("auth_files.note")}</span>
                   <p>{target.note}</p>
                 </div>
               )}
@@ -469,7 +468,7 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
 
           <details className="rounded-lg border p-3">
             <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
-              查看原始元数据 (JSON)
+              {t("auth_files.view_raw_json")}
             </summary>
             <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted p-2 font-mono text-[11px]">
               {JSON.stringify(target, null, 2)}
@@ -520,7 +519,7 @@ export function AuthFilesPage() {
   const remove = useMutation({
     mutationFn: (f: AuthFile) => api(`/v8/management/credentials?name=${file(f.name)}`, { method: "DELETE" }),
     onSuccess: (_, f) => {
-      toast.success(`已删除 ${f.name}`);
+      toast.success(t("auth_files.deleted_one", { name: f.name }));
       setDialog(null);
       refresh();
     },
@@ -529,7 +528,7 @@ export function AuthFilesPage() {
   const removeAll = useMutation({
     mutationFn: () => api<{ deleted?: number }>("/v8/management/credentials?all=true", { method: "DELETE" }),
     onSuccess: (res) => {
-      toast.success(`已删除 ${res.deleted ?? 0} 个认证文件`);
+      toast.success(t("auth_files.deleted_count", { count: res.deleted ?? 0 }));
       setDialog(null);
       refresh();
     },
@@ -542,7 +541,14 @@ export function AuthFilesPage() {
         body: { auth_index: f.auth_index },
       }),
     onSuccess: (res, f) => {
-      toast.success(`已重置 ${accountName(f)} 的冷却状态${res.models?.length ? `（${res.models.join("、")}）` : ""}`);
+      toast.success(
+        t("auth_files.cooldown_reset_done", {
+          name: accountName(f),
+          models: res.models?.length
+            ? t("auth_files.cooldown_reset_models", { models: res.models.join(t("overview.list_separator")) })
+            : "",
+        }),
+      );
       refresh();
     },
   });
@@ -553,11 +559,11 @@ export function AuthFilesPage() {
         body: { name: f.name, ...(f.auth_index ? { auth_index: f.auth_index } : {}) },
       }),
     onSuccess: (_, f) => {
-      toast.success(`已刷新 ${accountName(f)} 的凭证`);
+      toast.success(t("auth_files.refreshed", { name: accountName(f) }));
       refresh();
     },
     onError: (err: Error) => {
-      toast.error(`刷新失败：${err.message}`);
+      toast.error(t("auth_files.refresh_failed", { message: err.message }));
     },
   });
 
@@ -569,13 +575,13 @@ export function AuthFilesPage() {
       return names.length;
     },
     onSuccess: (count) => {
-      toast.success(`已批量删除 ${count} 个认证文件`);
+      toast.success(t("auth_files.batch_deleted", { count }));
       setSelected([]);
       setDialog(null);
       refresh();
     },
     onError: (err: Error) => {
-      toast.error(`批量删除失败：${err.message}`);
+      toast.error(t("auth_files.batch_delete_failed", { message: err.message }));
     },
   });
 
@@ -590,19 +596,19 @@ export function AuthFilesPage() {
       return { count: selected.length, disabled };
     },
     onSuccess: ({ count, disabled }) => {
-      toast.success(`已批量${disabled ? "停用" : "启用"} ${count} 个认证文件`);
+      toast.success(t(disabled ? "auth_files.batch_disabled" : "auth_files.batch_enabled", { count }));
       setSelected([]);
       refresh();
     },
     onError: (err: Error) => {
-      toast.error(`批量设置状态失败：${err.message}`);
+      toast.error(t("auth_files.batch_status_failed", { message: err.message }));
     },
   });
   // 选中的文件打包成一个 zip 下载,仅存在于内存的凭据没有文件,跳过
   const batchDownload = useMutation({
     mutationFn: async (names: string[]) => {
       const targets = (data ?? []).filter((f) => names.includes(f.name) && !f.runtime_only);
-      if (targets.length === 0) throw new Error("选中的凭据没有可下载的文件");
+      if (targets.length === 0) throw new Error(t("auth_files.no_downloadable"));
       const entries = await Promise.all(
         targets.map(async (f) => {
           const blob = await fetchBlob(`/v8/management/credentials/download?name=${file(f.name)}`);
@@ -613,8 +619,13 @@ export function AuthFilesPage() {
       return { count: targets.length, skipped: names.length - targets.length };
     },
     onSuccess: ({ count, skipped }) =>
-      toast.success(`已打包下载 ${count} 个认证文件${skipped ? `，跳过 ${skipped} 个无文件的凭据` : ""}`),
-    onError: (err: Error) => toast.error(`批量下载失败：${err.message}`),
+      toast.success(
+        t("auth_files.batch_downloaded", {
+          count,
+          skipped: skipped ? t("auth_files.batch_download_skipped", { skipped }) : "",
+        }),
+      ),
+    onError: (err: Error) => toast.error(t("auth_files.batch_download_failed", { message: err.message })),
   });
 
   const upload = useMutation({
@@ -626,7 +637,7 @@ export function AuthFilesPage() {
       }
       return files.length;
     },
-    onSuccess: (count) => toast.success(`已上传 ${count} 个认证文件`),
+    onSuccess: (count) => toast.success(t("auth_files.uploaded", { count })),
     onSettled: refresh,
   });
 
@@ -718,7 +729,7 @@ export function AuthFilesPage() {
 
       {isError ? (
         <p role="alert" className="text-sm text-destructive">
-          读取账号失败：{error.message}
+          {t("auth_files.load_accounts_failed", { message: error.message })}
         </p>
       ) : (
         <Tabs value={tab} onValueChange={(v) => setTab((v as typeof tab) ?? "list")}>
@@ -733,7 +744,7 @@ export function AuthFilesPage() {
                   value={statusFilter}
                   onValueChange={(v) => setStatusFilter((v as typeof statusFilter) ?? "all")}
                 >
-                  <SelectTrigger className="w-28" aria-label="按状态筛选">
+                  <SelectTrigger className="w-28" aria-label={t("auth_files.filter_status_label")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -751,7 +762,7 @@ export function AuthFilesPage() {
                   value={provider}
                   onValueChange={(v) => setProvider(v ?? "")}
                 >
-                  <SelectTrigger className="w-36" aria-label="按提供商筛选">
+                  <SelectTrigger className="w-36" aria-label={t("auth_files.filter_provider_label")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -767,8 +778,8 @@ export function AuthFilesPage() {
                   <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     type="search"
-                    placeholder="搜索账号、备注"
-                    aria-label="搜索账号"
+                    placeholder={t("auth_files.search_short_placeholder")}
+                    aria-label={t("auth_files.search_label")}
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
                     className="w-56 pl-8"
@@ -834,14 +845,18 @@ export function AuthFilesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8">
-                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="全选本页" />
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      aria-label={t("auth_files.select_page")}
+                    />
                   </TableHead>
                   <TableHead>{t("auth_files.th_account")}</TableHead>
                   <TableHead>{t("auth_files.th_provider")}</TableHead>
                   <TableHead>{t("auth_files.th_status")}</TableHead>
-                  <TableHead>最近 200 分钟</TableHead>
+                  <TableHead>{t("auth_files.th_recent")}</TableHead>
                   <TableHead className="text-right">{t("auth_files.th_requests")}</TableHead>
-                  <TableHead>最近刷新</TableHead>
+                  <TableHead>{t("auth_files.th_last_refresh")}</TableHead>
                   <TableHead className="w-16">{t("common.enabled")}</TableHead>
                   <TableHead className="w-12">
                     <span className="sr-only">{t("common.actions")}</span>
@@ -853,9 +868,7 @@ export function AuthFilesPage() {
                   <SkeletonRows columns={9} />
                 ) : files.length === 0 ? (
                   <EmptyRow columns={9}>
-                    {keyword || provider || statusFilter !== "all"
-                      ? "没有匹配的账号"
-                      : "还没有认证文件，可以上传 JSON 文件或在 OAuth 登录页添加。"}
+                    {keyword || provider || statusFilter !== "all" ? t("auth_files.no_match") : t("auth_files.empty")}
                   </EmptyRow>
                 ) : (
                   pageItems.map((f) => (
@@ -864,7 +877,7 @@ export function AuthFilesPage() {
                         <Checkbox
                           checked={selected.includes(f.name)}
                           onCheckedChange={() => toggleOne(f.name)}
-                          aria-label={`选择 ${accountName(f)}`}
+                          aria-label={t("auth_files.select_item", { name: accountName(f) })}
                         />
                       </TableCell>
                       <TableCell className="max-w-72">
@@ -897,13 +910,21 @@ export function AuthFilesPage() {
                           checked={!f.disabled}
                           disabled={toggle.isPending && toggle.variables?.name === f.name}
                           onCheckedChange={() => toggle.mutate(f)}
-                          aria-label={`${f.disabled ? "启用" : "停用"} ${accountName(f)}`}
+                          aria-label={t(f.disabled ? "auth_files.enable_item" : "auth_files.disable_item", {
+                            name: accountName(f),
+                          })}
                         />
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger
-                            render={<Button variant="ghost" size="icon-sm" aria-label={`${accountName(f)} 的操作`} />}
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("auth_files.item_actions", { name: accountName(f) })}
+                              />
+                            }
                           >
                             <Ellipsis />
                           </DropdownMenuTrigger>
@@ -981,21 +1002,21 @@ export function AuthFilesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {dialog?.kind === "delete-all"
-                ? "删除全部认证文件"
+                ? t("auth_files.delete_all")
                 : dialog?.kind === "batch-delete"
-                  ? `批量删除认证文件（共 ${selected.length} 项）`
-                  : "删除认证文件"}
+                  ? t("auth_files.batch_delete_title", { count: selected.length })
+                  : t("auth_files.delete_title")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {dialog?.kind === "delete"
-                ? `${dialog.target.name} 会从 CPA 的认证目录中删除，删除后无法恢复。`
+                ? t("auth_files.delete_desc", { name: dialog.target.name })
                 : dialog?.kind === "batch-delete"
-                  ? `选中的 ${selected.length} 个文件将从 CPA 认证目录彻底删除，删除后无法恢复。`
-                  : "认证目录下的所有 JSON 文件都会被删除，对应账号立即停止使用，无法恢复。"}
+                  ? t("auth_files.batch_delete_desc", { count: selected.length })
+                  : t("auth_files.delete_all_desc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={remove.isPending || removeAll.isPending || batchDelete.isPending}
@@ -1006,7 +1027,11 @@ export function AuthFilesPage() {
               }}
             >
               {(remove.isPending || removeAll.isPending || batchDelete.isPending) && <Spinner />}
-              {dialog?.kind === "delete-all" ? "全部删除" : dialog?.kind === "batch-delete" ? "确认删除" : "删除"}
+              {dialog?.kind === "delete-all"
+                ? t("auth_files.delete_all_btn")
+                : dialog?.kind === "batch-delete"
+                  ? t("auth_files.confirm_delete")
+                  : t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

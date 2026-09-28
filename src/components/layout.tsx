@@ -126,7 +126,7 @@ export function Layout() {
           <NavLink
             to="/"
             className="flex h-8 items-center gap-2 px-1 font-semibold transition-opacity hover:opacity-80 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-            title="返回首页"
+            title={t("nav.back_home")}
           >
             <Logo className="size-5 shrink-0" />
             <span className="group-data-[collapsible=icon]:hidden">CPA Dashboard</span>

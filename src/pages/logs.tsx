@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useI18n } from "@/i18n/context";
+import { i18n, useI18n } from "@/i18n/context";
 import { ApiError, api, download } from "@/lib/api";
 import { formatDateTime, formatInteger } from "@/lib/format";
 import { appendLines, type Level, type LogEntry } from "@/lib/log-parse";
@@ -34,12 +34,12 @@ const POLL_MS = 3000;
 // ponytail: 只保留最近的条目,行渲染靠 content-visibility 跳过屏幕外的布局,量再大需要虚拟列表
 const MAX_ENTRIES = 3000;
 
-const LEVELS: { value: Level | "all"; label: string }[] = [
-  { value: "all", label: "全部" },
-  { value: "error", label: "错误" },
-  { value: "warn", label: "警告" },
-  { value: "info", label: "信息" },
-  { value: "debug", label: "调试" },
+const LEVELS: { value: Level | "all"; labelKey: string }[] = [
+  { value: "all", labelKey: "common.all" },
+  { value: "error", labelKey: "logs.level_error" },
+  { value: "warn", labelKey: "logs.level_warn" },
+  { value: "info", labelKey: "logs.level_info" },
+  { value: "debug", labelKey: "logs.level_debug" },
 ];
 
 const LEVEL_TEXT: Record<Level, string> = {
@@ -62,7 +62,7 @@ async function downloadRequestLog(id: string) {
   } catch (error) {
     toast.error(
       error instanceof ApiError && error.status === 404
-        ? "找不到这次请求的日志，需要在配置中开启请求日志"
+        ? i18n.t("logs.request_log_not_found")
         : (error as Error).message,
     );
   }
@@ -88,6 +88,7 @@ function Message({ text }: { text: string }) {
 }
 
 function LogRow({ entry }: { entry: LogEntry }) {
+  const { t } = useI18n();
   return (
     <div
       className={`flex gap-3 px-3 py-0.5 hover:bg-muted/60 ${ROW_TINT[entry.level]}`}
@@ -109,7 +110,7 @@ function LogRow({ entry }: { entry: LogEntry }) {
             >
               {entry.requestId}
             </TooltipTrigger>
-            <TooltipContent>下载这次请求的完整日志</TooltipContent>
+            <TooltipContent>{t("logs.download_request_log")}</TooltipContent>
           </Tooltip>
         )}
         <Message text={entry.message} />
@@ -218,7 +219,7 @@ function LiveLogs() {
   const clear = useMutation({
     mutationFn: () => api("/v8/management/observability/logs", { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("日志已清空");
+      toast.success(t("logs.cleared"));
       restart();
     },
   });
@@ -226,9 +227,9 @@ function LiveLogs() {
   if (error instanceof ApiError && error.status === 400 && /disabled/i.test(error.message)) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">
-        <p className="text-sm text-muted-foreground">CPA 没有把日志写入文件，所以这里读不到日志。</p>
+        <p className="text-sm text-muted-foreground">{t("logs.file_logging_disabled")}</p>
         <Button onClick={() => enable.mutate()} disabled={enable.isPending}>
-          开启日志写入文件
+          {t("logs.enable_file_logging")}
         </Button>
       </div>
     );
@@ -252,13 +253,13 @@ function LiveLogs() {
           variant="outline"
           size="sm"
           spacing={0}
-          aria-label="按级别筛选"
+          aria-label={t("logs.filter_by_level")}
           value={[level]}
           onValueChange={(v) => v[0] && setLevel(v[0] as Level | "all")}
         >
           {LEVELS.map((l) => (
             <ToggleGroupItem key={l.value} value={l.value} className="gap-1.5 px-2.5">
-              {l.label}
+              {t(l.labelKey)}
               {l.value !== "all" && counts[l.value] > 0 && (
                 <span className={`tabular-nums ${LEVEL_TEXT[l.value]}`}>{formatInteger(counts[l.value])}</span>
               )}
@@ -276,24 +277,24 @@ function LiveLogs() {
           <Button
             variant="outline"
             size="icon"
-            aria-label={live ? "暂停刷新" : "继续刷新"}
+            aria-label={live ? t("logs.pause") : t("logs.resume")}
             onClick={() => setLive((v) => !v)}
           >
             {live ? <Pause /> : <Play />}
           </Button>
           <AlertDialog>
-            <AlertDialogTrigger render={<Button variant="outline" size="icon" aria-label="清空日志" />}>
+            <AlertDialogTrigger render={<Button variant="outline" size="icon" aria-label={t("logs.clear")} />}>
               <Trash2 />
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>清空日志</AlertDialogTitle>
-                <AlertDialogDescription>会删除 CPA 的轮换日志并清空当前日志文件，无法恢复。</AlertDialogDescription>
+                <AlertDialogTitle>{t("logs.clear")}</AlertDialogTitle>
+                <AlertDialogDescription>{t("logs.clear_desc")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                 <AlertDialogAction variant="destructive" onClick={() => clear.mutate()}>
-                  清空
+                  {t("logs.clear_confirm")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -302,7 +303,7 @@ function LiveLogs() {
       </div>
       {error && (
         <p role="alert" className="mb-2 text-sm text-destructive">
-          读取日志失败：{error.message}
+          {t("logs.load_failed", { message: error.message })}
         </p>
       )}
       <div className="relative">
@@ -310,7 +311,7 @@ function LiveLogs() {
           ref={box}
           role="log"
           aria-live="off"
-          aria-label="运行日志"
+          aria-label={t("logs.tab_live")}
           onScroll={(e) => {
             const el = e.currentTarget;
             stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
@@ -320,7 +321,7 @@ function LiveLogs() {
         >
           {shown.length === 0 ? (
             <p className="py-16 text-center font-sans text-sm text-muted-foreground">
-              {entries.length === 0 ? "还没有日志" : "没有符合条件的日志"}
+              {entries.length === 0 ? t("logs.empty") : t("logs.no_match")}
             </p>
           ) : (
             shown.map((entry) => <LogRow key={entry.id} entry={entry} />)
@@ -329,13 +330,16 @@ function LiveLogs() {
         {behind && (
           <Button size="sm" className="absolute right-4 bottom-4 shadow-md" onClick={toBottom}>
             <ArrowDown />
-            跳到最新
+            {t("logs.jump_latest")}
           </Button>
         )}
       </div>
       <p className="mt-2 text-xs text-muted-foreground tabular-nums">
-        显示 {formatInteger(shown.length)} / {formatInteger(entries.length)} 条，最多保留最近{" "}
-        {formatInteger(MAX_ENTRIES)} 条
+        {t("logs.shown_count", {
+          shown: formatInteger(shown.length),
+          total: formatInteger(entries.length),
+          max: formatInteger(MAX_ENTRIES),
+        })}
       </p>
     </>
   );
@@ -348,6 +352,7 @@ function formatSize(bytes: number): string {
 }
 
 function RequestLogs() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [requestId, setRequestId] = useState("");
   const config = useQuery({
@@ -380,15 +385,16 @@ function RequestLogs() {
 
   return (
     <div className="grid gap-8">
-      <section aria-label="请求日志设置" className="grid gap-4 border-b pb-6 md:grid-cols-2 md:gap-10">
+      <section
+        aria-label={t("logs.request_log_settings")}
+        className="grid gap-4 border-b pb-6 md:grid-cols-2 md:gap-10"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <Label htmlFor="request-log" className="text-sm font-medium">
-              记录完整请求
+              {t("logs.request_log_full")}
             </Label>
-            <p className="mt-1 text-sm text-muted-foreground">
-              每个请求的请求体、上游往返和响应都会写成单独的文件。关闭时只保留失败请求。
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{t("logs.request_log_full_desc")}</p>
           </div>
           <Switch
             id="request-log"
@@ -398,39 +404,35 @@ function RequestLogs() {
           />
         </div>
         <form onSubmit={submit} className="grid content-start gap-2">
-          <Label htmlFor="request-id">按请求 ID 下载</Label>
+          <Label htmlFor="request-id">{t("logs.download_by_id")}</Label>
           <div className="flex gap-2">
             <Input
               id="request-id"
               value={requestId}
               onChange={(e) => setRequestId(e.target.value)}
-              placeholder="运行日志或用量明细里的请求 ID"
+              placeholder={t("logs.request_id_placeholder")}
               className="font-mono"
             />
             <Button type="submit" variant="outline" disabled={!requestId.trim()}>
               <Download />
-              下载
+              {t("common.download")}
             </Button>
           </div>
         </form>
       </section>
       <section aria-labelledby="error-files-title">
         <h2 id="error-files-title" className="mb-3 font-medium">
-          失败请求日志
+          {t("logs.error_logs")}
         </h2>
-        {requestLog && (
-          <p className="mb-3 text-sm text-muted-foreground">
-            已开启完整请求记录，失败请求不再单独归档，请用请求 ID 下载。
-          </p>
-        )}
+        {requestLog && <p className="mb-3 text-sm text-muted-foreground">{t("logs.error_logs_hint")}</p>}
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>文件</TableHead>
-              <TableHead className="text-right">大小</TableHead>
-              <TableHead>修改时间</TableHead>
+              <TableHead>{t("logs.th_file")}</TableHead>
+              <TableHead className="text-right">{t("logs.th_size")}</TableHead>
+              <TableHead>{t("logs.th_modified")}</TableHead>
               <TableHead className="w-12">
-                <span className="sr-only">下载</span>
+                <span className="sr-only">{t("common.download")}</span>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -438,7 +440,7 @@ function RequestLogs() {
             {files.isPending ? (
               <SkeletonRows columns={4} />
             ) : !files.data?.length ? (
-              <EmptyRow columns={4}>没有失败请求日志</EmptyRow>
+              <EmptyRow columns={4}>{t("logs.no_error_logs")}</EmptyRow>
             ) : (
               files.data.map((f) => (
                 <TableRow key={f.name}>
@@ -451,7 +453,7 @@ function RequestLogs() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`下载 ${f.name}`}
+                      aria-label={t("logs.download_file", { name: f.name })}
                       onClick={() =>
                         download(
                           `/v8/management/observability/logs/errors/${encodeURIComponent(f.name)}`,

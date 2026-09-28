@@ -1,3 +1,4 @@
+import i18n from "@/i18n";
 import { api } from "@/lib/api";
 import type { AuthFile } from "@/lib/types";
 
@@ -111,12 +112,12 @@ function toMs(value: unknown): number | null {
 }
 
 export function windowLabel(seconds: number | null): string {
-  if (!seconds) return "额度";
-  if (seconds <= 6 * HOUR) return `${Math.round(seconds / HOUR)} 小时`;
-  if (seconds >= 6.5 * DAY && seconds <= 7.5 * DAY) return "每周";
-  if (seconds >= 27 * DAY && seconds <= 32 * DAY) return "每月";
-  if (seconds >= DAY) return `${Math.round(seconds / DAY)} 天`;
-  return `${Math.round(seconds / HOUR)} 小时`;
+  if (!seconds) return i18n.t("quota.label.quota");
+  if (seconds <= 6 * HOUR) return i18n.t("quota.label.hours", { n: Math.round(seconds / HOUR) });
+  if (seconds >= 6.5 * DAY && seconds <= 7.5 * DAY) return i18n.t("quota.label.weekly");
+  if (seconds >= 27 * DAY && seconds <= 32 * DAY) return i18n.t("quota.label.monthly");
+  if (seconds >= DAY) return i18n.t("quota.label.days", { n: Math.round(seconds / DAY) });
+  return i18n.t("quota.label.hours", { n: Math.round(seconds / HOUR) });
 }
 
 function clampPercent(value: number | null): number | null {
@@ -149,38 +150,44 @@ export function parseCodex(payload: Json, now = Date.now()): Quota {
     }
   };
   addLimit(pick(payload, "rate_limit", "rateLimit"), "");
-  addLimit(pick(payload, "code_review_rate_limit", "codeReviewRateLimit"), "代码审查");
+  addLimit(pick(payload, "code_review_rate_limit", "codeReviewRateLimit"), i18n.t("quota.label.code_review"));
   const extra = pick(payload, "additional_rate_limits", "additionalRateLimits");
   if (Array.isArray(extra)) {
     for (const item of extra) {
       const record = obj(item);
-      const name = str(pick(record, "limit_name", "limitName", "metered_feature")) ?? "附加";
+      const name = str(pick(record, "limit_name", "limitName", "metered_feature")) ?? i18n.t("quota.label.additional");
       addLimit(pick(record, "rate_limit", "rateLimit"), name);
     }
   }
 
   const notes: string[] = [];
   const credits = obj(payload.credits);
-  if (credits?.unlimited === true) notes.push("积分不限量");
-  else if (num(credits?.balance) !== null) notes.push(`积分余额 ${num(credits?.balance)}`);
+  if (credits?.unlimited === true) notes.push(i18n.t("quota.label.credits_unlimited"));
+  else if (num(credits?.balance) !== null)
+    notes.push(i18n.t("quota.label.credits_balance", { n: num(credits?.balance) }));
   return { plan: str(pick(payload, "plan_type", "planType")), windows, notes };
 }
 
-const CLAUDE_WINDOWS: [string, string][] = [
-  ["five_hour", "5 小时"],
-  ["seven_day", "每周"],
-  ["seven_day_opus", "每周 Opus"],
-  ["seven_day_sonnet", "每周 Sonnet"],
-  ["seven_day_oauth_apps", "每周 OAuth 应用"],
-  ["seven_day_cowork", "每周 Cowork"],
+const CLAUDE_WINDOWS = [
+  "five_hour",
+  "seven_day",
+  "seven_day_opus",
+  "seven_day_sonnet",
+  "seven_day_oauth_apps",
+  "seven_day_cowork",
 ];
 
 export function parseClaude(payload: Json, profile: Json | null): Quota {
   const windows: QuotaWindow[] = [];
-  for (const [key, label] of CLAUDE_WINDOWS) {
+  for (const key of CLAUDE_WINDOWS) {
     const w = obj(payload[key]);
     if (!w) continue;
-    windows.push({ id: key, label, usedPercent: clampPercent(num(w.utilization)), resetAt: toMs(w.resets_at) });
+    windows.push({
+      id: key,
+      label: i18n.t(`quota.label.claude.${key}`),
+      usedPercent: clampPercent(num(w.utilization)),
+      resetAt: toMs(w.resets_at),
+    });
   }
   const extra = obj(payload.extra_usage);
   if (extra?.is_enabled === true) {
@@ -188,7 +195,7 @@ export function parseClaude(payload: Json, profile: Json | null): Quota {
     const limit = num(extra.monthly_limit) ?? 0;
     windows.push({
       id: "extra_usage",
-      label: "每月额外用量",
+      label: i18n.t("quota.label.extra_usage"),
       usedPercent: clampPercent(num(extra.utilization) ?? (limit > 0 ? (used / limit) * 100 : null)),
       resetAt: null,
       // 金额单位是美分
@@ -233,7 +240,7 @@ export function parseKimi(payload: Json, now = Date.now()): Quota {
     });
   };
   const usage = obj(payload.usage);
-  if (usage) add("usage", "每周", usage, usage);
+  if (usage) add("usage", i18n.t("quota.label.weekly"), usage, usage);
   const limits = Array.isArray(payload.limits) ? payload.limits : [];
   limits.forEach((item, i) => {
     const record = obj(item);
@@ -256,7 +263,11 @@ export function parseXai(weekly: Json | null, monthly: Json | null): Quota {
     if (percent !== null) {
       windows.push({
         id: "period",
-        label: type.includes("month") ? "每月" : type.includes("week") ? "每周" : "当前周期",
+        label: type.includes("month")
+          ? i18n.t("quota.label.monthly")
+          : type.includes("week")
+            ? i18n.t("quota.label.weekly")
+            : i18n.t("quota.label.current_period"),
         usedPercent: clampPercent(percent),
         resetAt: toMs(period?.end),
       });
@@ -284,7 +295,7 @@ export function parseXai(weekly: Json | null, monthly: Json | null): Quota {
   if (m && limit !== null && limit > 0 && used !== null) {
     windows.push({
       id: "monthly",
-      label: "每月",
+      label: i18n.t("quota.label.monthly"),
       usedPercent: clampPercent((used / limit) * 100),
       resetAt: toMs(pick(m, "billingPeriodEnd", "billing_period_end")),
       // 金额单位是美分
@@ -311,7 +322,7 @@ export function parseAntigravity(payload: Json): Quota {
       const name = str(pick(bucket, "displayName", "display_name", "window")) ?? "";
       windows.push({
         id: `${groupName}-${name}-${windows.length}`,
-        label: [groupName, name].filter(Boolean).join(" ") || "额度",
+        label: [groupName, name].filter(Boolean).join(" ") || i18n.t("quota.label.quota"),
         usedPercent: remainingToUsed(pick(bucket, "remainingFraction", "remaining_fraction")),
         resetAt: toMs(pick(bucket, "resetTime", "reset_time")),
       });
@@ -350,10 +361,10 @@ export function parseDevin(payload: Json): Quota {
     if (remaining !== null || resetSeconds !== null) {
       windows.push({
         id: `devin-${id}`,
-        label: id === "daily" ? "每日额度" : "每周额度",
+        label: i18n.t(id === "daily" ? "quota.label.daily_quota" : "quota.label.weekly_quota"),
         usedPercent: remaining !== null ? clampPercent(100 - remaining) : null,
         resetAt: resetSeconds && resetSeconds > 0 ? resetSeconds * 1000 : null,
-        detail: remaining !== null ? `剩余 ${Math.round(remaining)}%` : undefined,
+        detail: remaining !== null ? i18n.t("quota.remaining_percent", { n: Math.round(remaining) }) : undefined,
       });
     }
   }
@@ -379,14 +390,14 @@ export function parseMeta(payload: Json): Quota {
         label,
         usedPercent: used,
         resetAt: resetAt && resetAt > 0 ? resetAt : null,
-        detail: durationMins ? `${durationMins} 分钟窗口` : undefined,
+        detail: durationMins ? i18n.t("quota.label.minutes_window", { n: durationMins }) : undefined,
       });
     }
   };
 
   if (usage) {
-    parseWindow("window", "会话窗口", usage.window);
-    parseWindow("weekly", "每周额度", usage.weekly);
+    parseWindow("window", i18n.t("quota.label.session_window"), usage.window);
+    parseWindow("weekly", i18n.t("quota.label.weekly_quota"), usage.weekly);
   }
   return { plan, windows, notes: [] };
 }
@@ -411,7 +422,12 @@ async function upstream(authIndex: string, method: string, url: string, header: 
     const record = obj(body);
     const message =
       str(obj(record?.error)?.message) ?? str(record?.error) ?? str(record?.message) ?? String(body).slice(0, 200);
-    throw new Error(`上游返回 ${res.status_code}${message ? `:${message}` : ""}`);
+    throw Object.assign(
+      new Error(i18n.t("quota.error.upstream", { status: res.status_code, message: message ? `: ${message}` : "" })),
+      {
+        status: res.status_code,
+      },
+    );
   }
   return obj(body) ?? {};
 }
@@ -452,7 +468,7 @@ async function antigravityProject(file: AuthFile): Promise<string> {
 }
 export async function fetchQuota(file: AuthFile): Promise<Quota> {
   const authIndex = file.auth_index ?? "";
-  if (!authIndex) throw new Error("凭据缺少 auth_index");
+  if (!authIndex) throw new Error(i18n.t("quota.error.missing_auth_index"));
 
   // 1. 优先尝试 v8 官方配额总线
   try {
@@ -519,14 +535,14 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
     }
     case "antigravity": {
       const data = JSON.stringify({ project: await antigravityProject(file) });
-      let lastError: unknown = new Error("没有返回额度数据");
+      let lastError: unknown = new Error(i18n.t("quota.error.no_data"));
       for (const url of ANTIGRAVITY_URLS) {
         try {
           const quota = parseAntigravity(await upstream(authIndex, "POST", url, HEADERS.antigravity, data));
           if (quota.windows.length > 0) return quota;
         } catch (error) {
           lastError = error;
-          if (error instanceof Error && error.message.startsWith("上游返回 429")) break;
+          if ((error as { status?: number }).status === 429) break;
         }
       }
       throw lastError;
@@ -554,7 +570,7 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
           dcaToken = findField(parsed, ["dca_token", "dcaToken"]);
         } catch {}
       }
-      if (!dcaToken) throw new Error("认证文件中缺少 DCA Token");
+      if (!dcaToken) throw new Error(i18n.t("quota.error.missing_dca_token"));
       const header = {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -564,13 +580,13 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
       return parseMeta(await upstream(authIndex, "POST", META_MUSE_QUOTA_URL, header, "{}"));
     }
     default:
-      throw new Error("该提供商不支持额度查询");
+      throw new Error(i18n.t("quota.error.unsupported"));
   }
 }
 
 export async function resetQuota(file: AuthFile): Promise<void> {
   const authIndex = file.auth_index ?? "";
-  if (!authIndex) throw new Error("凭据缺少 auth_index");
+  if (!authIndex) throw new Error(i18n.t("quota.error.missing_auth_index"));
 
   if (file.source === "plugin" && file.provider) {
     try {

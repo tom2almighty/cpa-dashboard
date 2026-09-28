@@ -10,18 +10,18 @@ import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 
-type Provider = { id: string; name: string; hint: string; callback: boolean };
+type Provider = { id: string; name: string; hintKey: string; callback: boolean };
 
 // callback:浏览器授权后跳回 localhost 回调;其余为设备码流程
 const PROVIDERS: Provider[] = [
-  { id: "codex", name: "Codex", hint: "使用 ChatGPT 账号登录", callback: true },
-  { id: "anthropic", name: "Claude", hint: "使用 Claude.ai 账号登录", callback: true },
-  { id: "antigravity", name: "Antigravity", hint: "使用 Google 账号登录", callback: true },
-  { id: "xai", name: "xAI Grok", hint: "使用 Grok 账号登录", callback: true },
-  { id: "devin", name: "Devin", hint: "需要 CPA 7.3.1 或更高版本，请在 5 分钟内完成授权", callback: true },
-  { id: "kimi", name: "Kimi", hint: "使用 Kimi 国内账号登录（kimi.com，设备码）", callback: false },
-  { id: "kimi-ai", name: "Kimi.ai", hint: "使用 Kimi 国际账号登录（kimi.ai，设备码）", callback: false },
-  { id: "meta", name: "Muse (Meta)", hint: "设备码登录", callback: false },
+  { id: "codex", name: "Codex", hintKey: "oauth.hints.codex", callback: true },
+  { id: "anthropic", name: "Claude", hintKey: "oauth.hints.anthropic", callback: true },
+  { id: "antigravity", name: "Antigravity", hintKey: "oauth.hints.antigravity", callback: true },
+  { id: "xai", name: "xAI Grok", hintKey: "oauth.hints.xai", callback: true },
+  { id: "devin", name: "Devin", hintKey: "oauth.hints.devin", callback: true },
+  { id: "kimi", name: "Kimi", hintKey: "oauth.hints.kimi", callback: false },
+  { id: "kimi-ai", name: "Kimi.ai", hintKey: "oauth.hints.kimi-ai", callback: false },
+  { id: "meta", name: "Muse (Meta)", hintKey: "oauth.hints.meta", callback: false },
 ];
 
 type Session = { url: string; state: string; user_code?: string; flow?: string };
@@ -40,6 +40,7 @@ function resolveCallback(provider: string, input: string, state: string): string
 }
 
 function CopyButton({ text, label }: { text: string; label: string }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   return (
     <Button
@@ -52,7 +53,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       }}
     >
       {copied ? <Check /> : <Copy />}
-      {copied ? "已复制" : label}
+      {copied ? t("common.copied") : label}
     </Button>
   );
 }
@@ -89,11 +90,11 @@ function ProviderCard({ provider }: { provider: Provider }) {
 
   useEffect(() => {
     if (!done) return;
-    toast.success(`${provider.name} 登录成功，认证文件已保存`);
+    toast.success(t("oauth.login_success", { name: provider.name }));
     queryClient.invalidateQueries({ queryKey: ["cpa", "credentials"] });
     queryClient.invalidateQueries({ queryKey: ["cpa", "auth-files"] });
     setSession(null);
-  }, [done, provider.name, queryClient]);
+  }, [done, provider.name, queryClient, t]);
 
   const submit = useMutation({
     mutationFn: () =>
@@ -105,7 +106,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
           redirect_url: resolveCallback(provider.id, callbackUrl, session?.state ?? ""),
         },
       }),
-    onSuccess: () => toast.success("回调已提交，等待 CPA 完成登录"),
+    onSuccess: () => toast.success(t("oauth.callback_submitted")),
   });
 
   const cancel = useMutation({
@@ -126,7 +127,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
           <h2 id={`oauth-${provider.id}`} className="font-medium">
             {provider.name}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t(`oauth.hints.${provider.id}`) || provider.hint}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t(provider.hintKey)}</p>
         </div>
         {session ? (
           <Button variant="ghost" size="sm" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
@@ -173,7 +174,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
                   value={callbackUrl}
                   onChange={(e) => setCallbackUrl(e.target.value)}
                   placeholder={
-                    provider.id === "xai" ? "完整回调地址或页面显示的 code" : "http://localhost:…/callback?code=…"
+                    provider.id === "xai" ? t("oauth.xai_callback_placeholder") : "http://localhost:…/callback?code=…"
                   }
                 />
                 <Button type="submit" variant="outline" disabled={!callbackUrl.trim() || submit.isPending}>
@@ -189,7 +190,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
             className={failed ? "text-sm text-destructive" : "flex items-center gap-2 text-sm text-muted-foreground"}
           >
             {failed ? (
-              `${t("oauth.login_failed")}${status.data?.error ?? "unknown error"}`
+              `${t("oauth.login_failed")}${status.data?.error ?? t("oauth.unknown_error")}`
             ) : (
               <>
                 <Spinner />
@@ -216,7 +217,7 @@ export function OAuthPage() {
     .map((p) => ({
       id: p.oauth_provider || p.id,
       name: p.metadata?.name || p.id,
-      hint: "插件提供的登录方式",
+      hintKey: "oauth.plugin_provider_hint",
       callback: false,
     }));
 

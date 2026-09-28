@@ -1,3 +1,4 @@
+import i18n from "@/i18n";
 import { api } from "@/lib/api";
 
 export type Json = Record<string, unknown>;
@@ -14,7 +15,13 @@ export const KINDS: Kind[] = [
   { endpoint: "gemini", label: "Gemini" },
   { endpoint: "claude", label: "Claude" },
   { endpoint: "codex", label: "Codex", baseUrlRequired: true, websockets: true },
-  { endpoint: "openai-compatibility", label: "OpenAI 兼容", openai: true },
+  {
+    endpoint: "openai-compatibility",
+    get label() {
+      return i18n.t("provider_form.openai_compat");
+    },
+    openai: true,
+  },
   { endpoint: "vertex", label: "Vertex" },
   { endpoint: "xai", label: "xAI", baseUrlRequired: true, websockets: true },
   { endpoint: "meta", label: "Meta", websockets: true },
@@ -127,7 +134,7 @@ export async function fetchProviderModels(
         ? [`${cleanBase}/models`]
         : [`${cleanBase}/models`, `${cleanBase}/v1/models`];
 
-    let lastError = "未返回任何模型";
+    let lastError = i18n.t("provider_form.no_models");
     for (const url of candidateUrls) {
       const res = await api<{ status_code: number; body?: unknown }>("/v8/management/requests/api-call", {
         method: "POST",
@@ -149,7 +156,7 @@ export async function fetchProviderModels(
         }
         if (models.size > 0) return Array.from(models).sort();
       } else {
-        lastError = `获取上游模型失败：上游返回 HTTP ${res.status_code}`;
+        lastError = i18n.t("provider_form.fetch_models_failed", { status: res.status_code });
       }
     }
     if (models.size === 0) throw new Error(lastError);
@@ -264,11 +271,11 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
 }
 
 export function validate(kind: Kind, form: Form): string | null {
-  if (kind.openai && !form.name.trim()) return "请填写名称";
-  if (!form.apiKey.trim() && !form.keys.trim()) return "请填写 API Key";
-  if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) return "请填写 Base URL";
-  if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) return "优先级必须是整数";
-  if (lines(form.headers).some((l) => !l.includes(":"))) return "请求头每行格式为 名称: 值";
+  if (kind.openai && !form.name.trim()) return i18n.t("provider_form.name_required");
+  if (!form.apiKey.trim() && !form.keys.trim()) return i18n.t("provider_form.api_key_required");
+  if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) return i18n.t("provider_form.base_url_required");
+  if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) return i18n.t("provider_form.priority_integer");
+  if (lines(form.headers).some((l) => !l.includes(":"))) return i18n.t("provider_form.headers_format");
   return null;
 }
 
@@ -292,7 +299,7 @@ export async function testProviderConnectivity(
   let payload: unknown;
 
   if (kind.openai) {
-    if (!cleanBase) throw new Error("测试连通性必须填写 Base URL");
+    if (!cleanBase) throw new Error(i18n.t("provider_form.base_url_required_test"));
     const firstKey = lines(form.keys)[0]?.trim() || "";
     if (firstKey) customHeaders.Authorization = `Bearer ${firstKey}`;
     customHeaders["Content-Type"] = "application/json";
@@ -331,13 +338,13 @@ export async function testProviderConnectivity(
       contents: [{ parts: [{ text: "Hi" }] }],
     };
   } else if (kind.endpoint === "codex") {
-    if (!cleanBase) throw new Error("Codex 必须填写 Base URL");
+    if (!cleanBase) throw new Error(i18n.t("provider_form.base_url_required_for", { name: "Codex" }));
     const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
     url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/models`;
     method = "GET";
   } else if (kind.endpoint === "xai") {
-    if (!cleanBase) throw new Error("xAI 必须填写 Base URL");
+    if (!cleanBase) throw new Error(i18n.t("provider_form.base_url_required_for", { name: "xAI" }));
     const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
     customHeaders["Content-Type"] = "application/json";
@@ -348,7 +355,7 @@ export async function testProviderConnectivity(
       max_tokens: 5,
     };
   } else {
-    if (!cleanBase) throw new Error("请填写 Base URL");
+    if (!cleanBase) throw new Error(i18n.t("provider_form.base_url_required"));
     const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
     url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/models`;
@@ -367,11 +374,11 @@ export async function testProviderConnectivity(
     });
     const latencyMs = Date.now() - start;
     if (res.status_code >= 200 && res.status_code < 300) {
-      return { ok: true, latencyMs, message: `成功响应 (${latencyMs}ms)` };
+      return { ok: true, latencyMs, message: i18n.t("provider_form.test_ok", { ms: latencyMs }) };
     }
-    return { ok: false, latencyMs, message: `上游返回 HTTP ${res.status_code}` };
+    return { ok: false, latencyMs, message: i18n.t("provider_form.upstream_http", { status: res.status_code }) };
   } catch (err) {
     const latencyMs = Date.now() - start;
-    return { ok: false, latencyMs, message: (err as Error).message || "请求失败" };
+    return { ok: false, latencyMs, message: (err as Error).message || i18n.t("provider_form.request_failed") };
   }
 }
