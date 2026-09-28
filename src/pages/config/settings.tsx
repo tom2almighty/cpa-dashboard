@@ -318,6 +318,8 @@ export function SettingField({ setting }: { setting: Setting }) {
   const { t } = useI18n();
   const { config, getValue, setValue, patch } = useConfigSettings();
   const id = useId();
+  // 标签用 aria-labelledby 关联控件:htmlFor 会让点击标题行直接改值(开关、下拉)
+  const labelId = `${id}-label`;
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -341,7 +343,14 @@ export function SettingField({ setting }: { setting: Setting }) {
   let control: React.ReactNode = null;
 
   if (setting.type === "bool") {
-    control = <Switch id={id} checked={value === true} onCheckedChange={(checked) => setValue(setting, checked)} />;
+    control = (
+      <Switch
+        id={id}
+        aria-labelledby={labelId}
+        checked={value === true}
+        onCheckedChange={(checked) => setValue(setting, checked)}
+      />
+    );
   } else if (setting.type === "select") {
     const options = setting.options?.map((option) => ({
       value: option,
@@ -349,7 +358,7 @@ export function SettingField({ setting }: { setting: Setting }) {
     }));
     control = (
       <Select items={options} value={text || null} onValueChange={(val) => val && setValue(setting, val)}>
-        <SelectTrigger id={id} className="min-w-44 w-auto max-w-xs sm:max-w-sm">
+        <SelectTrigger id={id} aria-labelledby={labelId} className="min-w-44 w-auto max-w-xs sm:max-w-sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -370,6 +379,7 @@ export function SettingField({ setting }: { setting: Setting }) {
       <div className="relative w-full sm:w-80">
         <Input
           id={id}
+          aria-labelledby={labelId}
           type={showPassword ? "text" : "password"}
           autoComplete="new-password"
           value={text}
@@ -398,6 +408,7 @@ export function SettingField({ setting }: { setting: Setting }) {
     control = (
       <Textarea
         id={id}
+        aria-labelledby={labelId}
         value={text}
         onChange={(e) => setValue(setting, e.target.value)}
         aria-invalid={invalid}
@@ -410,6 +421,7 @@ export function SettingField({ setting }: { setting: Setting }) {
       <div className="flex items-center gap-1.5 w-full sm:w-80">
         <Input
           id={id}
+          aria-labelledby={labelId}
           value={text}
           inputMode={isInt ? "numeric" : undefined}
           onChange={(e) => setValue(setting, e.target.value)}
@@ -441,7 +453,7 @@ export function SettingField({ setting }: { setting: Setting }) {
     >
       <div className="min-w-0 pr-4">
         <div className="flex items-center gap-2">
-          <Label htmlFor={id} className="cursor-pointer font-medium text-sm">
+          <Label id={labelId} className="font-medium text-sm">
             {t(`config.fields.${setting.endpoint}.label`)}
           </Label>
           {isModified && (

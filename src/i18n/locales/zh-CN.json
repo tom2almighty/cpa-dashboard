@@ -672,7 +672,7 @@
       },
       "management/panel-github-repository": {
         "label": "面板更新发布仓库",
-        "hint": "管理面板自动拉取的 GitHub 仓库，默认 tom2almighty/cpa-dashboard"
+        "hint": "管理面板自动拉取的 GitHub 仓库或 releases API URL"
       },
       "routing/strategy": {
         "label": "凭据选择策略 (Strategy)",
@@ -1026,6 +1026,7 @@
     "openai_compat": "OpenAI 兼容",
     "no_models": "未返回任何模型",
     "fetch_models_failed": "获取上游模型失败：上游返回 HTTP {{status}}",
+    "not_json": "上游返回的不是 JSON（HTTP {{status}}），请检查 Base URL 是否指向 API 端点",
     "name_required": "请填写名称",
     "api_key_required": "请填写 API Key",
     "base_url_required": "请填写 Base URL",

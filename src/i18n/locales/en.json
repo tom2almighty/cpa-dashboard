@@ -672,7 +672,7 @@
       },
       "management/panel-github-repository": {
         "label": "Panel GitHub Repository",
-        "hint": "GitHub repository the control panel is auto-updated from, default tom2almighty/cpa-dashboard"
+        "hint": "GitHub repository or releases API URL the control panel is auto-updated from"
       },
       "routing/strategy": {
         "label": "Strategy",
@@ -1026,6 +1026,7 @@
     "openai_compat": "OpenAI Compatible",
     "no_models": "No models returned",
     "fetch_models_failed": "Failed to fetch upstream models: upstream returned HTTP {{status}}",
+    "not_json": "Upstream did not return JSON (HTTP {{status}}); check that the Base URL points to the API",
     "name_required": "Name is required",
     "api_key_required": "API Key is required",
     "base_url_required": "Base URL is required",
