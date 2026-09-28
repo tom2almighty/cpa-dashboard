@@ -1,3 +1,4 @@
+import { SiGithub } from "@icons-pack/react-simple-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpCircle, CheckCircle2, Download, ExternalLink, Info, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { useI18n } from "@/i18n/context";
 import { request } from "@/lib/api";
 
 declare const __APP_VERSION__: string | undefined;
@@ -86,6 +88,7 @@ export function useVersionData() {
 
 function VersionCardContent() {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [checking, setChecking] = useState(false);
   const { panelReleaseQuery, cpaCurrent, cpaLatest, cpaHasUpdate, panelLatest, panelHasUpdate, currentVersion } =
     useVersionData();
@@ -96,7 +99,7 @@ function VersionCardContent() {
       queryClient.invalidateQueries({ queryKey: ["panel", "latest-release"] }),
     ]);
     setChecking(false);
-    toast.success("已完成最新版本检查");
+    toast.success(t("version.checked_success"));
   };
 
   const managementAsset = panelReleaseQuery.data?.assets?.find((a) => a.name === "management.html");
@@ -104,10 +107,10 @@ function VersionCardContent() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
-        <p className="text-xs text-muted-foreground">定期检查 GitHub 与 CPA 后端版本，保持管理功能与安全更新。</p>
+        <p className="text-xs text-muted-foreground">{t("version.desc")}</p>
         <Button variant="outline" size="sm" onClick={handleCheckUpdates} disabled={checking}>
           {checking ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
-          立即检查更新
+          {checking ? t("version.checking") : t("version.check_now")}
         </Button>
       </div>
 
@@ -118,35 +121,47 @@ function VersionCardContent() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Sparkles className="size-4 text-primary" />
-                <CardTitle className="text-sm font-medium">前端管理面板</CardTitle>
+                <CardTitle className="text-sm font-medium">{t("version.panel_version")}</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-6 text-muted-foreground hover:text-foreground"
+                  title="GitHub"
+                  aria-label="GitHub Repository"
+                  render={<a href={`https://github.com/${GITHUB_REPO}`} target="_blank" rel="noreferrer" />}
+                >
+                  <SiGithub className="size-3.5" />
+                </Button>
               </div>
               {panelHasUpdate ? (
-                <Badge variant="default" className="text-[10px] h-5 bg-chart-1 gap-1">
+                <Badge variant="default" className="text-[10px] h-5 gap-1">
                   <ArrowUpCircle className="size-3" />
-                  可更新
+                  {t("version.update_available")}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground gap-1">
-                  <CheckCircle2 className="size-3 text-chart-1" />
-                  已是最新
+                  <CheckCircle2 className="size-3 text-muted-foreground" />
+                  {t("version.up_to_date")}
                 </Badge>
               )}
             </div>
-            <CardDescription className="text-xs">单文件发布版 (management.html)</CardDescription>
+            <CardDescription className="text-xs">{t("version.standalone")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">当前运行版本:</span>
-              <span className="font-mono font-medium">{currentVersion || "未知"}</span>
+              <span className="text-muted-foreground">{t("version.running_version")}</span>
+              <span className="font-mono font-medium">{currentVersion || t("common.none")}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">最新发行版本:</span>
-              <span className="font-mono font-medium">{panelLatest || "检查中..."}</span>
+              <span className="text-muted-foreground">{t("version.latest_release")}</span>
+              <span className="font-mono font-medium">{panelLatest || t("version.checking")}</span>
             </div>
 
             {panelHasUpdate && (
-              <div className="mt-3 rounded-lg border border-chart-1/30 bg-chart-1/5 p-2.5 space-y-2">
-                <p className="font-medium text-chart-1">发现新版本 {panelLatest}！</p>
+              <div className="mt-3 rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
+                <p className="font-medium text-foreground">
+                  {t("version.found_new_version")} {panelLatest}！
+                </p>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   若已在 CPA 的 <code className="text-foreground font-mono">config.yaml</code> 中配置了{" "}
                   <code className="text-foreground font-mono">panel-github-repository</code>
@@ -160,7 +175,7 @@ function VersionCardContent() {
                     render={<a href={panelReleaseQuery.data?.html_url} target="_blank" rel="noreferrer" />}
                   >
                     <ExternalLink className="size-3" />
-                    查看 Release 更新日志
+                    {t("version.view_changelog")}
                   </Button>
                   {managementAsset && (
                     <Button
@@ -170,7 +185,7 @@ function VersionCardContent() {
                       render={<a href={managementAsset.browser_download_url} download="management.html" />}
                     >
                       <Download className="size-3" />
-                      手动下载备用
+                      {t("version.download_manual")}
                     </Button>
                   )}
                 </div>
@@ -185,17 +200,27 @@ function VersionCardContent() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Info className="size-4 text-primary" />
-                <CardTitle className="text-sm font-medium">后端服务 (CLIProxyAPI)</CardTitle>
+                <CardTitle className="text-sm font-medium">{t("version.cpa_version")}</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-6 text-muted-foreground hover:text-foreground"
+                  title="GitHub"
+                  aria-label="GitHub Repository"
+                  render={<a href="https://github.com/router-for-me/CLIProxyAPI" target="_blank" rel="noreferrer" />}
+                >
+                  <SiGithub className="size-3.5" />
+                </Button>
               </div>
               {cpaHasUpdate ? (
-                <Badge variant="default" className="text-[10px] h-5 bg-chart-1 gap-1">
+                <Badge variant="default" className="text-[10px] h-5 gap-1">
                   <ArrowUpCircle className="size-3" />
-                  可更新
+                  {t("version.update_available")}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground gap-1">
-                  <CheckCircle2 className="size-3 text-chart-1" />
-                  已是最新
+                  <CheckCircle2 className="size-3 text-muted-foreground" />
+                  {t("version.up_to_date")}
                 </Badge>
               )}
             </div>
@@ -203,21 +228,20 @@ function VersionCardContent() {
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">当前运行版本:</span>
+              <span className="text-muted-foreground">{t("version.running_version")}</span>
               <span className="font-mono font-medium">{cpaCurrent}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">最新官方版本:</span>
-              <span className="font-mono font-medium">{cpaLatest || "检查中..."}</span>
+              <span className="text-muted-foreground">{t("version.latest_release")}</span>
+              <span className="font-mono font-medium">{cpaLatest || t("version.checking")}</span>
             </div>
 
             {cpaHasUpdate && (
-              <div className="mt-3 rounded-lg border border-chart-1/30 bg-chart-1/5 p-2.5 space-y-2">
-                <p className="font-medium text-chart-1">CPA 可升级至 {cpaLatest}！</p>
+              <div className="mt-3 rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
+                <p className="font-medium text-foreground">CPA 可升级至 {cpaLatest}！</p>
                 <Button
                   variant="outline"
                   size="xs"
-                  nativeButton={false}
                   render={
                     <a
                       href="https://github.com/router-for-me/CLIProxyAPI/releases/latest"
@@ -234,41 +258,21 @@ function VersionCardContent() {
           </CardContent>
         </Card>
       </div>
-
-      {/* CPA 自动拉取更新说明 */}
-      <Card className="bg-muted/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-medium text-muted-foreground">
-            面板自动拉取更新配置 (CPA config.yaml)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs text-muted-foreground space-y-1.5">
-          <p>
-            CPA 后端内置自动拉取机制。配置了 <code className="font-mono text-foreground">panel-github-repository</code>{" "}
-            后，CPA 会自动检测本仓库的 Release 并更新 <code className="font-mono text-foreground">management.html</code>
-            ：
-          </p>
-          <pre className="rounded bg-muted/60 p-2 font-mono text-[11px] text-foreground">
-            {`management:
-  panel-github-repository: "https://github.com/${GITHUB_REPO}"
-  disable-auto-update-panel: false # 为 false 时 CPA 后台会自动拉取最新 Release`}
-          </pre>
-        </CardContent>
-      </Card>
     </div>
   );
 }
 
 export function VersionDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { t } = useI18n();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" />
-            <DialogTitle>版本信息与更新中心</DialogTitle>
+            <DialogTitle>{t("version.dialog_title")}</DialogTitle>
           </div>
-          <DialogDescription className="text-xs">查看并拉取前端面板与 CPA 代理服务的最新版本。</DialogDescription>
+          <DialogDescription className="text-xs">{t("version.dialog_desc")}</DialogDescription>
         </DialogHeader>
 
         <div className="py-2">

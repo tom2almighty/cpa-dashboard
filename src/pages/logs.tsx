@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useI18n } from "@/i18n/context";
 import { ApiError, api, download } from "@/lib/api";
 import { formatDateTime, formatInteger } from "@/lib/format";
 import { appendLines, type Level, type LogEntry } from "@/lib/log-parse";
@@ -43,14 +44,14 @@ const LEVELS: { value: Level | "all"; label: string }[] = [
 
 const LEVEL_TEXT: Record<Level, string> = {
   error: "text-destructive",
-  warn: "text-warning-foreground",
+  warn: "text-amber-600 dark:text-amber-400",
   info: "text-muted-foreground",
   debug: "text-muted-foreground/60",
 };
 
 const ROW_TINT: Record<Level, string> = {
   error: "bg-destructive/5",
-  warn: "bg-warning/10",
+  warn: "bg-amber-500/10",
   info: "",
   debug: "",
 };
@@ -72,7 +73,12 @@ function Message({ text }: { text: string }) {
   const m = /^(\d{3})(\s+\|.*)$/s.exec(text);
   if (!m) return <>{text}</>;
   const code = Number(m[1]);
-  const color = code >= 500 ? "text-destructive" : code >= 400 ? "text-warning-foreground" : "text-success";
+  const color =
+    code >= 500
+      ? "text-destructive"
+      : code >= 400
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-emerald-600 dark:text-emerald-400";
   return (
     <>
       <span className={`font-medium ${color}`}>{m[1]}</span>
@@ -97,7 +103,7 @@ function LogRow({ entry }: { entry: LogEntry }) {
                 <button
                   type="button"
                   onClick={() => entry.requestId && downloadRequestLog(entry.requestId)}
-                  className="mr-2 rounded-sm text-chart-1 underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="mr-2 rounded-sm text-primary underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                 />
               }
             >
@@ -118,6 +124,7 @@ function LogRow({ entry }: { entry: LogEntry }) {
 }
 
 function LiveLogs() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [error, setError] = useState<Error | null>(null);
@@ -236,9 +243,9 @@ function LiveLogs() {
             type="search"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索内容、请求 ID"
-            aria-label="搜索日志"
-            className="pl-8"
+            placeholder={t("logs.search")}
+            aria-label={t("logs.search")}
+            className="pl-8 text-xs"
           />
         </div>
         <ToggleGroup
@@ -262,9 +269,9 @@ function LiveLogs() {
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <span
               aria-hidden
-              className={`size-2 rounded-full ${live ? "bg-success motion-safe:animate-pulse" : "bg-muted-foreground/40"}`}
+              className={`size-2 rounded-full ${live ? "bg-emerald-500 motion-safe:animate-pulse" : "bg-muted-foreground/40"}`}
             />
-            {live ? "实时" : "已暂停"}
+            {live ? t("logs.live") : t("logs.paused")}
           </span>
           <Button
             variant="outline"
@@ -466,13 +473,14 @@ function RequestLogs() {
 }
 
 export function LogsPage() {
+  const { t } = useI18n();
   return (
     <>
-      <PageHeader title="日志" />
+      <PageHeader title={t("logs.title")} description={t("logs.desc")} />
       <Tabs defaultValue="live">
         <TabsList className="mb-5">
-          <TabsTrigger value="live">运行日志</TabsTrigger>
-          <TabsTrigger value="requests">请求日志</TabsTrigger>
+          <TabsTrigger value="live">{t("logs.tab_live")}</TabsTrigger>
+          <TabsTrigger value="requests">{t("logs.tab_requests")}</TabsTrigger>
         </TabsList>
         <TabsContent value="live">
           <LiveLogs />

@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 
 // OAuth 渠道名,与认证文件的 provider 一致
@@ -218,6 +219,7 @@ function AliasDialog({
 }
 
 function Aliases() {
+  const { t } = useI18n();
   const [editing, setEditing] = useState<{ channel: string; aliases: Alias[] } | null>(null);
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "oauth-model-alias"],
@@ -236,17 +238,17 @@ function Aliases() {
   return (
     <>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">给 OAuth 账号的模型起别名，按渠道生效。</p>
+        <p className="text-sm text-muted-foreground">{t("models.desc_alias")}</p>
         <Button onClick={() => setEditing({ channel: "", aliases: [] })}>
           <Plus />
-          添加别名
+          {t("models.add_alias")}
         </Button>
       </div>
       {isPending ? (
         <Skeleton className="h-40" />
       ) : data.length === 0 ? (
         <p className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-          还没有模型别名
+          {t("models.no_aliases")}
         </p>
       ) : (
         <div className="grid gap-8">
@@ -595,6 +597,7 @@ function ExcludedDialog({
 }
 
 function Excluded() {
+  const { t } = useI18n();
   const [editing, setEditing] = useState<{ provider: string; models: string[] } | null>(null);
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "oauth-excluded-models"],
@@ -613,19 +616,19 @@ function Excluded() {
   return (
     <>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">按渠道屏蔽 OAuth 账号的模型，客户端将看不到这些模型。</p>
+        <p className="text-sm text-muted-foreground">{t("models.desc_excluded")}</p>
         <Button onClick={() => setEditing({ provider: "", models: [] })}>
           <Plus />
-          添加规则
+          {t("models.add_excluded")}
         </Button>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-40">渠道</TableHead>
-            <TableHead>排除的模型</TableHead>
+            <TableHead className="w-40">{t("models.th_channel")}</TableHead>
+            <TableHead>{t("models.excluded")}</TableHead>
             <TableHead className="w-16">
-              <span className="sr-only">操作</span>
+              <span className="sr-only">{t("common.actions")}</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -633,7 +636,7 @@ function Excluded() {
           {isPending ? (
             <SkeletonRows columns={3} />
           ) : data.length === 0 ? (
-            <EmptyRow columns={3}>还没有排除规则</EmptyRow>
+            <EmptyRow columns={3}>{t("models.no_excluded")}</EmptyRow>
           ) : (
             data.map(([provider, models]) => (
               <TableRow key={provider}>
@@ -840,18 +843,16 @@ function AvailableModels() {
 }
 
 export function ModelsPage() {
+  const { t } = useI18n();
   return (
     <>
-      <PageHeader
-        title="模型"
-        description="查看可用模型、OAuth 账号的模型别名与屏蔽规则。API Key 提供商的模型在提供商页单独配置。"
-      />
+      <PageHeader title={t("models.title")} description={t("models.desc")} />
       <Tabs defaultValue="available">
         <TabsList className="mb-6 flex-wrap">
-          <TabsTrigger value="available">可用模型</TabsTrigger>
-          <TabsTrigger value="alias">别名</TabsTrigger>
-          <TabsTrigger value="excluded">排除</TabsTrigger>
-          <TabsTrigger value="catalog">内置目录</TabsTrigger>
+          <TabsTrigger value="available">{t("models.tab_available")}</TabsTrigger>
+          <TabsTrigger value="alias">{t("models.tab_alias")}</TabsTrigger>
+          <TabsTrigger value="excluded">{t("models.tab_excluded")}</TabsTrigger>
+          <TabsTrigger value="catalog">{t("models.tab_catalog")}</TabsTrigger>
         </TabsList>
         <TabsContent value="available">
           <AvailableModels />

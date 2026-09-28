@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 
 export function YamlEditor() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -223,11 +225,11 @@ export function YamlEditor() {
             className="h-8 text-xs"
           >
             <RotateCcw className="size-3.5" />
-            撤销修改
+            {t("config.discard")}
           </Button>
           <Button size="sm" disabled={!dirty || save.isPending} onClick={() => save.mutate()} className="h-8 text-xs">
             {save.isPending ? <Spinner className="size-3.5" /> : <Save className="size-3.5" />}
-            保存配置
+            {t("config.save_changes")}
           </Button>
         </div>
       </div>

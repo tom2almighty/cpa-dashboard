@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { App } from "@/App";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { I18nProvider } from "@/i18n/context";
 import { isUnauthorized } from "@/lib/api";
 import "./index.css";
 
@@ -36,14 +37,16 @@ if (!root) throw new Error("缺少 #root 节点");
 createRoot(root).render(
   <StrictMode>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <HashRouter>
-            <App />
-          </HashRouter>
-          <Toaster position="top-center" />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <I18nProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <HashRouter>
+              <App />
+            </HashRouter>
+            <Toaster position="top-center" />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </I18nProvider>
     </ThemeProvider>
   </StrictMode>,
 );

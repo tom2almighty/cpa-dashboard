@@ -722,7 +722,7 @@ export function SettingField({ setting }: { setting: Setting }) {
   return (
     <div
       className={`flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between transition-colors ${
-        isModified ? "bg-chart-1/5 rounded-lg px-3 -mx-3" : ""
+        isModified ? "bg-primary/5 rounded-lg px-3 -mx-3" : ""
       }`}
     >
       <div className="min-w-0 pr-4">
@@ -731,7 +731,7 @@ export function SettingField({ setting }: { setting: Setting }) {
             {setting.label}
           </Label>
           {isModified && (
-            <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 text-chart-1 border-chart-1/30 font-normal">
+            <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 text-primary border-primary/30 font-normal">
               已修改
             </Badge>
           )}
@@ -763,9 +763,9 @@ export function SettingsForm() {
   return (
     <div className="space-y-10">
       {dirtyCount > 0 && (
-        <div className="sticky top-16 z-20 flex items-center justify-between gap-4 rounded-xl border border-chart-1/30 bg-background/95 p-4 shadow-lg backdrop-blur">
+        <div className="sticky top-16 z-20 flex items-center justify-between gap-4 rounded-xl border border-primary/30 bg-background/95 p-4 shadow-lg backdrop-blur">
           <div className="flex items-center gap-2">
-            <span className="size-2 rounded-full bg-chart-1 animate-pulse" />
+            <span className="size-2 rounded-full bg-primary animate-pulse" />
             <span className="text-sm font-medium">有 {dirtyCount} 项配置已修改</span>
           </div>
           <div className="flex items-center gap-2">

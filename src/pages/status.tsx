@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { accountName } from "@/components/quota-panel";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 import { formatInteger } from "@/lib/format";
 import { type Json, KINDS, list } from "@/lib/provider-form";
@@ -26,6 +27,7 @@ function Stat({ label, value, detail }: { label: string; value: string; detail?:
 }
 
 export function StatusPage() {
+  const { t } = useI18n();
   const files = useQuery({
     queryKey: ["cpa", "auth-files"],
     queryFn: () => api<{ files: AuthFile[] }>("/v8/management/credentials"),
@@ -81,7 +83,7 @@ export function StatusPage() {
   if (!files.data) {
     return (
       <>
-        <PageHeader title="运行概览" />
+        <PageHeader title={t("overview.title")} />
         {files.isError ? (
           <p role="alert" className="text-sm text-destructive">
             读取失败：{files.error.message}
@@ -115,29 +117,33 @@ export function StatusPage() {
 
   return (
     <>
-      <PageHeader title="运行概览" />
+      <PageHeader title={t("overview.title")} />
 
       <section
         aria-label="运行概况"
         className="grid grid-cols-2 gap-x-4 gap-y-6 border-y py-6 sm:grid-cols-4 sm:gap-0 sm:divide-x"
       >
         <Stat
-          label="可用账号"
+          label={t("overview.available_accounts")}
           value={`${formatInteger(active.length - attention.length)} / ${formatInteger(accounts.length)}`}
-          detail={attention.length ? `${attention.length} 个需要处理` : "全部正常"}
+          detail={
+            attention.length ? `${attention.length} ${t("overview.needs_attention_suffix")}` : t("overview.all_normal")
+          }
         />
-        <Stat label="已停用账号" value={formatInteger(accounts.length - active.length)} />
+        <Stat label={t("overview.disabled_accounts")} value={formatInteger(accounts.length - active.length)} />
         <Stat
-          label="API Key 提供商"
+          label={t("overview.provider_keys")}
           value={providersReady ? formatInteger(configured.reduce((sum, p) => sum + p.count, 0)) : "—"}
           detail={
-            providersReady ? configured.map((p) => `${p.label} ${p.count}`).join("、") || "还没有配置" : undefined
+            providersReady
+              ? configured.map((p) => `${p.label} ${p.count}`).join("、") || t("overview.not_configured")
+              : undefined
           }
         />
         <Stat
-          label="客户端 API Key"
+          label={t("overview.client_api_keys")}
           value={clientKeys.data ? formatInteger(clientKeys.data.length) : "—"}
-          detail={clientKeys.data?.length === 0 ? "还没有配置" : undefined}
+          detail={clientKeys.data?.length === 0 ? t("overview.not_configured") : undefined}
         />
       </section>
 
@@ -145,14 +151,14 @@ export function StatusPage() {
         <section aria-labelledby="distribution-title">
           <div className="mb-3 flex items-baseline justify-between">
             <h2 id="distribution-title" className="font-medium">
-              账号分布
+              {t("overview.account_distribution")}
             </h2>
             <Link to="/auth-files" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
-              全部认证文件
+              {t("overview.all_auth_files")}
             </Link>
           </div>
           {byProvider.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">还没有账号</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("overview.no_accounts")}</p>
           ) : (
             <ul className="divide-y">
               {byProvider.map(([provider, g]) => (
@@ -160,14 +166,14 @@ export function StatusPage() {
                   <span className="w-28 truncate text-sm font-medium" title={provider}>
                     {provider}
                   </span>
-                  <div aria-hidden className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                  <div aria-hidden className="h-2 flex-1 overflow-hidden rounded-full bg-primary/20">
                     <div
-                      className="h-full rounded-full bg-chart-1"
+                      className="h-full rounded-full bg-primary transition-all"
                       style={{ width: `${(g.usable / g.total) * 100}%` }}
                     />
                   </div>
                   <span className="w-24 text-right text-sm tabular-nums">
-                    {formatInteger(g.usable)} / {formatInteger(g.total)} 可用
+                    {formatInteger(g.usable)} / {formatInteger(g.total)} {t("overview.usable")}
                   </span>
                 </li>
               ))}
@@ -177,10 +183,10 @@ export function StatusPage() {
 
         <section aria-labelledby="attention-title">
           <h2 id="attention-title" className="mb-3 font-medium">
-            需要处理
+            {t("overview.needs_attention")}
           </h2>
           {attention.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">所有启用的账号都在正常工作</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("overview.all_accounts_healthy")}</p>
           ) : (
             <ul className="divide-y">
               {attention.map((f) => (
@@ -190,7 +196,7 @@ export function StatusPage() {
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{accountName(f)}</span>
                       <Badge variant={f.unavailable ? "destructive" : "secondary"}>
-                        {f.unavailable ? "冷却中" : f.status}
+                        {f.unavailable ? t("overview.cooldown") : f.status}
                       </Badge>
                     </div>
                     {f.status_message && (
@@ -210,14 +216,14 @@ export function StatusPage() {
           <div className="flex items-center gap-2">
             <Activity className="size-4 text-primary" />
             <h2 id="live-stream-title" className="font-medium text-base">
-              实时请求动态 (Usage Queue)
+              {t("overview.live_requests")}
             </h2>
           </div>
-          <span className="text-xs text-muted-foreground">每 5 秒同步</span>
+          <span className="text-xs text-muted-foreground">{t("overview.sync_interval")}</span>
         </div>
         {recentUsage.length === 0 ? (
           <p className="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground">
-            暂无最新请求事件。启用 observability.usage.usage-statistics-enabled 后，新请求将实时呈现在此。
+            {t("overview.no_recent_requests")}
           </p>
         ) : (
           <ul className="divide-y rounded-lg border">
@@ -233,7 +239,7 @@ export function StatusPage() {
                   <span
                     className={u.status === "error" ? "text-destructive font-medium" : "text-emerald-500 font-medium"}
                   >
-                    {u.status === "error" ? "失败" : "成功"}
+                    {u.status === "error" ? t("common.failed") : t("common.success")}
                   </span>
                   <span className="font-mono tabular-nums">
                     {new Date(u.timestamp ?? Date.now()).toLocaleTimeString()}

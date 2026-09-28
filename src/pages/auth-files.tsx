@@ -51,6 +51,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/i18n/context";
 import { api, download, fetchBlob, saveBlob } from "@/lib/api";
 import { formatDateTime, formatInteger, formatRelative } from "@/lib/format";
 import type { AuthFile } from "@/lib/types";
@@ -72,7 +73,8 @@ const COOLDOWN_REASONS: Record<string, string> = {
 };
 
 function StatusCell({ file: f }: { file: AuthFile }) {
-  if (f.disabled) return <Badge variant="outline">已停用</Badge>;
+  const { t } = useI18n();
+  if (f.disabled) return <Badge variant="outline">{t("auth_files.status_disabled")}</Badge>;
 
   if (f.cooldowns && f.cooldowns.length > 0) {
     const credWide = f.cooldowns.some((c) => c.scope === "credential");
@@ -81,16 +83,16 @@ function StatusCell({ file: f }: { file: AuthFile }) {
     const title = f.cooldowns
       .map(
         (c) =>
-          `${c.scope === "credential" ? "凭据级" : c.model_key}: ${COOLDOWN_REASONS[c.reason] || c.reason} (剩余约 ${c.remaining_seconds}s)`,
+          `${c.scope === "credential" ? t("auth_files.scope_credential") : c.model_key}: ${t(`auth_files.cooldown_reasons.${c.reason}`) || c.reason} (${t("auth_files.remaining_seconds", { seconds: c.remaining_seconds })})`,
       )
       .join("\n");
 
     return (
       <span className="grid gap-0.5" title={title}>
         <Badge variant="destructive" className="w-fit">
-          {credWide ? "凭据级冷却" : `${modelCount} 个模型冷却`}
+          {credWide ? t("auth_files.scope_credential") : `${modelCount} models`}
         </Badge>
-        {earliestSec > 0 && <span className="text-xs text-muted-foreground">约 {earliestSec}s 后恢复</span>}
+        {earliestSec > 0 && <span className="text-xs text-muted-foreground">~{earliestSec}s</span>}
       </span>
     );
   }
@@ -100,10 +102,10 @@ function StatusCell({ file: f }: { file: AuthFile }) {
     return (
       <span className="grid gap-0.5">
         <Badge variant="destructive" title={f.status_message}>
-          冷却中
+          {t("auth_files.status_cooldown")}
         </Badge>
         {Number.isFinite(retry) && retry > Date.now() && (
-          <span className="text-xs text-muted-foreground">{formatDateTime(retry)} 恢复</span>
+          <span className="text-xs text-muted-foreground">{formatDateTime(retry)}</span>
         )}
       </span>
     );
@@ -117,13 +119,14 @@ function StatusCell({ file: f }: { file: AuthFile }) {
   }
   return (
     <span className="inline-flex items-center gap-1.5 text-sm">
-      <span aria-hidden className="size-2 rounded-full bg-success" />
-      正常
+      <span aria-hidden className="size-2 rounded-full bg-emerald-500" />
+      {t("auth_files.status_normal")}
     </span>
   );
 }
 
 function ModelsDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
+  const { t } = useI18n();
   const { data, isPending, isError, error } = useQuery({
     queryKey: ["cpa", "auth-file-models", target.name],
     queryFn: () =>
@@ -136,7 +139,7 @@ function ModelsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{accountName(target)} 可用的模型</DialogTitle>
+          <DialogTitle>{t("auth_files.available_models_title", { name: accountName(target) })}</DialogTitle>
         </DialogHeader>
         {isPending ? (
           <Skeleton className="h-48" />
@@ -145,7 +148,7 @@ function ModelsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
             读取失败：{error.message}
           </p>
         ) : data.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">这个账号没有可用的模型</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{t("auth_files.no_models")}</p>
         ) : (
           <ul className="max-h-[60svh] divide-y overflow-y-auto rounded-lg border">
             {data.map((m) => (
@@ -205,8 +208,8 @@ function diffFields(before: Fields, after: Fields): Record<string, unknown> {
 }
 
 function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
-  // 列表里不含前缀、代理等字段,文件型账号读取原文件拿到完整值
   const source = useQuery({
     queryKey: ["cpa", "auth-file-content", target.name],
     queryFn: () =>
@@ -248,7 +251,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>编辑 {accountName(target)}</DialogTitle>
+          <DialogTitle>{t("auth_files.save_properties", { name: accountName(target) })}</DialogTitle>
         </DialogHeader>
         {!form ? (
           <Skeleton className="h-72" />
@@ -278,29 +281,29 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
               <Input
                 id="f-proxy"
                 value={form.proxy_url}
-                placeholder="留空使用全局代理"
+                placeholder={t("auth_files.proxy_placeholder")}
                 onChange={(e) => update({ proxy_url: e.target.value })}
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="f-headers">额外请求头</Label>
+              <Label htmlFor="f-headers">{t("auth_files.extra_headers")}</Label>
               <Textarea
                 id="f-headers"
                 value={form.headers}
                 onChange={(e) => update({ headers: e.target.value })}
                 className="min-h-20 font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground">每行一个，格式为 名称: 值</p>
+              <p className="text-xs text-muted-foreground">{t("auth_files.headers_hint")}</p>
             </div>
           </form>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" form="fields-form" disabled={!form || save.isPending}>
             {save.isPending && <Spinner />}
-            保存
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -309,6 +312,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
 }
 
 function VertexDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [picked, setPicked] = useState<File | null>(null);
   const [location, setLocation] = useState("us-central1");
@@ -333,33 +337,31 @@ function VertexDialog({ onClose }: { onClose: () => void }) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>导入 Vertex 服务账号</DialogTitle>
+          <DialogTitle>{t("auth_files.import_vertex_title")}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-1.5">
-            <Label htmlFor="v-file">服务账号密钥</Label>
+            <Label htmlFor="v-file">{t("auth_files.service_account_key")}</Label>
             <Input
               id="v-file"
               type="file"
               accept=".json,application/json"
               onChange={(e) => setPicked(e.target.files?.[0] ?? null)}
             />
-            <p className="text-xs text-muted-foreground">
-              Google Cloud 控制台下载的 JSON，需包含 project_id 和 private_key。
-            </p>
+            <p className="text-xs text-muted-foreground">{t("auth_files.service_account_hint")}</p>
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="v-location">区域</Label>
+            <Label htmlFor="v-location">{t("auth_files.region")}</Label>
             <Input id="v-location" value={location} onChange={(e) => setLocation(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button disabled={!picked || importKey.isPending} onClick={() => importKey.mutate()}>
             {importKey.isPending && <Spinner />}
-            导入
+            {t("auth_files.import_btn")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -415,8 +417,10 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
           </div>
 
           {target.cooldowns && target.cooldowns.length > 0 && (
-            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
-              <span className="font-medium text-warning">当前冷却限制（{target.cooldowns.length} 项）</span>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <span className="font-medium text-amber-600 dark:text-amber-400">
+                当前冷却限制（{target.cooldowns.length} 项）
+              </span>
               <div className="mt-2 grid gap-1.5">
                 {target.cooldowns.map((c) => (
                   <div
@@ -483,6 +487,7 @@ type Dialogs =
   | null;
 
 export function AuthFilesPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
   const [keyword, setKeyword] = useState("");
@@ -667,24 +672,28 @@ export function AuthFilesPage() {
   return (
     <>
       <PageHeader
-        title="认证文件"
+        title={t("auth_files.title")}
         description={
           data
-            ? `共 ${data.length} 个认证文件，${data.filter((f) => f.disabled).length} 个已停用${cooling ? `，${cooling} 个冷却中` : ""}。`
+            ? t("auth_files.summary_desc", {
+                total: data.length,
+                disabled: data.filter((f) => f.disabled).length,
+                cooling: cooling ? t("auth_files.cooling_suffix", { cooling }) : "",
+              })
             : undefined
         }
         actions={
           <div className="flex">
             <Button className="rounded-r-none" onClick={() => fileInput.current?.click()} disabled={upload.isPending}>
               {upload.isPending ? <Spinner /> : <Upload />}
-              上传认证文件
+              {t("auth_files.upload_files")}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
                   <Button
                     className="rounded-l-none border-l border-l-primary-foreground/20 px-2"
-                    aria-label="更多操作"
+                    aria-label={t("common.actions")}
                   />
                 }
               >
@@ -693,12 +702,12 @@ export function AuthFilesPage() {
               <DropdownMenuContent align="end" className="min-w-48">
                 <DropdownMenuItem onClick={() => setDialog({ kind: "vertex" })}>
                   <FileKey />
-                  导入 Vertex 服务账号
+                  {t("auth_files.import_vertex")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={() => setDialog({ kind: "delete-all" })}>
                   <Trash2 />
-                  删除全部认证文件
+                  {t("auth_files.delete_all")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -715,8 +724,8 @@ export function AuthFilesPage() {
         <Tabs value={tab} onValueChange={(v) => setTab((v as typeof tab) ?? "list")}>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <TabsList>
-              <TabsTrigger value="list">列表</TabsTrigger>
-              <TabsTrigger value="quota">额度</TabsTrigger>
+              <TabsTrigger value="list">{t("auth_files.tab_list")}</TabsTrigger>
+              <TabsTrigger value="quota">{t("auth_files.tab_quota")}</TabsTrigger>
             </TabsList>
             {tab === "list" && (
               <div className="flex flex-wrap gap-2">
@@ -728,14 +737,17 @@ export function AuthFilesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">全部状态</SelectItem>
-                    <SelectItem value="active">正常</SelectItem>
-                    <SelectItem value="cooldown">冷却中</SelectItem>
-                    <SelectItem value="disabled">已停用</SelectItem>
+                    <SelectItem value="all">{t("auth_files.status_all")}</SelectItem>
+                    <SelectItem value="active">{t("auth_files.status_active")}</SelectItem>
+                    <SelectItem value="cooldown">{t("auth_files.status_cooldown")}</SelectItem>
+                    <SelectItem value="disabled">{t("auth_files.status_disabled")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select
-                  items={[{ value: "", label: "全部提供商" }, ...providers.map((p) => ({ value: p, label: p }))]}
+                  items={[
+                    { value: "", label: t("auth_files.filter_provider") },
+                    ...providers.map((p) => ({ value: p, label: p })),
+                  ]}
                   value={provider}
                   onValueChange={(v) => setProvider(v ?? "")}
                 >
@@ -743,7 +755,7 @@ export function AuthFilesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">全部提供商</SelectItem>
+                    <SelectItem value="">{t("auth_files.filter_provider")}</SelectItem>
                     {providers.map((p) => (
                       <SelectItem key={p} value={p}>
                         {p}
@@ -771,9 +783,7 @@ export function AuthFilesPage() {
           <TabsContent value="list">
             {selected.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-xs">
-                <span>
-                  已选择 <strong className="font-semibold text-foreground">{selected.length}</strong> 个认证文件
-                </span>
+                <span>{t("auth_files.selected_count", { count: selected.length })}</span>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     variant="outline"
@@ -783,7 +793,7 @@ export function AuthFilesPage() {
                     onClick={() => batchToggle.mutate(false)}
                   >
                     {batchToggle.isPending && !batchToggle.variables ? <Spinner className="size-3" /> : null}
-                    批量启用
+                    {t("auth_files.batch_enable")}
                   </Button>
                   <Button
                     variant="outline"
@@ -793,7 +803,7 @@ export function AuthFilesPage() {
                     onClick={() => batchToggle.mutate(true)}
                   >
                     {batchToggle.isPending && batchToggle.variables ? <Spinner className="size-3" /> : null}
-                    批量停用
+                    {t("auth_files.batch_disable")}
                   </Button>
                   <Button
                     variant="outline"
@@ -803,7 +813,7 @@ export function AuthFilesPage() {
                     onClick={() => batchDownload.mutate(selected)}
                   >
                     {batchDownload.isPending ? <Spinner className="size-3" /> : <Download className="size-3" />}
-                    批量下载
+                    {t("auth_files.batch_download")}
                   </Button>
                   <Button
                     variant="destructive"
@@ -812,10 +822,10 @@ export function AuthFilesPage() {
                     onClick={() => setDialog({ kind: "batch-delete" })}
                   >
                     <Trash2 className="size-3" />
-                    批量删除
+                    {t("auth_files.batch_delete")}
                   </Button>
                   <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelected([])}>
-                    取消选择
+                    {t("auth_files.clear_selection")}
                   </Button>
                 </div>
               </div>
@@ -826,15 +836,15 @@ export function AuthFilesPage() {
                   <TableHead className="w-8">
                     <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="全选本页" />
                   </TableHead>
-                  <TableHead>账号</TableHead>
-                  <TableHead>提供商</TableHead>
-                  <TableHead>状态</TableHead>
+                  <TableHead>{t("auth_files.th_account")}</TableHead>
+                  <TableHead>{t("auth_files.th_provider")}</TableHead>
+                  <TableHead>{t("auth_files.th_status")}</TableHead>
                   <TableHead>最近 200 分钟</TableHead>
-                  <TableHead className="text-right">累计成功 / 失败</TableHead>
+                  <TableHead className="text-right">{t("auth_files.th_requests")}</TableHead>
                   <TableHead>最近刷新</TableHead>
-                  <TableHead className="w-16">启用</TableHead>
+                  <TableHead className="w-16">{t("common.enabled")}</TableHead>
                   <TableHead className="w-12">
-                    <span className="sr-only">操作</span>
+                    <span className="sr-only">{t("common.actions")}</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -900,27 +910,27 @@ export function AuthFilesPage() {
                           <DropdownMenuContent align="end" className="min-w-40">
                             <DropdownMenuItem onClick={() => setDialog({ kind: "details", target: f })}>
                               <Info />
-                              查看详情
+                              {t("auth_files.view_details")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={manualRefresh.isPending}
                               onClick={() => manualRefresh.mutate(f)}
                             >
                               <RefreshCw className={manualRefresh.isPending ? "animate-spin" : undefined} />
-                              刷新凭证
+                              {t("auth_files.refresh_credential")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setDialog({ kind: "models", target: f })}>
                               <Boxes />
-                              查看可用模型
+                              {t("auth_files.view_models")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setDialog({ kind: "fields", target: f })}>
                               <PencilLine />
-                              编辑属性
+                              {t("auth_files.edit_properties")}
                             </DropdownMenuItem>
                             {f.auth_index && (
                               <DropdownMenuItem onClick={() => resetQuota.mutate(f)}>
                                 <RotateCcw />
-                                重置冷却
+                                {t("auth_files.cooldown_reset")}
                               </DropdownMenuItem>
                             )}
                             {!f.runtime_only && (
@@ -933,7 +943,7 @@ export function AuthFilesPage() {
                                   }
                                 >
                                   <Download />
-                                  下载认证文件
+                                  {t("auth_files.download_file")}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
@@ -941,7 +951,7 @@ export function AuthFilesPage() {
                                   onClick={() => setDialog({ kind: "delete", target: f })}
                                 >
                                   <Trash2 />
-                                  删除
+                                  {t("common.delete")}
                                 </DropdownMenuItem>
                               </>
                             )}

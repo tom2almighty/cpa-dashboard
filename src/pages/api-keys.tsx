@@ -1,15 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, Terminal, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n } from "@/i18n/context";
 import { api, storedBaseUrl } from "@/lib/api";
 
 function randomKey(): string {
@@ -48,6 +47,7 @@ function saveNotes(notes: Record<string, string>) {
 }
 
 export function ApiKeysPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState("");
   const [addingNote, setAddingNote] = useState("");
@@ -105,245 +105,198 @@ export function ApiKeysPage() {
   };
 
   const cpaBaseUrl = getClientApiUrl();
-  const firstKey = keys[0] || "sk-your-api-key";
-  const curl = `curl ${cpaBaseUrl}/models \\\n  -H "Authorization: Bearer ${firstKey}"`;
 
   return (
     <>
-      <PageHeader
-        title="客户端 API Key"
-        description="管理客户端（Cursor、Cline、Chatbox、OpenAI SDK 等）调用 CPA 的 /v1 接口时使用的凭据。"
-      />
+      <PageHeader title={t("api_keys.title")} description={t("api_keys.desc")} />
 
-      <div className="grid gap-6 lg:grid-cols-3 max-w-full overflow-hidden">
-        <div className="space-y-6 lg:col-span-2 min-w-0">
-          <Card className="min-w-0 overflow-hidden">
-            <CardHeader>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle>已配置的 Key</CardTitle>
-                  <CardDescription className="mt-1">
-                    CPA 启动后会校验传入的 Bearer Token 是否包含在以下列表中。
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  {keys.length > 0 && (
-                    <Button variant="ghost" size="xs" onClick={toggleShowAll} className="text-muted-foreground">
-                      {showAll ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                      {showAll ? "全部隐藏" : "全部显示"}
-                    </Button>
-                  )}
-                  {keys.length > 0 && (
-                    <Badge variant="secondary" className="tabular-nums">
-                      {keys.length} 个 Key
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isPending ? (
-                <Skeleton className="h-32 w-full" />
-              ) : (
-                <ul className="divide-y rounded-lg border min-w-0 overflow-hidden">
-                  {keys.map((key) => (
-                    <li
-                      key={key}
-                      className="flex flex-col gap-2.5 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3 min-w-0"
-                    >
-                      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                        <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                        <code className="truncate font-mono text-xs sm:text-sm min-w-0 flex-1">
-                          {visibleKeys[key] ? key : maskKey(key)}
-                        </code>
-                        {notes[key] ? (
-                          <Badge
-                            variant="outline"
-                            className="cursor-pointer text-xs font-normal hover:border-primary/60 shrink-0"
-                            title="点击修改备注"
-                            onClick={() => {
-                              setEditingNoteKey(key);
-                              setEditingNoteValue(notes[key] || "");
-                            }}
-                          >
-                            {notes[key]}
-                          </Badge>
-                        ) : (
-                          <button
-                            type="button"
-                            className="shrink-0 text-xs text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
-                            onClick={() => {
-                              setEditingNoteKey(key);
-                              setEditingNoteValue("");
-                            }}
-                          >
-                            + 备注
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 self-end sm:self-auto shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={visibleKeys[key] ? "隐藏 Key" : "显示 Key"}
-                          onClick={() => toggleVisible(key)}
-                        >
-                          {visibleKeys[key] ? <EyeOff /> : <Eye />}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label="复制 Key"
-                          onClick={() => copy(key, "已复制 API Key")}
-                        >
-                          {copied === key ? <Check className="text-primary" /> : <Copy />}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label="修改备注"
-                          onClick={() => {
-                            setEditingNoteKey(key);
-                            setEditingNoteValue(notes[key] || "");
-                          }}
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`删除 ${key}`}
-                          className="text-muted-foreground hover:text-destructive"
-                          disabled={save.isPending}
-                          onClick={() => {
-                            save.mutate(keys.filter((k) => k !== key));
-                            if (notes[key]) {
-                              const next = { ...notes };
-                              delete next[key];
-                              setNotes(next);
-                              saveNotes(next);
-                            }
-                          }}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                  {keys.length === 0 && (
-                    <li className="py-8 text-center text-sm text-muted-foreground">
-                      还没有配置客户端 API Key。若留空，部分客户端请求可能会被拒绝。
-                    </li>
-                  )}
-                </ul>
-              )}
-
-              <form
-                className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const key = adding.trim();
-                  if (key && !keys.includes(key)) {
-                    save.mutate([...keys, key]);
-                    if (addingNote.trim()) {
-                      const next = { ...notes, [key]: addingNote.trim() };
-                      setNotes(next);
-                      saveNotes(next);
-                      setAddingNote("");
-                    }
-                  }
-                }}
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+              {t("api_keys.base_url")}:
+            </span>
+            <div className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 min-w-0">
+              <code className="truncate font-mono text-xs text-foreground font-semibold">{cpaBaseUrl}</code>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => copy(cpaBaseUrl, t("api_keys.copied_base_url"))}
+                title={t("api_keys.copy_base_url")}
+                aria-label={t("api_keys.copy_base_url")}
               >
-                <Input
-                  value={adding}
-                  onChange={(e) => setAdding(e.target.value)}
-                  placeholder="输入或生成一个新的 Key"
-                  aria-label="新的 API Key"
-                  className="w-full font-mono sm:w-64 md:w-72"
-                />
-                <Input
-                  value={addingNote}
-                  onChange={(e) => setAddingNote(e.target.value)}
-                  placeholder="备注（例如：Cursor、生产环境）"
-                  aria-label="Key 备注"
-                  className="w-full sm:w-44 md:w-48"
-                />
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 sm:flex-none"
-                    onClick={() => setAdding(randomKey())}
-                  >
-                    随机生成
-                  </Button>
-                  <Button type="submit" className="flex-1 sm:flex-none" disabled={!adding.trim() || save.isPending}>
-                    <Plus />
-                    添加 Key
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                {copied === cpaBaseUrl ? <Check className="text-primary size-3.5" /> : <Copy className="size-3.5" />}
+              </Button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {keys.length > 0 && (
+              <Button variant="ghost" size="xs" onClick={toggleShowAll} className="text-muted-foreground">
+                {showAll ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                {showAll ? t("api_keys.hide_all") : t("api_keys.show_all")}
+              </Button>
+            )}
+            <Badge variant="secondary" className="tabular-nums">
+              {t("api_keys.keys_count", { count: keys.length })}
+            </Badge>
+          </div>
         </div>
+        {isPending ? (
+          <Skeleton className="h-32 w-full" />
+        ) : (
+          <ul className="divide-y rounded-lg border min-w-0 overflow-hidden">
+            {keys.map((key) => {
+              const testCmd = `curl ${cpaBaseUrl}/models \\\n  -H "Authorization: Bearer ${key}"`;
+              return (
+                <li
+                  key={key}
+                  className="flex flex-col gap-2.5 px-3.5 py-2.5 sm:flex-row sm:items-center sm:gap-3 min-w-0 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                    <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <code className="truncate font-mono text-xs sm:text-sm min-w-0 flex-1">
+                      {visibleKeys[key] ? key : maskKey(key)}
+                    </code>
+                    {notes[key] ? (
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer text-xs font-normal hover:border-primary/60 shrink-0"
+                        title={t("api_keys.click_to_edit_note")}
+                        onClick={() => {
+                          setEditingNoteKey(key);
+                          setEditingNoteValue(notes[key] || "");
+                        }}
+                      >
+                        {notes[key]}
+                      </Badge>
+                    ) : (
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
+                        onClick={() => {
+                          setEditingNoteKey(key);
+                          setEditingNoteValue("");
+                        }}
+                      >
+                        {t("api_keys.add_note")}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 self-end sm:self-auto shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={visibleKeys[key] ? t("api_keys.hide_key") : t("api_keys.show_key")}
+                      title={visibleKeys[key] ? t("api_keys.hide_key") : t("api_keys.show_key")}
+                      onClick={() => toggleVisible(key)}
+                    >
+                      {visibleKeys[key] ? <EyeOff /> : <Eye />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t("api_keys.copy_key")}
+                      title={t("api_keys.copy_key")}
+                      onClick={() => copy(key, t("api_keys.copied_key"))}
+                    >
+                      {copied === key ? <Check className="text-primary" /> : <Copy />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t("api_keys.test_connectivity_cmd")}
+                      title={t("api_keys.test_connectivity_cmd")}
+                      onClick={() => copy(testCmd, t("api_keys.copied_test_cmd"))}
+                    >
+                      {copied === testCmd ? <Check className="text-primary" /> : <Terminal />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t("api_keys.edit_note")}
+                      title={t("api_keys.edit_note")}
+                      onClick={() => {
+                        setEditingNoteKey(key);
+                        setEditingNoteValue(notes[key] || "");
+                      }}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`${t("common.delete")} ${key}`}
+                      title={t("api_keys.delete_key")}
+                      className="text-muted-foreground hover:text-destructive"
+                      disabled={save.isPending}
+                      onClick={() => {
+                        save.mutate(keys.filter((k) => k !== key));
+                        if (notes[key]) {
+                          const next = { ...notes };
+                          delete next[key];
+                          setNotes(next);
+                          saveNotes(next);
+                        }
+                      }}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+            {keys.length === 0 && (
+              <li className="py-8 text-center text-sm text-muted-foreground">{t("api_keys.empty_keys")}</li>
+            )}
+          </ul>
+        )}
 
-        <div className="space-y-6 min-w-0">
-          <Card className="min-w-0 overflow-hidden">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Terminal className="size-4" />
-                快速接入指南
-              </CardTitle>
-              <CardDescription>在任意 OpenAI 兼容客户端中填入以下信息即可接入：</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <span className="text-xs font-medium text-muted-foreground">Base URL (接口地址)</span>
-                <div className="mt-1 flex items-center justify-between gap-2 rounded-md border bg-muted/50 px-3 py-1.5 min-w-0">
-                  <code className="truncate font-mono text-xs min-w-0 flex-1">{cpaBaseUrl}</code>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => copy(cpaBaseUrl, "已复制接口地址")}
-                    aria-label="复制接口地址"
-                  >
-                    {copied === cpaBaseUrl ? <Check className="text-primary" /> : <Copy />}
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <span className="text-xs font-medium text-muted-foreground">测试接口连通性 (cURL)</span>
-                <div className="relative mt-1 min-w-0 overflow-hidden">
-                  <pre className="overflow-x-auto rounded-md border bg-muted/50 p-2.5 pr-10 font-mono text-xs text-muted-foreground max-w-full">
-                    <code>{curl}</code>
-                  </pre>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    className="absolute top-1.5 right-1.5"
-                    onClick={() => copy(curl, "已复制测试命令")}
-                    aria-label="复制测试命令"
-                  >
-                    {copied === curl ? <Check className="text-primary" /> : <Copy />}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                <p>
-                  可在{" "}
-                  <Link to="/models" className="font-medium text-foreground underline underline-offset-2">
-                    模型页面
-                  </Link>{" "}
-                  查看当前 CPA 挂载支持的具体模型 ID 列表。
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <form
+          className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const key = adding.trim();
+            if (key && !keys.includes(key)) {
+              save.mutate([...keys, key]);
+              if (addingNote.trim()) {
+                const next = { ...notes, [key]: addingNote.trim() };
+                setNotes(next);
+                saveNotes(next);
+                setAddingNote("");
+              }
+            }
+          }}
+        >
+          <Input
+            value={adding}
+            onChange={(e) => setAdding(e.target.value)}
+            placeholder={t("api_keys.new_key_placeholder")}
+            aria-label="新的 API Key"
+            className="w-full font-mono sm:w-72"
+          />
+          <Input
+            value={addingNote}
+            onChange={(e) => setAddingNote(e.target.value)}
+            placeholder={t("api_keys.note_placeholder")}
+            aria-label="Key 备注"
+            className="w-full sm:w-56"
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => setAdding(randomKey())}
+            >
+              {t("api_keys.generate_and_add")}
+            </Button>
+            <Button type="submit" className="flex-1 sm:flex-none" disabled={!adding.trim() || save.isPending}>
+              <Plus />
+              {t("api_keys.add_key")}
+            </Button>
+          </div>
+        </form>
       </div>
-
       {editingNoteKey && (
         <Dialog open onOpenChange={(open) => !open && setEditingNoteKey(null)}>
           <DialogContent className="sm:max-w-sm">

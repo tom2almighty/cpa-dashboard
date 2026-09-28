@@ -1,12 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Globe, Server } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
+import { LanguageToggle } from "@/components/language-toggle";
 import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { useI18n } from "@/i18n/context";
 import { ApiError, api, clearBaseUrl, clearKey, saveBaseUrl, saveKey, storedBaseUrl, storedKey } from "@/lib/api";
 
 function detectDefaultBase(): string {
@@ -51,8 +54,8 @@ async function login(base: string, key: string, remember: boolean) {
 
 export function LoginPage() {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const detectedBase = useMemo(() => detectDefaultBase(), []);
-
   const [customBase, setCustomBase] = useState(() => storedBaseUrl());
   const [showCustomBase, setShowCustomBase] = useState(() => Boolean(storedBaseUrl()));
   const [key, setKey] = useState(() => storedKey());
@@ -73,11 +76,15 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-svh place-items-center px-4 py-8">
+    <main className="relative grid min-h-svh place-items-center px-4 py-8">
+      <div className="absolute right-4 top-4 flex items-center gap-1">
+        <LanguageToggle mode="button" />
+        <ThemeToggle mode="button" />
+      </div>
       <form onSubmit={submit} className="w-full max-w-sm">
         <div className="mb-6 flex items-center gap-2.5">
           <Logo className="size-7" />
-          <h1 className="text-xl font-semibold tracking-tight">CPA Dashboard</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{t("login.title")}</h1>
         </div>
 
         {/* CPA 服务地址选择区 */}
@@ -85,10 +92,13 @@ export function LoginPage() {
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 font-medium text-foreground">
               <Server className="size-3.5 text-muted-foreground" />
-              CPA 连接地址
+              {t("login.server_address")}
             </span>
-            <span className="max-w-44 truncate text-muted-foreground" title={activeBase || `${detectedBase}（当前源）`}>
-              {activeBase || `${detectedBase} (默认)`}
+            <span
+              className="max-w-44 truncate text-muted-foreground"
+              title={activeBase || `${detectedBase} (${t("login.current_origin")})`}
+            >
+              {activeBase || `${detectedBase} (${t("login.default")})`}
             </span>
           </div>
 
@@ -102,14 +112,14 @@ export function LoginPage() {
               htmlFor="toggle-custom-base"
               className="cursor-pointer text-xs font-normal text-muted-foreground hover:text-foreground"
             >
-              自定义 CPA 服务地址
+              {t("login.custom_base_toggle")}
             </Label>
           </div>
 
           {showCustomBase && (
             <div className="mt-3 grid gap-2 border-t pt-2.5">
               <Input
-                placeholder="例如 http://localhost:8317"
+                placeholder={t("login.custom_base_placeholder")}
                 value={customBase}
                 onChange={(e) => setCustomBase(e.target.value)}
                 className="h-8 text-xs font-mono"
@@ -141,19 +151,17 @@ export function LoginPage() {
                   onClick={() => setCustomBase("")}
                   className="h-6 px-2 text-[11px] text-muted-foreground"
                 >
-                  清空（使用默认）
+                  {t("login.clear_custom_base")}
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                前后端分离部署时，在此指定远程 CPA 服务地址（如 https://cpa.example.com）。
-              </p>
+              <p className="text-[11px] text-muted-foreground">{t("login.remote_hint")}</p>
             </div>
           )}
         </div>
 
         {/* 管理密钥输入区 */}
         <div className="grid gap-2">
-          <Label htmlFor="key">管理密钥 / 访问密码</Label>
+          <Label htmlFor="key">{t("login.secret_key")}</Label>
           <div className="relative">
             <Input
               id="key"
@@ -165,7 +173,7 @@ export function LoginPage() {
               aria-invalid={mutation.isError || undefined}
               aria-describedby="key-hint"
               className="pr-9"
-              placeholder="management.secret-key 或 MANAGEMENT_PASSWORD"
+              placeholder={t("login.secret_key_placeholder")}
             />
             <Button
               type="button"
@@ -173,20 +181,19 @@ export function LoginPage() {
               size="icon-sm"
               onClick={() => setShowKey(!showKey)}
               className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+              aria-label={showKey ? t("login.hide_key") : t("login.show_key")}
             >
               {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </Button>
           </div>
           <p id="key-hint" className="text-xs text-muted-foreground">
-            可输入配置中的 management.secret-key，或环境变量 MANAGEMENT_PASSWORD（支持无配置远程连接）。连续输错 5
-            次将临时封禁 30 分钟。
+            {t("login.secret_key_hint")}
           </p>
         </div>
 
         <Label className="mt-4 flex cursor-pointer items-center gap-2 text-xs font-normal">
           <Checkbox checked={remember} onCheckedChange={(v) => setRemember(v === true)} />
-          在这台设备上记住连接信息与密钥（非明文安全存储）
+          {t("login.remember_me")}
         </Label>
 
         {mutation.isError && (
@@ -197,7 +204,7 @@ export function LoginPage() {
 
         <Button type="submit" size="lg" className="mt-6 w-full" disabled={!key.trim() || mutation.isPending}>
           {mutation.isPending && <Spinner />}
-          登录
+          {mutation.isPending ? t("login.submitting") : t("login.submit")}
         </Button>
       </form>
     </main>

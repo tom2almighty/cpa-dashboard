@@ -4,7 +4,7 @@
 
 ## 部署方式
 
-### 方式一：CPA 内置托管（推荐）
+### 方式一：CPA 内置托管
 
 在 CPA 的 `config.yaml` 中配置管理面板仓库，CPA 会自动下载并托管面板页面：
 
@@ -16,11 +16,11 @@ management:
   panel-github-repository: "https://github.com/tom2almighty/cpa-dashboard"
 ```
 
-访问 `http://<CPA 地址>:8317/management.html` 即可使用。
+访问 `http://<CPA 地址>/management.html` 即可使用。
 
 亦可从 [Releases](https://github.com/tom2almighty/cpa-dashboard/releases) 下载编译产物 `management.html`，放入 CPA 的静态文件目录（或 `MANAGEMENT_STATIC_PATH`）。
 
-### 方式二：独立静态站点部署（前后端分离）
+### 方式二：独立静态站点部署
 
 面板为纯前端单文件架构，可直接部署在任意静态托管平台（Vercel、Cloudflare Pages、Nginx 等）。
 
@@ -37,7 +37,7 @@ bun install
 bun run dev
 ```
 
-开发服务器启动后访问 `http://localhost:5173/management.html`。
+开发服务器启动后访问 `http://localhost:5173`。
 
 可选环境变量：
 - `CPA_URL`：指定本地开发反向代理的后端 CPA 地址，例如 `CPA_URL=http://127.0.0.1:8317 bun run dev`。

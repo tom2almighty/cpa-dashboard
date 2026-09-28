@@ -1,4 +1,3 @@
-import { SiGithub } from "@icons-pack/react-simple-icons";
 import {
   Activity,
   Boxes,
@@ -16,9 +15,9 @@ import {
 } from "lucide-react";
 import { Suspense, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
+import { LanguageToggle } from "@/components/language-toggle";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -40,30 +39,31 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useVersionData, VersionDialog } from "@/components/version-dialog";
 import { useLogout } from "@/hooks/use-logout";
+import { useI18n } from "@/i18n/context";
 
-type NavItem = { to: string; label: string; icon: typeof FileKey };
+type NavItemDef = { to: string; labelKey: string; icon: typeof FileKey };
 
-const OVERVIEW_NAV: NavItem[] = [{ to: "/", label: "运行概览", icon: Activity }];
+const OVERVIEW_NAV: NavItemDef[] = [{ to: "/", labelKey: "nav.overview", icon: Activity }];
 
-const GATEWAY_NAV: NavItem[] = [
-  { to: "/auth-files", label: "认证文件", icon: FileKey },
-  { to: "/oauth", label: "OAuth 登录", icon: KeySquare },
-  { to: "/providers", label: "提供商", icon: Network },
-  { to: "/api-keys", label: "API Key", icon: KeyRound },
+const GATEWAY_NAV: NavItemDef[] = [
+  { to: "/auth-files", labelKey: "nav.auth_files", icon: FileKey },
+  { to: "/oauth", labelKey: "nav.oauth", icon: KeySquare },
+  { to: "/providers", labelKey: "nav.providers", icon: Network },
+  { to: "/api-keys", labelKey: "nav.api_keys", icon: KeyRound },
 ];
 
-const MODEL_NAV: NavItem[] = [{ to: "/models", label: "模型管理", icon: Boxes }];
+const MODEL_NAV: NavItemDef[] = [{ to: "/models", labelKey: "nav.models", icon: Boxes }];
 
-const SYSTEM_NAV: NavItem[] = [
-  { to: "/plugins", label: "插件", icon: Puzzle },
-  { to: "/logs", label: "日志", icon: ScrollText },
-  { to: "/config", label: "系统配置", icon: FileCog },
+const SYSTEM_NAV: NavItemDef[] = [
+  { to: "/plugins", labelKey: "nav.plugins", icon: Puzzle },
+  { to: "/logs", labelKey: "nav.logs", icon: ScrollText },
+  { to: "/config", labelKey: "nav.config", icon: FileCog },
 ];
 
-function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
+function NavGroup({ label, items }: { label: string; items: NavItemDef[] }) {
   const { pathname } = useLocation();
   const { setOpenMobile, isMobile } = useSidebar();
-
+  const { t } = useI18n();
   const handleNavClick = () => {
     if (isMobile) {
       setOpenMobile(false);
@@ -79,12 +79,12 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
             <SidebarMenuItem key={item.to}>
               <SidebarMenuButton
                 isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
-                tooltip={item.label}
+                tooltip={t(item.labelKey)}
                 onClick={handleNavClick}
                 render={<NavLink to={item.to} end={item.to === "/"} />}
               >
                 <item.icon />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
@@ -97,8 +97,9 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
 // 桌面端收起/展开,收起后只保留图标;快捷键 Ctrl/⌘ + B
 function HeaderCollapseButton() {
   const { state, toggleSidebar } = useSidebar();
+  const { t } = useI18n();
   const collapsed = state === "collapsed";
-  const label = collapsed ? "展开侧边栏" : "收起侧边栏";
+  const label = collapsed ? t("footer.expand_sidebar") : t("footer.collapse_sidebar");
   return (
     <Button
       variant="ghost"
@@ -115,8 +116,9 @@ function HeaderCollapseButton() {
 
 export function Layout() {
   const logout = useLogout();
+  const { t } = useI18n();
   const [openVersion, setOpenVersion] = useState(false);
-  const { cpaCurrent, currentVersion, hasAnyUpdate } = useVersionData();
+  const { hasAnyUpdate } = useVersionData();
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
@@ -132,56 +134,43 @@ export function Layout() {
           <HeaderCollapseButton />
         </SidebarHeader>
         <SidebarContent>
-          <NavGroup label="概览" items={OVERVIEW_NAV} />
-          <NavGroup label="网关接入" items={GATEWAY_NAV} />
-          <NavGroup label="模型服务" items={MODEL_NAV} />
-          <NavGroup label="系统运维" items={SYSTEM_NAV} />
+          <NavGroup label={t("nav.overview_group")} items={OVERVIEW_NAV} />
+          <NavGroup label={t("nav.gateway_group")} items={GATEWAY_NAV} />
+          <NavGroup label={t("nav.models_group")} items={MODEL_NAV} />
+          <NavGroup label={t("nav.system_group")} items={SYSTEM_NAV} />
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
-                tooltip="版本与更新中心"
+                tooltip={t("version.title")}
                 onClick={() => setOpenVersion(true)}
                 className="justify-between group-data-[collapsible=icon]:justify-center"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <Sparkles className="size-4 shrink-0 text-primary" />
-                  <span className="truncate text-xs font-mono text-muted-foreground group-data-[collapsible=icon]:hidden">
-                    {currentVersion ? `面板 ${currentVersion}` : "面板"} · CPA {cpaCurrent}
-                  </span>
+                  <span className="truncate text-xs group-data-[collapsible=icon]:hidden">{t("version.title")}</span>
                 </div>
                 {hasAnyUpdate && (
-                  <Badge
-                    variant="default"
-                    className="text-[10px] px-1 py-0 h-4 bg-chart-1 group-data-[collapsible=icon]:hidden"
-                  >
-                    更新
-                  </Badge>
+                  <span className="size-1.5 rounded-full bg-primary shrink-0 group-data-[collapsible=icon]:hidden" />
                 )}
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="GitHub 仓库"
-                render={<a href="https://github.com/tom2almighty/cpa-dashboard" target="_blank" rel="noreferrer" />}
-              >
-                <SiGithub className="size-4" />
-                <span>GitHub 仓库</span>
-              </SidebarMenuButton>
+              <LanguageToggle />
             </SidebarMenuItem>
             <SidebarMenuItem>
               <ThemeToggle />
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip="退出登录" onClick={() => logout.mutate()}>
+              <SidebarMenuButton tooltip={t("footer.logout")} onClick={() => logout.mutate()}>
                 <LogOut />
-                <span>退出登录</span>
+                <span>{t("footer.logout")}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
-        <SidebarRail title="收起/展开侧边栏" aria-label="收起/展开侧边栏" />
+        <SidebarRail title={t("footer.collapse_sidebar")} aria-label={t("footer.collapse_sidebar")} />
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur md:hidden">

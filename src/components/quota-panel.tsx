@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useI18n } from "@/i18n/context";
 import { formatCountdown, formatDateTime, formatRelative } from "@/lib/format";
 import { fetchQuota, type QuotaWindow, supportsQuota } from "@/lib/quota";
 import type { AuthFile } from "@/lib/types";
-
 export function accountName(file: AuthFile): string {
   return file.email || file.label || file.account || file.name;
 }
@@ -39,12 +39,6 @@ function level(remaining: number | null): "ok" | "warn" | "danger" {
   return "ok";
 }
 
-const BAR_COLOR = {
-  ok: "bg-chart-1",
-  warn: "bg-warning",
-  danger: "bg-destructive",
-};
-
 function MeterRow({ window: w }: { window: QuotaWindow }) {
   const remaining = w.usedPercent === null ? null : Math.max(0, Math.min(100, 100 - Math.round(w.usedPercent)));
   const state = level(remaining);
@@ -57,9 +51,15 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
         </span>
         <span className="flex shrink-0 items-center gap-1.5 tabular-nums text-xs">
           {state === "danger" && <OctagonAlert className="size-3.5 text-destructive" aria-hidden />}
-          {state === "warn" && <AlertTriangle className="size-3.5 text-warning" aria-hidden />}
+          {state === "warn" && <AlertTriangle className="size-3.5 text-amber-500" aria-hidden />}
           <span
-            className={state === "danger" ? "font-semibold text-destructive" : state === "warn" ? "text-warning" : ""}
+            className={
+              state === "danger"
+                ? "font-semibold text-destructive"
+                : state === "warn"
+                  ? "text-amber-600 dark:text-amber-400"
+                  : ""
+            }
           >
             {remaining === null ? "—" : `剩余 ${remaining}%`}
           </span>
@@ -71,10 +71,10 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={remaining ?? undefined}
-        className="relative h-2 w-full min-w-0 overflow-hidden rounded-full bg-muted"
+        className="relative h-2 w-full min-w-0 overflow-hidden rounded-full bg-primary/20"
       >
         <div
-          className={`h-full rounded-full transition-all duration-300 ${BAR_COLOR[state]}`}
+          className={`h-full rounded-full transition-all duration-300 ${state === "danger" ? "bg-destructive" : "bg-primary"}`}
           style={{ width: `${remaining ?? 0}%` }}
         />
       </div>
@@ -91,6 +91,7 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
 }
 
 export function QuotaPanel({ files }: { files: AuthFile[] }) {
+  const { t } = useI18n();
   const [selectedChannel, setSelectedChannel] = useState("all");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -240,8 +241,8 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
   if (targets.length === 0) {
     return (
       <Card className="grid place-items-center py-16 text-center text-sm text-muted-foreground">
-        <p>暂无可查询额度的有效 OAuth 账号。</p>
-        <p className="mt-1 text-xs">目前支持 Codex、Claude、Devin、Kimi、Meta、xAI、Antigravity。</p>
+        <p>{t("quota.no_target")}</p>
+        <p className="mt-1 text-xs">{t("quota.channels_support")}</p>
       </Card>
     );
   }
@@ -253,20 +254,20 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
           <span>
             共 <strong className="font-semibold text-foreground">{metrics.total}</strong> 个
           </span>
-          <span className="flex items-center gap-1 text-chart-1 font-medium">
-            <span className="size-1.5 rounded-full bg-chart-1" />
-            {metrics.healthy} 充裕
+          <span className="flex items-center gap-1 text-primary font-medium">
+            <span className="size-1.5 rounded-full bg-primary" />
+            {metrics.healthy} {t("quota.healthy")}
           </span>
           {metrics.warning > 0 && (
-            <span className="flex items-center gap-1 text-warning font-medium">
-              <span className="size-1.5 rounded-full bg-warning" />
-              {metrics.warning} 紧张
+            <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+              <span className="size-1.5 rounded-full bg-amber-500" />
+              {metrics.warning} {t("quota.tight")}
             </span>
           )}
           {metrics.exhausted > 0 && (
             <span className="flex items-center gap-1 text-destructive font-medium">
               <span className="size-1.5 rounded-full bg-destructive" />
-              {metrics.exhausted} 用尽
+              {metrics.exhausted} {t("quota.exhausted")}
             </span>
           )}
           {metrics.failed > 0 && (
@@ -284,7 +285,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
           className="h-8 text-xs"
         >
           <RefreshCw className={isRefreshingAll ? "animate-spin" : undefined} />
-          {isRefreshingAll ? "正在刷新…" : "刷新全部"}
+          {isRefreshingAll ? t("common.refreshing") : t("quota.refresh_all")}
         </Button>
       </div>
 
@@ -293,7 +294,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
         <section aria-label="即将恢复" className="rounded-lg border p-3">
           <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Clock className="size-3.5" />
-            即将恢复
+            {t("quota.upcoming_resets")}
           </h3>
           <ul className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2 lg:grid-cols-3">
             {upcomingResets.map((r) => (
@@ -306,7 +307,9 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                   <span className="text-muted-foreground"> · {r.label}</span>
                 </span>
                 <span className="shrink-0 tabular-nums" title={formatDateTime(r.resetAt)}>
-                  <span className={r.remaining === 0 ? "text-destructive" : "text-warning"}>余 {r.remaining}%</span>
+                  <span className={r.remaining === 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"}>
+                    余 {r.remaining}%
+                  </span>
                   <span className="text-muted-foreground"> · {formatCountdown(r.resetAt)}后</span>
                 </span>
               </li>
@@ -322,7 +325,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
               const count = channelCounts[ch.id];
               return (
                 <TabsTrigger key={ch.id} value={ch.id} className="gap-1.5 text-xs">
-                  {ch.label}
+                  {ch.id === "all" ? t("common.all") : ch.label}
                   {count > 0 && (
                     <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold">
                       {count}
@@ -340,7 +343,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索账号或套餐…"
+              placeholder={t("common.search")}
               className="h-8 pl-8 text-xs"
             />
           </div>
@@ -351,9 +354,9 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent align="end">
-              <SelectItem value="lowest">用尽/低额优先</SelectItem>
-              <SelectItem value="earliest_reset">最早重置优先</SelectItem>
-              <SelectItem value="name">名称排序</SelectItem>
+              <SelectItem value="lowest">{t("quota.sort_lowest")}</SelectItem>
+              <SelectItem value="earliest_reset">{t("quota.sort_earliest")}</SelectItem>
+              <SelectItem value="name">{t("quota.sort_name")}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -363,14 +366,14 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
             onClick={() => setWarningOnly(!warningOnly)}
             className="h-8 text-xs"
           >
-            仅看告警
+            {t("quota.alerts_only")}
           </Button>
         </div>
       </div>
 
       {filtered.length === 0 ? (
         <Card className="grid place-items-center py-12 text-center text-sm text-muted-foreground">
-          没有找到符合当前筛选条件的额度信息
+          {t("quota.no_matching")}
         </Card>
       ) : (
         <>

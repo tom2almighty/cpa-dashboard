@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 
 type Provider = { id: string; name: string; hint: string; callback: boolean };
@@ -57,10 +58,10 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 function ProviderCard({ provider }: { provider: Provider }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [callbackUrl, setCallbackUrl] = useState("");
-
   const start = useMutation({
     mutationFn: () =>
       api<Session>(
@@ -125,17 +126,17 @@ function ProviderCard({ provider }: { provider: Provider }) {
           <h2 id={`oauth-${provider.id}`} className="font-medium">
             {provider.name}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">{provider.hint}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t(`oauth.hints.${provider.id}`) || provider.hint}</p>
         </div>
         {session ? (
           <Button variant="ghost" size="sm" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
             <X />
-            取消
+            {t("oauth.cancel_login")}
           </Button>
         ) : (
           <Button size="sm" onClick={() => start.mutate()} disabled={start.isPending}>
             {start.isPending ? <Spinner /> : <LogIn />}
-            登录
+            {t("oauth.login_btn")}
           </Button>
         )}
       </div>
@@ -144,28 +145,28 @@ function ProviderCard({ provider }: { provider: Provider }) {
         <div className="grid gap-4 border-t pt-4">
           <div className="grid gap-2">
             <span className="text-sm text-muted-foreground">
-              {session.user_code ? "打开授权页面并输入设备码" : "打开授权页面完成登录"}
+              {session.user_code ? t("oauth.open_device_hint") : t("oauth.open_auth_hint")}
             </span>
             {session.user_code && (
               <div className="flex items-center gap-3">
                 <code className="rounded-md bg-muted px-3 py-1.5 font-mono text-lg tracking-widest">
                   {session.user_code}
                 </code>
-                <CopyButton text={session.user_code} label="复制设备码" />
+                <CopyButton text={session.user_code} label={t("oauth.copy_code")} />
               </div>
             )}
             <div className="flex flex-wrap gap-2">
               <Button size="sm" nativeButton={false} render={<a href={session.url} target="_blank" rel="noreferrer" />}>
                 <ExternalLink />
-                打开授权页面
+                {t("oauth.open_auth_page")}
               </Button>
-              <CopyButton text={session.url} label="复制链接" />
+              <CopyButton text={session.url} label={t("oauth.copy_url")} />
             </div>
           </div>
 
           {provider.callback && !done && (
             <form onSubmit={onSubmit} className="grid gap-2">
-              <Label htmlFor={`callback-${provider.id}`}>回调地址</Label>
+              <Label htmlFor={`callback-${provider.id}`}>{t("oauth.callback_label")}</Label>
               <div className="flex gap-2">
                 <Input
                   id={`callback-${provider.id}`}
@@ -176,12 +177,10 @@ function ProviderCard({ provider }: { provider: Provider }) {
                   }
                 />
                 <Button type="submit" variant="outline" disabled={!callbackUrl.trim() || submit.isPending}>
-                  提交
+                  {t("oauth.submit_callback")}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                授权后浏览器会跳转到 localhost，CPA 不在本机时页面会打不开，把地址栏里的完整地址粘贴到这里即可。
-              </p>
+              <p className="text-xs text-muted-foreground">{t("oauth.callback_explain")}</p>
             </form>
           )}
 
@@ -190,11 +189,11 @@ function ProviderCard({ provider }: { provider: Provider }) {
             className={failed ? "text-sm text-destructive" : "flex items-center gap-2 text-sm text-muted-foreground"}
           >
             {failed ? (
-              `登录失败：${status.data?.error ?? "未知错误"}`
+              `${t("oauth.login_failed")}${status.data?.error ?? "unknown error"}`
             ) : (
               <>
                 <Spinner />
-                等待授权完成
+                {t("oauth.waiting_auth")}
               </>
             )}
           </p>
@@ -205,6 +204,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
 }
 
 export function OAuthPage() {
+  const { t } = useI18n();
   const plugins = useQuery({
     queryKey: ["cpa", "plugins"],
     queryFn: () => api<PluginList>("/v8/management/plugins"),
@@ -222,7 +222,7 @@ export function OAuthPage() {
 
   return (
     <>
-      <PageHeader title="OAuth 登录" description="登录成功后，CPA 会把认证文件保存到认证目录，可在认证文件页查看。" />
+      <PageHeader title={t("oauth.title")} description={t("oauth.desc")} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[...PROVIDERS, ...pluginProviders].map((p) => (
           <ProviderCard key={p.id} provider={p} />

@@ -33,6 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 import {
   type Form,
@@ -347,6 +348,7 @@ function EditDialog({
   target: Json | null;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Form>(() => toForm(target ?? {}));
   const [error, setError] = useState<string | null>(null);
@@ -397,7 +399,7 @@ function EditDialog({
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {target ? "编辑" : "添加"} {kind.label}
+            {target ? t("providers.edit") : t("providers.add")} {kind.label}
           </DialogTitle>
         </DialogHeader>
         <form id={`form-${p}`} onSubmit={submit} className="grid gap-4">
@@ -496,11 +498,11 @@ function EditDialog({
               className="h-8 text-xs"
             >
               {testing ? <Spinner className="size-3" /> : <Activity className="size-3" />}
-              测试连通性
+              {testing ? t("providers.testing") : t("providers.test_connectivity")}
             </Button>
             {testResult && (
               <span
-                className={`max-w-44 truncate text-[11px] ${testResult.ok ? "text-success" : "text-destructive"}`}
+                className={`max-w-44 truncate text-[11px] ${testResult.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}
                 title={testResult.message}
               >
                 {testResult.message}
@@ -509,11 +511,11 @@ function EditDialog({
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={onClose}>
-              取消
+              {t("common.cancel")}
             </Button>
             <Button type="submit" form={`form-${p}`} disabled={save.isPending}>
               {save.isPending && <Spinner />}
-              保存
+              {t("common.save")}
             </Button>
           </div>
         </DialogFooter>
@@ -523,6 +525,7 @@ function EditDialog({
 }
 
 function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; isPending: boolean }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const usage = useKeyUsage();
   const [editing, setEditing] = useState<Json | null | undefined>(undefined);
@@ -576,7 +579,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
       <div className="mb-3 flex justify-end">
         <Button onClick={() => setEditing(null)}>
           <Plus />
-          添加 {kind.label}
+          {t("providers.add")} {kind.label}
         </Button>
       </div>
       <Table>
@@ -707,6 +710,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
 }
 
 export function ProvidersPage() {
+  const { t } = useI18n();
   const results = useQueries({
     queries: KINDS.map((kind) => ({
       queryKey: ["cpa", "providers", kind.endpoint],
@@ -719,7 +723,7 @@ export function ProvidersPage() {
 
   return (
     <>
-      <PageHeader title="提供商" description="通过 API Key 接入的上游。OAuth 登录的账号在认证文件页管理。" />
+      <PageHeader title={t("providers.title")} description={t("providers.desc")} />
       <Tabs defaultValue={KINDS[0].endpoint}>
         <TabsList className="mb-6 flex-wrap">
           {KINDS.map((kind, i) => (

@@ -1,6 +1,16 @@
 import { SiGithub } from "@icons-pack/react-simple-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, Download, ExternalLink, Globe, RefreshCw, Settings2, ShieldAlert, Trash2 } from "lucide-react";
+import {
+  ArrowUp,
+  Download,
+  ExternalLink,
+  Globe,
+  Puzzle,
+  RefreshCw,
+  Settings2,
+  ShieldAlert,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/code-editor";
@@ -29,6 +39,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useI18n } from "@/i18n/context";
 import { api, resolveUrl } from "@/lib/api";
 
 type ConfigField = { name: string; type?: string; enum_values?: string[] | null; description?: string };
@@ -102,7 +113,38 @@ type StorePlugin = {
   installed?: boolean;
   installed_version?: string;
   update_available?: boolean;
+  logo?: string;
 };
+
+function resolvePluginAsset(value?: string): string {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+  if (/^(https?:|data:|blob:)/i.test(trimmed)) return trimmed;
+  return resolveUrl(trimmed);
+}
+
+function PluginLogo({ src, name, size = "md" }: { src?: string; name: string; size?: "sm" | "md" | "lg" }) {
+  const [error, setError] = useState(false);
+  const resolved = useMemo(() => (src && !error ? resolvePluginAsset(src) : ""), [src, error]);
+  const dim = size === "sm" ? "size-8 rounded-md" : size === "lg" ? "size-12 rounded-xl" : "size-10 rounded-lg";
+  const iconSize = size === "sm" ? "size-4" : size === "lg" ? "size-6" : "size-5";
+
+  if (resolved) {
+    return (
+      <div
+        className={`relative flex items-center justify-center shrink-0 border bg-muted/30 p-1 overflow-hidden shadow-2xs ${dim}`}
+      >
+        <img src={resolved} alt={name} className="size-full object-contain" onError={() => setError(true)} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex items-center justify-center shrink-0 border bg-muted/40 text-muted-foreground ${dim}`}>
+      <Puzzle className={iconSize} />
+    </div>
+  );
+}
 
 function formatRepoUrl(repo?: string, homepage?: string): string {
   const target = (repo || homepage || "").trim();
@@ -340,6 +382,7 @@ function PluginViewerDialog({
 }
 
 function Installed() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [configuring, setConfiguring] = useState<Plugin | null>(null);
   const [deleting, setDeleting] = useState<Plugin | null>(null);
@@ -389,12 +432,12 @@ function Installed() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>插件</TableHead>
-            <TableHead>版本</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead className="w-24">启用</TableHead>
+            <TableHead>{t("plugins.th_plugin")}</TableHead>
+            <TableHead>{t("plugins.th_version")}</TableHead>
+            <TableHead>{t("plugins.th_status")}</TableHead>
+            <TableHead className="w-24">{t("plugins.th_switch")}</TableHead>
             <TableHead className="w-24">
-              <span className="sr-only">操作</span>
+              <span className="sr-only">{t("plugins.th_actions")}</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -407,33 +450,38 @@ function Installed() {
             data.plugins.map((p) => (
               <TableRow key={p.id}>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <div className="font-medium">{p.metadata?.name || p.id}</div>
-                    {p.supports_oauth && (
-                      <Badge variant="outline" className="text-[10px] font-normal">
-                        OAuth
-                      </Badge>
-                    )}
-                    {p.metadata?.github_repository && (
-                      <a
-                        href={
-                          p.metadata.github_repository.startsWith("http")
-                            ? p.metadata.github_repository
-                            : `https://github.com/${p.metadata.github_repository}`
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                        title={`查看 GitHub 仓库：${p.metadata.github_repository}`}
-                        aria-label="查看 GitHub 仓库"
-                        className="inline-flex text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <GithubIcon className="size-3.5" />
-                      </a>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {p.id}
-                    {p.metadata?.author && `，作者 ${p.metadata.author}`}
+                  <div className="flex items-center gap-2.5">
+                    <PluginLogo src={p.logo || p.metadata?.logo} name={p.metadata?.name || p.id} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium truncate">{p.metadata?.name || p.id}</div>
+                        {p.supports_oauth && (
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            OAuth
+                          </Badge>
+                        )}
+                        {p.metadata?.github_repository && (
+                          <a
+                            href={
+                              p.metadata.github_repository.startsWith("http")
+                                ? p.metadata.github_repository
+                                : `https://github.com/${p.metadata.github_repository}`
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            title={t("plugins.view_repo")}
+                            aria-label={t("plugins.view_repo")}
+                            className="inline-flex text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <GithubIcon className="size-3.5" />
+                          </a>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {p.id}
+                        {p.metadata?.author && ` · by ${p.metadata.author}`}
+                      </div>
+                    </div>
                   </div>
                   {p.effective_enabled && (p.menus?.length ?? 0) > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -479,11 +527,11 @@ function Installed() {
                 <TableCell className="tabular-nums">{p.metadata?.version || "—"}</TableCell>
                 <TableCell>
                   {p.effective_enabled ? (
-                    <Badge variant="secondary">运行中</Badge>
+                    <Badge variant="secondary">{t("plugins.status_running")}</Badge>
                   ) : p.registered ? (
-                    <Badge variant="outline">已停用</Badge>
+                    <Badge variant="outline">{t("plugins.status_disabled")}</Badge>
                   ) : (
-                    <Badge variant="outline">未加载</Badge>
+                    <Badge variant="outline">{t("plugins.status_unloaded")}</Badge>
                   )}
                 </TableCell>
                 <TableCell>
@@ -548,6 +596,7 @@ function Installed() {
 }
 
 function Store() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [installingTarget, setInstallingTarget] = useState<StorePlugin | null>(null);
@@ -619,11 +668,10 @@ function Store() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索插件名称、描述或 ID..."
-          className="w-56 sm:w-64"
+          placeholder={t("plugins.search_placeholder")}
+          className="w-56 sm:w-80 text-xs"
         />
       </div>
-
       {isPending ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -649,8 +697,9 @@ function Store() {
                   key={p.store_id}
                   className="flex flex-col justify-between transition-colors hover:border-foreground/20"
                 >
-                  <CardHeader className="pb-2.5">
-                    <div className="flex items-start justify-between gap-2">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start gap-3">
+                      <PluginLogo src={p.logo} name={p.name || p.id} size="md" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <CardTitle className="truncate text-base font-semibold" title={p.name || p.id}>
@@ -658,42 +707,52 @@ function Store() {
                           </CardTitle>
                           {p.installed && !p.update_available && (
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-                              已安装
+                              {t("plugins.badge_installed")}
                             </Badge>
                           )}
                           {p.update_available && (
                             <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4">
-                              可更新
+                              {t("plugins.badge_update_available")}
                             </Badge>
                           )}
                           {!isOfficial && p.repository && (
                             <Badge
                               variant="outline"
-                              className="text-[10px] px-1.5 py-0 h-4 text-warning border-warning/40"
+                              className="text-[10px] px-1.5 py-0 h-4 text-amber-600 border-amber-500/40 dark:text-amber-400"
                             >
-                              第三方
+                              {t("plugins.badge_third_party")}
                             </Badge>
                           )}
                           {p.auth_required && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground">
-                              需认证
+                              {p.auth_configured
+                                ? t("plugins.badge_auth_configured")
+                                : t("plugins.badge_auth_required")}
                             </Badge>
                           )}
                         </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground truncate" title={p.id}>
-                          {p.id}
-                          {p.author && <span> · {p.author}</span>}
-                        </p>
+                        <div
+                          className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground truncate"
+                          title={p.id}
+                        >
+                          <span className="font-mono text-[11px]">{p.id}</span>
+                          {p.author && (
+                            <>
+                              <span>·</span>
+                              <span className="truncate">by {p.author}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-0.5 shrink-0">
                         {repoUrl && (
                           <Button
                             variant="ghost"
                             size="icon-xs"
                             className="text-muted-foreground hover:text-foreground"
-                            title={`查看 GitHub 仓库：${p.repository || repoUrl}`}
-                            aria-label={`查看 ${p.name || p.id} 的 GitHub 仓库`}
+                            title={t("plugins.view_repo")}
+                            aria-label={t("plugins.view_repo")}
                             render={
                               <a href={repoUrl} target="_blank" rel="noreferrer">
                                 <GithubIcon className="size-3.5" />
@@ -706,8 +765,8 @@ function Store() {
                             variant="ghost"
                             size="icon-xs"
                             className="text-muted-foreground hover:text-foreground"
-                            title={`访问官方主页：${p.homepage}`}
-                            aria-label={`访问 ${p.name || p.id} 官方主页`}
+                            title={t("plugins.view_homepage")}
+                            aria-label={t("plugins.view_homepage")}
                             render={
                               <a href={p.homepage} target="_blank" rel="noreferrer">
                                 <ExternalLink className="size-3.5" />
@@ -721,7 +780,7 @@ function Store() {
 
                   <CardContent className="flex-1 space-y-2.5 pb-3 text-sm text-muted-foreground">
                     <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap break-words text-xs sm:text-sm">
-                      {p.description || "暂无描述"}
+                      {p.description || t("plugins.no_description")}
                     </p>
 
                     {/* 标签列表 */}
@@ -740,11 +799,19 @@ function Store() {
 
                     {/* 规格明细：许可证、安装类型、系统平台 */}
                     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground/80 pt-1">
-                      {p.license && <span>开源协议：{p.license}</span>}
-                      {p.install_type && <span>方式：{p.install_type.replace(/-/g, " ")}</span>}
+                      {p.license && (
+                        <span>
+                          {t("plugins.license")}：{p.license}
+                        </span>
+                      )}
+                      {p.install_type && (
+                        <span>
+                          {t("plugins.install_type")}：{p.install_type.replace(/-/g, " ")}
+                        </span>
+                      )}
                       {platformList.length > 0 && (
                         <span title={platformList.join(", ")}>
-                          平台：{platformList.slice(0, 2).join(", ")}
+                          {t("plugins.platforms")}：{platformList.slice(0, 2).join(", ")}
                           {platformList.length > 2 && ` +${platformList.length - 2}`}
                         </span>
                       )}
@@ -766,7 +833,7 @@ function Store() {
                     <div>
                       {p.installed && !p.update_available ? (
                         <Button size="sm" variant="ghost" disabled className="h-8 text-xs text-muted-foreground">
-                          已安装
+                          {t("plugins.badge_installed")}
                         </Button>
                       ) : (
                         <Button
@@ -783,7 +850,7 @@ function Store() {
                           ) : (
                             <Download className="size-3.5" />
                           )}
-                          {p.update_available ? "更新" : "安装"}
+                          {p.update_available ? t("plugins.update") : t("plugins.install")}
                         </Button>
                       )}
                     </div>
@@ -874,13 +941,14 @@ function Store() {
 }
 
 export function PluginsPage() {
+  const { t } = useI18n();
   return (
     <>
-      <PageHeader title="插件" />
+      <PageHeader title={t("plugins.title")} description={t("plugins.desc")} />
       <Tabs defaultValue="installed">
         <TabsList className="mb-6">
-          <TabsTrigger value="installed">已安装</TabsTrigger>
-          <TabsTrigger value="store">插件商店</TabsTrigger>
+          <TabsTrigger value="installed">{t("plugins.tab_installed")}</TabsTrigger>
+          <TabsTrigger value="store">{t("plugins.tab_store")}</TabsTrigger>
         </TabsList>
         <TabsContent value="installed">
           <Installed />

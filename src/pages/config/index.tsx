@@ -5,22 +5,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useI18n } from "@/i18n/context";
 import { PayloadRules } from "./payload-rules";
 import { ConfigYamlProvider, GROUPS, SettingsGroup, useConfigYaml } from "./settings";
 import { YamlEditor } from "./yaml-editor";
 
 function ConfigHeaderActions() {
+  const { t } = useI18n();
   const { dirtyCount, resetPatch, saveAll, isSaving } = useConfigYaml();
   if (dirtyCount === 0) return null;
 
   return (
     <div className="flex items-center gap-2">
       <Badge variant="secondary" className="px-2 py-0.5 text-xs font-normal">
-        {dirtyCount} 项待保存
+        {dirtyCount} {t("config.pending_save")}
       </Badge>
       <Button variant="outline" size="sm" onClick={resetPatch} disabled={isSaving} className="h-8 text-xs">
         <RotateCcw className="size-3.5" />
-        撤销修改
+        {t("config.discard")}
       </Button>
       <Button
         size="sm"
@@ -31,49 +33,45 @@ function ConfigHeaderActions() {
         className="h-8 text-xs"
       >
         {isSaving ? <Spinner className="size-3.5" /> : <Save className="size-3.5" />}
-        保存配置
+        {t("config.save_changes")}
       </Button>
     </div>
   );
 }
 
-// 简明标签名称，避免完整长标题导致横向折行与拥挤
-const TAB_TITLES: Record<string, string> = {
-  server: "服务器",
-  management: "管理",
-  routing: "路由",
-  requests: "请求",
-  oauth: "OAuth",
-  multimedia: "多媒体",
-  observability: "可观测",
-  plugins: "插件",
-};
-
 function ConfigPageInner() {
+  const { t } = useI18n();
   const [tab, setTab] = useState(GROUPS[0].id);
+
+  const tabTitles: Record<string, string> = {
+    server: t("config.tab_server"),
+    management: t("config.tab_management"),
+    routing: t("config.tab_routing"),
+    requests: t("config.tab_requests"),
+    oauth: t("config.tab_oauth"),
+    multimedia: t("config.tab_multimedia"),
+    observability: t("config.tab_observability"),
+    plugins: t("config.tab_plugins"),
+  };
 
   return (
     <>
-      <PageHeader
-        title="系统配置"
-        description="统一基于 config.yaml 原生配置读写，修改原子写入并由 CPA 自动重载生效。"
-        actions={<ConfigHeaderActions />}
-      />
+      <PageHeader title={t("config.title")} description={t("config.desc")} actions={<ConfigHeaderActions />} />
 
       <Tabs value={tab} onValueChange={(v) => v && setTab(v)}>
         <div className="mb-6 -mx-4 px-4 overflow-x-auto no-scrollbar">
           <TabsList className="h-9 gap-1">
             {GROUPS.map((g) => (
               <TabsTrigger key={g.id} value={g.id} className="px-2.5 py-1 text-xs sm:text-sm">
-                {TAB_TITLES[g.id] || g.title}
+                {tabTitles[g.id] || g.title}
               </TabsTrigger>
             ))}
             <div className="h-4 w-px bg-border my-auto mx-1 shrink-0" aria-hidden />
             <TabsTrigger value="payload" className="px-2.5 py-1 text-xs sm:text-sm">
-              Payload 规则
+              {t("config.tab_payload_rules")}
             </TabsTrigger>
             <TabsTrigger value="yaml" className="px-2.5 py-1 text-xs sm:text-sm">
-              YAML 源码
+              {t("config.tab_yaml_editor")}
             </TabsTrigger>
           </TabsList>
         </div>

@@ -29,7 +29,7 @@ export function RequestSparkline({ buckets, label }: { buckets: RecentBucket[]; 
         return (
           <g key={b.time}>
             <title>{`${b.time} 成功 ${b.success}，失败 ${b.failed}`}</title>
-            {okH > 0 && <rect x={x} y={HEIGHT - okH} width={BAR} height={okH} rx={1} className="fill-chart-1" />}
+            {okH > 0 && <rect x={x} y={HEIGHT - okH} width={BAR} height={okH} rx={1} className="fill-primary" />}
             {failH > 0 && (
               <rect x={x} y={HEIGHT - okH - failH} width={BAR} height={failH} rx={1} className="fill-destructive" />
             )}
