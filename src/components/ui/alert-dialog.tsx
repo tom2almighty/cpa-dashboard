@@ -122,8 +122,21 @@ function AlertDialogDescription({
   );
 }
 
-function AlertDialogAction({ className, ...props }: React.ComponentProps<typeof Button>) {
-  return <Button data-slot="alert-dialog-action" className={cn(className)} {...props} />;
+// 与 Radix 语义一致:确认按钮默认关闭对话框(base-ui 的 Action 不存在,需显式 Close)
+function AlertDialogAction({
+  className,
+  variant = "default",
+  size = "default",
+  ...props
+}: AlertDialogPrimitive.Close.Props & Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  return (
+    <AlertDialogPrimitive.Close
+      data-slot="alert-dialog-action"
+      className={cn(className)}
+      render={<Button variant={variant} size={size} />}
+      {...props}
+    />
+  );
 }
 
 function AlertDialogCancel({
