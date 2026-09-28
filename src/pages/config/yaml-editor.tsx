@@ -9,7 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n/context";
-import { api } from "@/lib/api";
+import { api, CONFIG_KEY } from "@/lib/api";
+
+// 挂在 CONFIG_KEY 前缀下,任何配置写入后 invalidate CONFIG_KEY 都会一并刷新
+const YAML_KEY = [...CONFIG_KEY, "yaml"];
+const fetchYaml = () => api<string>("/v8/management/config.yaml");
 
 export function YamlEditor() {
   const { t } = useI18n();
@@ -18,16 +22,28 @@ export function YamlEditor() {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ["cpa", "config.yaml"],
-    queryFn: () => api<string>("/v8/management/config.yaml"),
+    queryKey: YAML_KEY,
+    queryFn: fetchYaml,
     refetchOnWindowFocus: false,
   });
 
+  // base 是当前编辑所基于的服务器版本;有未保存修改时,后台刷新不覆盖草稿
+  const [base, setBase] = useState<string>();
   const [draft, setDraft] = useState("");
-  useEffect(() => {
-    if (data !== undefined) setDraft(data);
-  }, [data]);
-  const dirty = data !== undefined && draft !== data;
+  const [seen, setSeen] = useState<string>();
+  const dirty = base !== undefined && draft !== base;
+  if (data !== undefined && data !== seen) {
+    setSeen(data);
+    if (!dirty) {
+      setBase(data);
+      setDraft(data);
+    }
+  }
+  const discard = () => {
+    if (data === undefined) return;
+    setBase(data);
+    setDraft(data);
+  };
 
   // 搜索相关状态
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,16 +53,26 @@ export function YamlEditor() {
   });
 
   const save = useMutation({
-    mutationFn: () =>
-      api("/v8/management/config.yaml", {
+    mutationFn: async () => {
+      // 服务端没有 ETag,保存前比对一次,文件已被别处修改就放弃,避免覆盖
+      const current = await fetchYaml();
+      if (current !== base) {
+        queryClient.setQueryData(YAML_KEY, current);
+        throw new Error(t("config.yaml.conflict"));
+      }
+      const body = draft;
+      await api("/v8/management/config.yaml", {
         method: "PUT",
-        body: draft,
+        body,
         raw: true,
         headers: { "Content-Type": "application/yaml" },
-      }),
-    onSuccess: () => {
-      queryClient.setQueryData(["cpa", "config.yaml"], draft);
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
+      });
+      return body;
+    },
+    onSuccess: (saved) => {
+      // 服务端会哈希密钥、规范化布局,以刷新后的内容为准
+      setBase(saved);
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       toast.success(t("config.save_success"));
     },
   });
@@ -223,7 +249,7 @@ export function YamlEditor() {
             variant="outline"
             size="sm"
             disabled={!dirty || save.isPending}
-            onClick={() => setDraft(data)}
+            onClick={discard}
             className="h-8 text-xs"
           >
             <RotateCcw className="size-3.5" />

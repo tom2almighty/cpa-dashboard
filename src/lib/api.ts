@@ -1,12 +1,14 @@
 import i18n from "@/i18n";
-import { deobfuscate, obfuscate } from "@/lib/encryption";
 
+// code 为 CPA 返回的 error 字段(如 not_found、plugin_delete_requires_restart),便于按错误类型分支处理
 export class ApiError extends Error {
   readonly status: number;
+  readonly code: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code = "") {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -18,7 +20,7 @@ const BASE_STORAGE = "cpa-dashboard.api-base";
 export function normalizeBaseUrl(input: string): string {
   let base = (input || "").trim().replace(/\/+$/, "");
   if (!base) return "";
-  base = base.replace(/\/?v0\/management\/?$/i, "");
+  base = base.replace(/\/?v8\/management\/?$/i, "");
   base = base.replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(base)) {
     base = `http://${base}`;
@@ -54,30 +56,28 @@ export function resolveUrl(path: string): string {
 }
 
 export function storedKey(): string {
-  const raw = sessionStorage.getItem(KEY_STORAGE) ?? localStorage.getItem(KEY_STORAGE) ?? "";
-  return deobfuscate(raw);
+  return sessionStorage.getItem(KEY_STORAGE) ?? localStorage.getItem(KEY_STORAGE) ?? "";
 }
 
-// 默认只保存在当前标签页,勾选记住后才写入 localStorage，且始终进行可逆混淆加密存储
+// 默认只保存在当前标签页,勾选记住后才写入 localStorage(明文)
 export function saveKey(key: string, remember: boolean) {
   clearKey();
-  const obfuscated = obfuscate(key);
-  (remember ? localStorage : sessionStorage).setItem(KEY_STORAGE, obfuscated);
+  (remember ? localStorage : sessionStorage).setItem(KEY_STORAGE, key);
+}
+
+// 替换密钥时沿用原来的存储位置
+export function replaceKey(key: string) {
+  saveKey(key, localStorage.getItem(KEY_STORAGE) !== null);
 }
 
 export function clearKey() {
   sessionStorage.removeItem(KEY_STORAGE);
   localStorage.removeItem(KEY_STORAGE);
 }
-// 管理接口带管理密钥;/v1 接口只认客户端 Key,每次现取配置里的第一个,没配置时 CPA 不校验
-async function withAuth(path: string, headers?: HeadersInit): Promise<Headers> {
+// 管理接口带管理密钥;/v1 等接口由调用方自行传 Authorization
+function withAuth(path: string, headers?: HeadersInit): Headers {
   const out = new Headers(headers);
-  if (path.includes("/v8/management")) {
-    out.set("Authorization", `Bearer ${storedKey()}`);
-  } else if (path.includes("/v1/") && !out.has("Authorization")) {
-    const key = (await api<string[]>("/v8/management/config/access/api-keys").catch(() => []))?.[0];
-    if (key) out.set("Authorization", `Bearer ${key}`);
-  }
+  if (path.includes("/v8/management")) out.set("Authorization", `Bearer ${storedKey()}`);
   return out;
 }
 
@@ -88,7 +88,7 @@ type Init = Omit<RequestInit, "body"> & { body?: unknown; raw?: boolean };
 export async function request(path: string, { body, raw, headers, ...init }: Init = {}): Promise<Response> {
   const isJson = body !== undefined && !raw;
   const url = resolveUrl(path);
-  const h = await withAuth(url, headers);
+  const h = withAuth(url, headers);
   if (isJson) h.set("Content-Type", "application/json");
   return fetch(url, { ...init, headers: h, body: isJson ? JSON.stringify(body) : (body as BodyInit | undefined) });
 }
@@ -99,11 +99,12 @@ async function toError(res: Response): Promise<ApiError> {
   const data: unknown = type.includes("json") ? await res.json().catch(() => null) : await res.text().catch(() => "");
   const record = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
   const text = typeof data === "string" ? data.trim() : "";
+  const code = typeof record?.error === "string" ? record.error : "";
   const message =
     String(record?.message ?? record?.error ?? "") ||
     text ||
     i18n.t("common.request_failed_status", { status: res.status });
-  return new ApiError(res.status, message);
+  return new ApiError(res.status, message, code);
 }
 
 export async function api<T>(path: string, init?: Init): Promise<T> {
@@ -115,6 +116,32 @@ export async function api<T>(path: string, init?: Init): Promise<T> {
 
 export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
+}
+
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
+// 读取可能不存在的配置节点:只有 404 视为空值,其它错误照常抛出,避免读失败后整体覆盖写
+export function orNotFound<T>(fallback: T) {
+  return (error: unknown): T => {
+    if (isNotFound(error)) return fallback;
+    throw error;
+  };
+}
+
+// ---------- v8 配置 ----------
+
+// 所有配置读取共用这一份 GET /config 缓存,各页用 select 取子树;写入后 invalidate CONFIG_KEY 前缀即可
+export const CONFIG_KEY = ["config"] as const;
+export const configQuery = {
+  queryKey: CONFIG_KEY,
+  queryFn: () => api<Record<string, unknown>>("/v8/management/config"),
+};
+
+// 配置路径段是 YAML 键,逐段编码
+export function configPath(...segments: string[]): string {
+  return `/v8/management/config/${segments.map(encodeURIComponent).join("/")}`;
 }
 
 // ---------- 下载 ----------

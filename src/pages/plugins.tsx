@@ -1,5 +1,5 @@
 import { SiGithub } from "@icons-pack/react-simple-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUp,
   Download,
@@ -39,8 +39,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useI18n } from "@/i18n/context";
-import { api, resolveUrl } from "@/lib/api";
+import { Textarea } from "@/components/ui/textarea";
+import { i18n, useI18n } from "@/i18n/context";
+import { ApiError, api, CONFIG_KEY, configPath, configQuery, resolveUrl } from "@/lib/api";
 
 type ConfigField = { name: string; type?: string; enum_values?: string[] | null; description?: string };
 
@@ -81,12 +82,64 @@ function fieldsOf(p: Plugin): ConfigField[] {
   return (p.config_fields?.length ? p.config_fields : p.metadata?.config_fields) ?? [];
 }
 
-function kindOf(f: ConfigField): "bool" | "number" | "enum" | "text" {
+function kindOf(f: ConfigField): "bool" | "number" | "enum" | "json" | "text" {
   if (f.enum_values?.length) return "enum";
   const t = (f.type ?? "").toLowerCase();
   if (t.startsWith("bool")) return "bool";
+  if (t === "array" || t === "object") return "json";
   if (/int|float|number|double/.test(t)) return "number";
   return "text";
+}
+
+// 表单里数字和 JSON 字段编辑时保留原文,保存时再转换校验
+function toForm(fields: ConfigField[], config: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...config };
+  for (const f of fields) {
+    const v = config[f.name];
+    if (v === undefined || v === null) continue;
+    const kind = kindOf(f);
+    if (kind === "number") out[f.name] = String(v);
+    else if (kind === "json") out[f.name] = JSON.stringify(v, null, 2);
+  }
+  return out;
+}
+
+function fromForm(fields: ConfigField[], values: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...values };
+  for (const f of fields) {
+    const kind = kindOf(f);
+    const raw = values[f.name];
+    if ((kind !== "number" && kind !== "json") || typeof raw !== "string") continue;
+    if (!raw.trim()) {
+      delete out[f.name];
+    } else if (kind === "number") {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || (/int/i.test(f.type ?? "") && !Number.isInteger(n)))
+        throw new Error(i18n.t("plugins.field_invalid_number", { name: f.name }));
+      out[f.name] = n;
+    } else {
+      try {
+        out[f.name] = JSON.parse(raw);
+      } catch {
+        throw new Error(i18n.t("plugins.field_invalid_json", { name: f.name }));
+      }
+    }
+  }
+  return out;
+}
+
+// 409/429 按错误码给出可操作的提示
+const ERROR_KEYS: Record<string, string> = {
+  plugin_delete_requires_restart: "plugins.err_delete_requires_restart",
+  plugin_update_requires_restart: "plugins.err_update_requires_restart",
+  plugin_store_source_conflict: "plugins.err_source_conflict",
+  plugin_store_installed_source_unknown: "plugins.err_installed_source_unknown",
+  plugin_store_rate_limited: "plugins.err_rate_limited",
+};
+
+function errorText(error: Error): string {
+  const key = error instanceof ApiError ? ERROR_KEYS[error.code] : undefined;
+  return key ? i18n.t(key) : error.message;
 }
 
 type PluginsResponse = { plugins_enabled?: boolean; plugins_dir?: string; plugins?: Plugin[] };
@@ -112,6 +165,9 @@ type StorePlugin = {
   auth_configured?: boolean;
   installed?: boolean;
   installed_version?: string;
+  installed_source_id?: string;
+  // different: 已从其它商店源安装;unknown: 无法确认安装来源
+  install_source_status?: "matched" | "different" | "unknown" | "assumed";
   update_available?: boolean;
   logo?: string;
 };
@@ -157,9 +213,21 @@ function GithubIcon({ className = "size-3.5" }: { className?: string }) {
   return <SiGithub className={className} />;
 }
 
-type StoreResponse = { sources?: { id: string; name?: string; error?: string }[]; plugins?: StorePlugin[] };
+type StoreResponse = {
+  sources?: { id: string; name: string; url: string }[];
+  source_errors?: { source_id: string; source_name: string; source_url: string; message: string }[];
+  plugins?: StorePlugin[];
+};
 
 const PLUGINS_KEY = ["cpa", "plugins"];
+const STORE_KEY = ["cpa", "plugin-store"];
+
+// 服务端改完配置后异步重载插件,稍后再拉一次插件状态
+function refreshPlugins(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
+  queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
+  setTimeout(() => queryClient.invalidateQueries({ queryKey: PLUGINS_KEY }), 1000);
+}
 
 function FieldControl({
   field,
@@ -195,97 +263,115 @@ function FieldControl({
         </SelectContent>
       </Select>
     );
+  } else if (kind === "json") {
+    control = (
+      <Textarea
+        id={id}
+        rows={3}
+        spellCheck={false}
+        value={typeof value === "string" ? value : ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={field.type === "array" ? "[]" : "{}"}
+        className="font-mono text-xs"
+      />
+    );
   } else {
     control = (
       <Input
         id={id}
         inputMode={kind === "number" ? "decimal" : undefined}
         value={value === undefined || value === null ? "" : String(value)}
-        onChange={(e) => {
-          const raw = e.target.value;
-          onChange(kind === "number" && raw.trim() !== "" && Number.isFinite(Number(raw)) ? Number(raw) : raw);
-        }}
+        onChange={(e) => onChange(e.target.value)}
         className={kind === "number" ? "w-32" : "w-full sm:w-72"}
       />
     );
   }
   return (
-    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className={`flex flex-col gap-2 py-3 ${kind === "json" ? "" : "sm:flex-row sm:items-center sm:justify-between"}`}
+    >
       <div className="min-w-0">
         <Label htmlFor={id} className="font-mono text-sm">
           {field.name}
         </Label>
         {field.description && <p className="mt-0.5 text-sm text-muted-foreground">{field.description}</p>}
       </div>
-      <div className="shrink-0">{control}</div>
+      <div className={kind === "json" ? "" : "shrink-0"}>{control}</div>
     </div>
   );
 }
 
-function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () => void }) {
+function ConfigDialog({ plugin, onClose }: { plugin: Plugin; onClose: () => void }) {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const [values, setValues] = useState<Record<string, unknown>>({});
-  const fields = plugin ? fieldsOf(plugin) : [];
+  const fields = fieldsOf(plugin);
   const [asJson, setAsJson] = useState(false);
   const useForm = fields.length > 0 && !asJson;
-  const { data, isPending } = useQuery({
-    queryKey: ["cpa", "plugin-config", plugin?.id],
-    queryFn: () => api<unknown>(`/v8/management/config/plugins/configs/${encodeURIComponent(plugin?.id ?? "")}`),
-    enabled: plugin !== null,
-    refetchOnWindowFocus: false,
+  // 没配置过的插件在 configs 下没有节点,按空对象编辑
+  const { data, error } = useQuery({
+    ...configQuery,
+    select: (c) =>
+      ((c.plugins as { configs?: Record<string, unknown> } | null)?.configs?.[plugin.id] ?? {}) as Record<
+        string,
+        unknown
+      >,
   });
   useEffect(() => {
-    if (data === undefined) return;
+    if (!data) return;
     setDraft(JSON.stringify(data, null, 2));
-    setValues(data && typeof data === "object" ? (data as Record<string, unknown>) : {});
-  }, [data]);
+    setValues(toForm(fieldsOf(plugin), data));
+  }, [data, plugin]);
 
   const save = useMutation({
     mutationFn: () => {
-      const value = useForm ? values : (JSON.parse(draft) as unknown);
+      const value = useForm ? fromForm(fields, values) : (JSON.parse(draft) as unknown);
       if (!value || typeof value !== "object" || Array.isArray(value))
         throw new Error(t("plugins.config_must_be_object"));
-      return api(`/v8/management/config/plugins/configs/${encodeURIComponent(plugin?.id ?? "")}`, {
-        method: "PUT",
-        body: value,
-      });
+      return api(configPath("plugins", "configs", plugin.id), { method: "PUT", body: value });
     },
     onSuccess: () => {
       toast.success(t("plugins.config_saved"));
+      refreshPlugins(queryClient);
       onClose();
     },
   });
 
+  function switchMode() {
+    try {
+      if (asJson) {
+        const parsed = JSON.parse(draft) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+          throw new Error(t("plugins.config_must_be_object"));
+        setValues(toForm(fields, parsed as Record<string, unknown>));
+      } else {
+        setDraft(JSON.stringify(fromForm(fields, values), null, 2));
+      }
+      setAsJson((v) => !v);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   return (
-    <Dialog open={plugin !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{t("plugins.config_title", { name: plugin?.metadata?.name || plugin?.id })}</DialogTitle>
+          <DialogTitle>{t("plugins.config_title", { name: plugin.metadata?.name || plugin.id })}</DialogTitle>
         </DialogHeader>
         {fields.length > 0 && (
           <div className="flex justify-end">
-            <Button
-              variant="link"
-              size="sm"
-              className="h-auto p-0"
-              onClick={() => {
-                if (!asJson) setDraft(JSON.stringify(values, null, 2));
-                else {
-                  try {
-                    setValues(JSON.parse(draft) as Record<string, unknown>);
-                  } catch {
-                    return;
-                  }
-                }
-                setAsJson((v) => !v);
-              }}
-            >
+            <Button variant="link" size="sm" className="h-auto p-0" onClick={switchMode}>
               {asJson ? t("plugins.edit_as_form") : t("plugins.edit_as_json")}
             </Button>
           </div>
         )}
-        {isPending ? (
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error.message}
+          </p>
+        ) : !data ? (
           <Skeleton className="h-80" />
         ) : useForm ? (
           <div className="max-h-[60svh] divide-y overflow-y-auto">
@@ -312,7 +398,7 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin | null; onClose: () 
           <Button variant="outline" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={() => save.mutate()} disabled={isPending || save.isPending}>
+          <Button onClick={() => save.mutate()} disabled={!data || save.isPending}>
             {save.isPending && <Spinner />}
             {t("common.save")}
           </Button>
@@ -396,24 +482,25 @@ function Installed() {
     queryKey: PLUGINS_KEY,
     queryFn: () => api<PluginsResponse>("/v8/management/plugins"),
   });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
 
   const toggle = useMutation({
     mutationFn: (p: Plugin) =>
-      api(`/v8/management/config/plugins/configs/${encodeURIComponent(p.id)}/enabled`, {
-        method: "PUT",
-        body: !p.enabled,
-      }),
-    onSuccess: refresh,
+      api(configPath("plugins", "configs", p.id, "enabled"), { method: "PUT", body: !p.enabled }),
+    onSuccess: () => refreshPlugins(queryClient),
   });
 
   const remove = useMutation({
-    mutationFn: (p: Plugin) =>
-      api<{ restart_required?: boolean }>(`/v8/management/plugins/${encodeURIComponent(p.id)}`, { method: "DELETE" }),
-    onSuccess: (res, p) => {
-      toast.success(t(res.restart_required ? "plugins.deleted_restart" : "plugins.deleted", { id: p.id }));
+    mutationFn: (p: Plugin) => api(`/v8/management/plugins/${encodeURIComponent(p.id)}`, { method: "DELETE" }),
+    meta: { quiet: true },
+    onSuccess: (_res, p) => {
+      toast.success(t("plugins.deleted", { id: p.id }));
       setDeleting(null);
-      refresh();
+      refreshPlugins(queryClient);
+    },
+    onError: (e) => {
+      toast.error(errorText(e));
+      // 插件已加载删不掉,重试没用,关掉对话框
+      if (e instanceof ApiError && e.code === "plugin_delete_requires_restart") setDeleting(null);
     },
   });
 
@@ -623,32 +710,33 @@ function Store() {
   }, []);
 
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ["cpa", "plugin-store"],
+    queryKey: STORE_KEY,
     queryFn: () => api<StoreResponse>("/v8/management/plugins/store"),
+    // 每次拉取服务端都会请求 GitHub,容易触发限流
+    staleTime: 600_000,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const install = useMutation({
     mutationFn: ({ plugin: p, version }: { plugin: StorePlugin; version?: string }) => {
       const body = version?.trim() ? { version: version.trim() } : {};
-      return api<{ restart_required?: boolean; version?: string }>(
+      return api<{ version?: string }>(
         `/v8/management/plugins/store/${encodeURIComponent(p.id)}/install?source=${encodeURIComponent(p.source_id)}`,
         { method: "POST", body },
       );
     },
+    meta: { quiet: true },
     onSuccess: (res, { plugin: p }) => {
-      toast.success(
-        t(res.restart_required ? "plugins.installed_restart" : "plugins.installed_toast", {
-          name: p.name || p.id,
-          version: res.version ?? "",
-        }),
-      );
-      queryClient.invalidateQueries({ queryKey: ["cpa", "plugin-store"] });
-      queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
+      toast.success(t("plugins.installed_toast", { name: p.name || p.id, version: res.version ?? "" }));
+      queryClient.invalidateQueries({ queryKey: STORE_KEY });
+      refreshPlugins(queryClient);
       setInstallingTarget(null);
       setCustomVersion("");
     },
+    onError: (e) => toast.error(errorText(e)),
   });
-  const sourceErrors = data?.sources?.filter((s) => s.error) ?? [];
+  const sourceName = (id?: string) => data?.sources?.find((s) => s.id === id)?.name || id;
   const plugins = useMemo(() => {
     const list = data?.plugins ?? [];
     if (!search.trim()) return list;
@@ -665,16 +753,16 @@ function Store() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {t("plugins.store_load_failed", { message: error.message })}
+        {t("plugins.store_load_failed", { message: errorText(error) })}
       </p>
     );
   }
 
   return (
     <>
-      {sourceErrors.map((s) => (
-        <p key={s.id} role="alert" className="mb-2 text-sm text-destructive">
-          {t("plugins.source_load_failed", { name: s.name || s.id, error: s.error })}
+      {data?.source_errors?.map((s) => (
+        <p key={s.source_id} role="alert" className="mb-2 text-sm text-destructive">
+          {t("plugins.source_load_failed", { name: s.source_name || s.source_url || s.source_id, error: s.message })}
         </p>
       ))}
 
@@ -917,6 +1005,14 @@ function Store() {
                   source: installingTarget?.source_name || installingTarget?.source_id,
                 })}
               </p>
+              {(installingTarget?.install_source_status === "different" ||
+                installingTarget?.install_source_status === "unknown") && (
+                <p role="alert" className="text-amber-600 dark:text-amber-400">
+                  {installingTarget.install_source_status === "different"
+                    ? t("plugins.warn_source_different", { source: sourceName(installingTarget.installed_source_id) })
+                    : t("plugins.warn_source_unknown")}
+                </p>
+              )}
               <div className="grid gap-1.5 pt-1">
                 <Label htmlFor="plugin-version-input" className="text-xs text-muted-foreground">
                   {t("plugins.install_version_label")}

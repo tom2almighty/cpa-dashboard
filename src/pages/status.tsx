@@ -1,19 +1,20 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { Activity, CircleAlert } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { CircleAlert } from "lucide-react";
 import { Link } from "react-router";
 import { PageHeader } from "@/components/page-header";
 import { accountName } from "@/components/quota-panel";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n/context";
-import { api } from "@/lib/api";
+import { api, configQuery } from "@/lib/api";
 import { formatInteger } from "@/lib/format";
 import { type Json, KINDS, list } from "@/lib/provider-form";
-import type { AuthFile } from "@/lib/types";
+import { type AuthFile, authState } from "@/lib/types";
 
+// refreshing、pending 是正常的中间状态,不算需要处理
 function needsAttention(f: AuthFile): boolean {
-  return !f.disabled && Boolean(f.unavailable || (f.status && f.status !== "ready" && f.status !== "active"));
+  const state = authState(f);
+  return state === "cooldown" || state === "error";
 }
 
 function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
@@ -27,58 +28,26 @@ function Stat({ label, value, detail }: { label: string; value: string; detail?:
 }
 
 export function StatusPage() {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const files = useQuery({
     queryKey: ["cpa", "auth-files"],
     queryFn: () => api<{ files: AuthFile[] }>("/v8/management/credentials"),
     select: (res) => res.files ?? [],
     refetchInterval: 30_000,
   });
-  // 与提供商页、API Key 页共用缓存
-  const providers = useQueries({
-    queries: KINDS.map((kind) => ({
-      queryKey: ["cpa", "providers", kind.endpoint],
-      queryFn: () =>
-        api<Json[]>(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`)
-          .then((res) => ({ [kind.endpoint]: Array.isArray(res) ? res : [] }))
-          .catch(() => ({ [kind.endpoint]: [] })),
-    })),
+  // 提供商分组数与客户端密钥数都从共用的配置缓存里取
+  const config = useQuery({
+    ...configQuery,
+    select: (c) => {
+      const groups = (c["api-keys"] ?? {}) as Json;
+      return {
+        providers: KINDS.map((kind) => ({ label: kind.label, count: list(groups[kind.endpoint]).length })).filter(
+          (p) => p.count > 0,
+        ),
+        clientKeys: list(((c.access ?? {}) as Json)["api-keys"]).length,
+      };
+    },
   });
-  const clientKeys = useQuery({
-    queryKey: ["cpa", "api-keys"],
-    queryFn: () => api<string[]>("/v8/management/config/access/api-keys"),
-    select: (res) => (Array.isArray(res) ? res : []),
-  });
-
-  // v8: 内存实时用量队列流
-  const [recentUsage, setRecentUsage] = useState<
-    Array<{ id: string; model?: string; provider?: string; timestamp?: number; status?: string }>
-  >([]);
-
-  const usageQueue = useQuery({
-    queryKey: ["cpa", "usage-queue"],
-    queryFn: () =>
-      api<Array<{ id?: string; model?: string; provider?: string; timestamp?: number; status?: string }>>(
-        "/v8/management/observability/usage/queue?count=5",
-      ).catch(() => []),
-    refetchInterval: 5000,
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (usageQueue.data && usageQueue.data.length > 0) {
-      setRecentUsage((prev) => {
-        const incoming = usageQueue.data.map((item, idx) => ({
-          id: item.id || `${Date.now()}-${idx}-${Math.random()}`,
-          model: item.model,
-          provider: item.provider,
-          timestamp: item.timestamp ?? Date.now(),
-          status: item.status ?? "ok",
-        }));
-        return [...incoming, ...prev].slice(0, 10);
-      });
-    }
-  }, [usageQueue.data]);
 
   if (!files.data) {
     return (
@@ -109,12 +78,6 @@ export function StatusPage() {
   }
   const byProvider = [...groups].sort((a, b) => b[1].total - a[1].total);
 
-  const providersReady = providers.every((q) => !q.isPending);
-  const configured = KINDS.map((kind, i) => ({
-    label: kind.label,
-    count: list(providers[i].data?.[kind.endpoint]).length,
-  })).filter((p) => p.count > 0);
-
   return (
     <>
       <PageHeader title={t("overview.title")} />
@@ -133,18 +96,18 @@ export function StatusPage() {
         <Stat label={t("overview.disabled_accounts")} value={formatInteger(accounts.length - active.length)} />
         <Stat
           label={t("overview.provider_keys")}
-          value={providersReady ? formatInteger(configured.reduce((sum, p) => sum + p.count, 0)) : "—"}
+          value={config.data ? formatInteger(config.data.providers.reduce((sum, p) => sum + p.count, 0)) : "—"}
           detail={
-            providersReady
-              ? configured.map((p) => `${p.label} ${p.count}`).join(t("overview.list_separator")) ||
+            config.data
+              ? config.data.providers.map((p) => `${p.label} ${p.count}`).join(t("overview.list_separator")) ||
                 t("overview.not_configured")
               : undefined
           }
         />
         <Stat
           label={t("overview.client_api_keys")}
-          value={clientKeys.data ? formatInteger(clientKeys.data.length) : "—"}
-          detail={clientKeys.data?.length === 0 ? t("overview.not_configured") : undefined}
+          value={config.data ? formatInteger(config.data.clientKeys) : "—"}
+          detail={config.data?.clientKeys === 0 ? t("overview.not_configured") : undefined}
         />
       </section>
 
@@ -196,8 +159,8 @@ export function StatusPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{accountName(f)}</span>
-                      <Badge variant={f.unavailable ? "destructive" : "secondary"}>
-                        {f.unavailable ? t("overview.cooldown") : f.status}
+                      <Badge variant="destructive">
+                        {authState(f) === "cooldown" ? t("overview.cooldown") : t("auth_files.status_auth_error")}
                       </Badge>
                     </div>
                     {f.status_message && (
@@ -210,47 +173,6 @@ export function StatusPage() {
           )}
         </section>
       </div>
-
-      {/* v8 实时调用事件流监控 */}
-      <section className="mt-10" aria-labelledby="live-stream-title">
-        <div className="mb-3 flex items-baseline justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="size-4 text-primary" />
-            <h2 id="live-stream-title" className="font-medium text-base">
-              {t("overview.live_requests")}
-            </h2>
-          </div>
-          <span className="text-xs text-muted-foreground">{t("overview.sync_interval")}</span>
-        </div>
-        {recentUsage.length === 0 ? (
-          <p className="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground">
-            {t("overview.no_recent_requests")}
-          </p>
-        ) : (
-          <ul className="divide-y rounded-lg border">
-            {recentUsage.map((u) => (
-              <li key={u.id} className="flex items-center justify-between px-3.5 py-2.5 text-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Badge variant="outline" className="text-[10px] font-mono">
-                    {u.provider || "gateway"}
-                  </Badge>
-                  <span className="font-mono text-foreground truncate">{u.model || "unknown-model"}</span>
-                </div>
-                <div className="flex items-center gap-3 shrink-0 text-muted-foreground">
-                  <span
-                    className={u.status === "error" ? "text-destructive font-medium" : "text-emerald-500 font-medium"}
-                  >
-                    {u.status === "error" ? t("overview.failed") : t("common.success")}
-                  </span>
-                  <span className="font-mono tabular-nums">
-                    {new Date(u.timestamp ?? Date.now()).toLocaleTimeString(language)}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </>
   );
 }

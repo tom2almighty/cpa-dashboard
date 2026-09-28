@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileCode, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import YAML from "yaml";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,13 +13,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
-import { api } from "@/lib/api";
+import { api, CONFIG_KEY, configPath, configQuery, orNotFound } from "@/lib/api";
 import type { Json } from "./settings";
 
+// 规则里还可能有 headers、from-protocol、match、exist 等字段,编辑时合并到原对象上保留
 type PayloadRuleItem = {
-  models?: { name: string; protocol?: string; headers?: Record<string, string> }[];
+  models?: ({ name: string; protocol?: string } & Json)[];
   params?: Record<string, unknown> | string[];
 };
+
+type Section = "default" | "override" | "filter";
 
 type PayloadConfig = {
   default?: PayloadRuleItem[];
@@ -29,37 +31,31 @@ type PayloadConfig = {
 };
 
 type EditingRule = {
-  section: "default" | "override" | "filter";
+  section: Section;
   index: number | null;
+  original?: PayloadRuleItem;
   modelName: string;
   protocol: string;
   paramsText: string;
 };
 
-// 读取当前 config.yaml,改完 payload 段写回,保留其余内容与注释
-async function updatePayload(change: (payload: Record<string, unknown[]>) => void) {
-  const doc = YAML.parseDocument((await api<string>("/v8/management/config.yaml")) || "");
-  const requests = doc.get("requests") as YAML.YAMLMap | undefined;
-  const rawPayload = requests ? requests.get("payload") : doc.get("payload");
-  const payload = ((rawPayload as { toJSON?: () => unknown } | undefined)?.toJSON?.() ?? {}) as Record<
-    string,
-    unknown[]
-  >;
-  change(payload);
-  for (const key of Object.keys(payload)) if (!payload[key]?.length) delete payload[key];
-  if (requests) {
-    if (Object.keys(payload).length === 0) requests.delete("payload");
-    else requests.set("payload", payload);
-  } else {
-    if (Object.keys(payload).length === 0) doc.deleteIn(["requests", "payload"]);
-    else doc.setIn(["requests", "payload"], payload);
-  }
-  await api("/v8/management/config.yaml", {
-    method: "PUT",
-    body: doc.toString(),
-    raw: true,
-    headers: { "Content-Type": "application/yaml" },
-  });
+// v8: 按段整体替换 requests.payload.<section>,清空时删除该段
+async function updateSection(section: Section, change: (rules: PayloadRuleItem[]) => void) {
+  const path = configPath("requests", "payload", section);
+  const rules = (await api<PayloadRuleItem[] | null>(path).catch(orNotFound(null))) ?? [];
+  change(rules);
+  if (rules.length > 0) await api(path, { method: "PUT", body: rules });
+  else await api(path, { method: "DELETE" }).catch(orNotFound(undefined));
+}
+
+// 表单只展示第一个模型的 name/protocol
+const isEmpty = (v: unknown) => v == null || v === "" || (typeof v === "object" && Object.keys(v).length === 0);
+function hasHiddenFields(rule: PayloadRuleItem | undefined): boolean {
+  const models = rule?.models ?? [];
+  return (
+    models.length > 1 ||
+    Object.entries(models[0] ?? {}).some(([k, v]) => k !== "name" && k !== "protocol" && !isEmpty(v))
+  );
 }
 
 function RuleDialog({
@@ -74,17 +70,14 @@ function RuleDialog({
   isSaving: boolean;
 }) {
   const { t } = useI18n();
-  const [section, setSection] = useState<"default" | "override" | "filter">(rule.section);
+  // 编辑已有规则时不允许换段(filter 与 default/override 的 params 结构不同)
+  const editing = rule.index !== null;
+  const [section, setSection] = useState<Section>(rule.section);
   const [modelName, setModelName] = useState(rule.modelName);
   const [protocol, setProtocol] = useState(rule.protocol);
   const [paramsText, setParamsText] = useState(rule.paramsText);
 
-  const applyPreset = (preset: {
-    section: "default" | "override" | "filter";
-    model: string;
-    proto: string;
-    params: string;
-  }) => {
+  const applyPreset = (preset: { section: Section; model: string; proto: string; params: string }) => {
     setSection(preset.section);
     setModelName(preset.model);
     setProtocol(preset.proto);
@@ -94,8 +87,8 @@ function RuleDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
+      ...rule,
       section,
-      index: rule.index,
       modelName: modelName.trim() || "*",
       protocol: protocol.trim(),
       paramsText: paramsText.trim(),
@@ -107,65 +100,70 @@ function RuleDialog({
       <DialogContent className="sm:max-w-xl">
         <form onSubmit={submit}>
           <DialogHeader>
-            <DialogTitle>
-              {rule.index !== null ? t("config.payload.dialog_edit") : t("config.payload.dialog_add")}
-            </DialogTitle>
+            <DialogTitle>{editing ? t("config.payload.dialog_edit") : t("config.payload.dialog_add")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div>
-              <Label className="text-xs text-muted-foreground">{t("config.payload.presets")}</Label>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() =>
-                    applyPreset({
-                      section: "default",
-                      model: "gemini-*",
-                      proto: "gemini",
-                      params: '{\n  "generationConfig.thinkingConfig.thinkingBudget": 32768\n}',
-                    })
-                  }
-                >
-                  <Wand2 className="size-3" />
-                  {t("config.payload.preset_gemini_budget")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() =>
-                    applyPreset({
-                      section: "override",
-                      model: "*",
-                      proto: "",
-                      params: '{\n  "temperature": 0.7\n}',
-                    })
-                  }
-                >
-                  <Wand2 className="size-3" />
-                  {t("config.payload.preset_global_temp")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() =>
-                    applyPreset({
-                      section: "filter",
-                      model: "gemini-*",
-                      proto: "gemini",
-                      params: "generationConfig.thinkingConfig.thinkingBudget",
-                    })
-                  }
-                >
-                  <Wand2 className="size-3" />
-                  {t("config.payload.preset_filter_budget")}
-                </Button>
+            {hasHiddenFields(rule.original) && (
+              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                {t("config.payload.hidden_fields")}
+              </p>
+            )}
+            {!editing && (
+              <div>
+                <Label className="text-xs text-muted-foreground">{t("config.payload.presets")}</Label>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() =>
+                      applyPreset({
+                        section: "default",
+                        model: "gemini-*",
+                        proto: "gemini",
+                        params: '{\n  "generationConfig.thinkingConfig.thinkingBudget": 32768\n}',
+                      })
+                    }
+                  >
+                    <Wand2 className="size-3" />
+                    {t("config.payload.preset_gemini_budget")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() =>
+                      applyPreset({
+                        section: "override",
+                        model: "*",
+                        proto: "",
+                        params: '{\n  "temperature": 0.7\n}',
+                      })
+                    }
+                  >
+                    <Wand2 className="size-3" />
+                    {t("config.payload.preset_global_temp")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() =>
+                      applyPreset({
+                        section: "filter",
+                        model: "gemini-*",
+                        proto: "gemini",
+                        params: "generationConfig.thinkingConfig.thinkingBudget",
+                      })
+                    }
+                  >
+                    <Wand2 className="size-3" />
+                    {t("config.payload.preset_filter_budget")}
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -177,7 +175,8 @@ function RuleDialog({
                     { value: "filter", label: t("config.payload.section_filter_full") },
                   ]}
                   value={section}
-                  onValueChange={(v) => v && setSection(v as "default" | "override" | "filter")}
+                  disabled={editing}
+                  onValueChange={(v) => v && setSection(v as Section)}
                 >
                   <SelectTrigger id="rule-section" className="mt-1 w-full">
                     <SelectValue />
@@ -281,7 +280,7 @@ function RuleCard({
   title: string;
   description: string;
   badge: string;
-  section: "default" | "override" | "filter";
+  section: Section;
   rules: PayloadRuleItem[] | undefined;
   onAdd: () => void;
   onEdit: (rule: PayloadRuleItem, index: number) => void;
@@ -371,63 +370,59 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
   const queryClient = useQueryClient();
   const [dialogRule, setDialogRule] = useState<EditingRule | null>(null);
 
-  const { data: configData, isPending } = useQuery({
-    queryKey: ["cpa", "config"],
-    queryFn: () => api<Json>("/v8/management/config"),
+  const { data: payload = {}, isPending } = useQuery({
+    ...configQuery,
+    select: (c) => ((c.requests as Json | undefined)?.payload ?? {}) as PayloadConfig,
   });
 
   const saveMutation = useMutation({
     mutationFn: async (rule: EditingRule) => {
-      let parsedParams: Record<string, unknown> | string[] = {};
+      let params: PayloadRuleItem["params"];
       if (rule.section === "filter") {
-        parsedParams = rule.paramsText
+        params = rule.paramsText
           .split("\n")
           .map((s) => s.trim())
           .filter(Boolean);
       } else {
         try {
-          parsedParams = JSON.parse(rule.paramsText);
+          params = JSON.parse(rule.paramsText);
         } catch {
+          throw new Error(t("config.payload.invalid_json"));
+        }
+        if (!params || typeof params !== "object" || Array.isArray(params)) {
           throw new Error(t("config.payload.invalid_json"));
         }
       }
 
-      const ruleItem: PayloadRuleItem = {
-        models: [{ name: rule.modelName, ...(rule.protocol ? { protocol: rule.protocol } : {}) }],
-        params: parsedParams,
-      };
-      await updatePayload((payload) => {
-        payload[rule.section] ??= [];
-        const list = payload[rule.section];
-        if (rule.index !== null && rule.index < list.length) list[rule.index] = ruleItem;
-        else list.push(ruleItem);
+      // 合并到原规则上:保留其余模型及 headers、from-protocol、match 等表单未展示的字段
+      const [first, ...others] = rule.original?.models ?? [];
+      const model = { ...first, name: rule.modelName };
+      if (rule.protocol) model.protocol = rule.protocol;
+      else delete model.protocol;
+      const item: PayloadRuleItem = { ...rule.original, models: [model, ...others], params };
+      await updateSection(rule.section, (rules) => {
+        if (rule.index !== null && rule.index < rules.length) rules[rule.index] = item;
+        else rules.push(item);
       });
     },
     onSuccess: () => {
       toast.success(t("config.payload.updated"));
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       setDialogRule(null);
-    },
-    onError: (err) => {
-      toast.error(err.message);
     },
   });
 
-  const deleteRule = async (section: "default" | "override" | "filter", index: number) => {
+  const deleteRule = async (section: Section, index: number) => {
     try {
-      await updatePayload((payload) => {
-        payload[section]?.splice(index, 1);
+      await updateSection(section, (rules) => {
+        rules.splice(index, 1);
       });
       toast.success(t("config.payload.deleted"));
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
     } catch (e) {
       toast.error(t("config.payload.delete_failed", { message: (e as Error).message }));
     }
   };
-
-  const payload = (configData?.payload as PayloadConfig | undefined) ?? {};
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -482,6 +477,7 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
               setDialogRule({
                 section: "default",
                 index,
+                original: rule,
                 modelName: rule.models?.[0]?.name ?? "*",
                 protocol: rule.models?.[0]?.protocol ?? "",
                 paramsText: JSON.stringify(rule.params ?? {}, null, 2),
@@ -509,6 +505,7 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
               setDialogRule({
                 section: "override",
                 index,
+                original: rule,
                 modelName: rule.models?.[0]?.name ?? "*",
                 protocol: rule.models?.[0]?.protocol ?? "",
                 paramsText: JSON.stringify(rule.params ?? {}, null, 2),
@@ -537,6 +534,7 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
                 setDialogRule({
                   section: "filter",
                   index,
+                  original: rule,
                   modelName: rule.models?.[0]?.name ?? "*",
                   protocol: rule.models?.[0]?.protocol ?? "",
                   paramsText: Array.isArray(rule.params) ? rule.params.join("\n") : "",

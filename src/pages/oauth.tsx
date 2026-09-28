@@ -10,34 +10,25 @@ import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 
-type Provider = { id: string; name: string; hintKey: string; callback: boolean };
+type Provider = { id: string; name: string; hintKey: string; plugin?: boolean };
 
-// callback:浏览器授权后跳回 localhost 回调;其余为设备码流程
+// 回调还是设备码流程由 auth-url 返回的 flow 决定
 const PROVIDERS: Provider[] = [
-  { id: "codex", name: "Codex", hintKey: "oauth.hints.codex", callback: true },
-  { id: "anthropic", name: "Claude", hintKey: "oauth.hints.anthropic", callback: true },
-  { id: "antigravity", name: "Antigravity", hintKey: "oauth.hints.antigravity", callback: true },
-  { id: "xai", name: "xAI Grok", hintKey: "oauth.hints.xai", callback: true },
-  { id: "devin", name: "Devin", hintKey: "oauth.hints.devin", callback: true },
-  { id: "kimi", name: "Kimi", hintKey: "oauth.hints.kimi", callback: false },
-  { id: "kimi-ai", name: "Kimi.ai", hintKey: "oauth.hints.kimi-ai", callback: false },
-  { id: "meta", name: "Muse (Meta)", hintKey: "oauth.hints.meta", callback: false },
+  { id: "codex", name: "Codex", hintKey: "oauth.hints.codex" },
+  { id: "claude", name: "Claude", hintKey: "oauth.hints.anthropic" },
+  { id: "antigravity", name: "Antigravity", hintKey: "oauth.hints.antigravity" },
+  { id: "xai", name: "xAI Grok", hintKey: "oauth.hints.xai" },
+  { id: "devin", name: "Devin", hintKey: "oauth.hints.devin" },
+  { id: "kimi", name: "Kimi", hintKey: "oauth.hints.kimi" },
+  { id: "kimi-ai", name: "Kimi.ai", hintKey: "oauth.hints.kimi-ai" },
+  { id: "meta", name: "Muse (Meta)", hintKey: "oauth.hints.meta" },
 ];
 
-type Session = { url: string; state: string; user_code?: string; flow?: string };
+type Session = { url: string; state: string; flow?: string; user_code?: string; expires_in?: number };
 
 type PluginList = {
   plugins?: { id: string; supports_oauth?: boolean; oauth_provider?: string; metadata?: { name?: string } }[];
 };
-
-// xAI 页面有时只显示 code,需要拼成 CPA 认可的回调地址
-function resolveCallback(provider: string, input: string, state: string): string {
-  const value = input.trim();
-  if (provider !== "xai" || /^https?:\/\//i.test(value)) return value;
-  const params = new URLSearchParams(value.includes("=") ? value.replace(/^.*?[?#]/, "") : `code=${value}`);
-  if (!params.get("state")) params.set("state", state);
-  return `http://127.0.0.1:56121/callback?${params}`;
-}
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const { t } = useI18n();
@@ -61,18 +52,30 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 function ProviderCard({ provider }: { provider: Provider }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<(Session & { deadline?: number }) | null>(null);
   const [callbackUrl, setCallbackUrl] = useState("");
+  const [now, setNow] = useState(Date.now);
+  const expired = session?.deadline !== undefined && now >= session.deadline;
+
   const start = useMutation({
     mutationFn: () =>
+      // is_webui 让 CPA 在本机监听回调端口;插件会把额外参数当作登录元数据,不带
       api<Session>(
-        `/v8/management/oauth/auth-url?provider=${encodeURIComponent(provider.id)}${provider.callback ? "&is_webui=true" : ""}`,
+        `/v8/management/oauth/auth-url?provider=${encodeURIComponent(provider.id)}${provider.plugin ? "" : "&is_webui=true"}`,
       ),
     onSuccess: (data) => {
-      setSession(data);
+      setNow(Date.now());
+      setSession({ ...data, deadline: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined });
       setCallbackUrl("");
     },
   });
+
+  // 设备码有效期倒计时,过期后停止轮询
+  useEffect(() => {
+    if (!session?.deadline || expired) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [session?.deadline, expired]);
 
   const status = useQuery({
     queryKey: ["oauth-status", session?.state],
@@ -80,7 +83,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
       api<{ status: "wait" | "ok" | "error"; error?: string }>(
         `/v8/management/oauth/status?state=${encodeURIComponent(session?.state ?? "")}`,
       ),
-    enabled: Boolean(session?.state),
+    enabled: Boolean(session?.state) && !expired,
     refetchInterval: (query) => (query.state.data?.status === "wait" || !query.state.data ? 2000 : false),
     refetchOnWindowFocus: false,
   });
@@ -91,7 +94,6 @@ function ProviderCard({ provider }: { provider: Provider }) {
   useEffect(() => {
     if (!done) return;
     toast.success(t("oauth.login_success", { name: provider.name }));
-    queryClient.invalidateQueries({ queryKey: ["cpa", "credentials"] });
     queryClient.invalidateQueries({ queryKey: ["cpa", "auth-files"] });
     setSession(null);
   }, [done, provider.name, queryClient, t]);
@@ -100,11 +102,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
     mutationFn: () =>
       api("/v8/management/oauth/callback", {
         method: "POST",
-        body: {
-          provider: provider.id,
-          state: session?.state,
-          redirect_url: resolveCallback(provider.id, callbackUrl, session?.state ?? ""),
-        },
+        body: { provider: provider.id, state: session?.state, redirect_url: callbackUrl.trim() },
       }),
     onSuccess: () => toast.success(t("oauth.callback_submitted")),
   });
@@ -119,6 +117,8 @@ function ProviderCard({ provider }: { provider: Provider }) {
     event.preventDefault();
     if (callbackUrl.trim()) submit.mutate();
   }
+
+  const secondsLeft = session?.deadline ? Math.max(0, Math.ceil((session.deadline - now) / 1000)) : 0;
 
   return (
     <section aria-labelledby={`oauth-${provider.id}`} className="grid content-start gap-4 rounded-lg border p-5">
@@ -149,7 +149,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
               {session.user_code ? t("oauth.open_device_hint") : t("oauth.open_auth_hint")}
             </span>
             {session.user_code && (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <code className="rounded-md bg-muted px-3 py-1.5 font-mono text-lg tracking-widest">
                   {session.user_code}
                 </code>
@@ -165,7 +165,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
             </div>
           </div>
 
-          {provider.callback && !done && (
+          {session.flow !== "device" && !done && (
             <form onSubmit={onSubmit} className="grid gap-2">
               <Label htmlFor={`callback-${provider.id}`}>{t("oauth.callback_label")}</Label>
               <div className="flex gap-2">
@@ -173,9 +173,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
                   id={`callback-${provider.id}`}
                   value={callbackUrl}
                   onChange={(e) => setCallbackUrl(e.target.value)}
-                  placeholder={
-                    provider.id === "xai" ? t("oauth.xai_callback_placeholder") : "http://localhost:…/callback?code=…"
-                  }
+                  placeholder="http://localhost:…/callback?code=…"
                 />
                 <Button type="submit" variant="outline" disabled={!callbackUrl.trim() || submit.isPending}>
                   {t("oauth.submit_callback")}
@@ -187,14 +185,25 @@ function ProviderCard({ provider }: { provider: Provider }) {
 
           <p
             role="status"
-            className={failed ? "text-sm text-destructive" : "flex items-center gap-2 text-sm text-muted-foreground"}
+            className={
+              failed || expired ? "text-sm text-destructive" : "flex items-center gap-2 text-sm text-muted-foreground"
+            }
           >
             {failed ? (
               `${t("oauth.login_failed")}${status.data?.error ?? t("oauth.unknown_error")}`
+            ) : expired ? (
+              t("oauth.code_expired")
             ) : (
               <>
                 <Spinner />
                 {t("oauth.waiting_auth")}
+                {session.deadline !== undefined && (
+                  <span className="tabular-nums">
+                    {t("oauth.code_expires_in", {
+                      time: `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                    })}
+                  </span>
+                )}
               </>
             )}
           </p>
@@ -218,7 +227,7 @@ export function OAuthPage() {
       id: p.oauth_provider || p.id,
       name: p.metadata?.name || p.id,
       hintKey: "oauth.plugin_provider_hint",
-      callback: false,
+      plugin: true,
     }));
 
   return (

@@ -29,14 +29,15 @@ async function login(base: string, key: string, remember: boolean, t: TFunction)
   saveKey(key, remember);
 
   try {
-    await api("/v8/management/config");
+    await api("/v8/management/config/config-version");
   } catch (error) {
     clearKey();
     if (!remember) clearBaseUrl();
     if (error instanceof ApiError && error.status === 401) {
       throw new ApiError(401, t("login.error_unauthorized"));
     }
-    if (error instanceof ApiError && error.status === 403) {
+    // 403 还可能是 IP 因多次失败被临时封禁,此时直接展示 CPA 返回的原因
+    if (error instanceof ApiError && error.code === "remote management disabled") {
       throw new ApiError(403, t("login.error_forbidden"));
     }
     if (error instanceof ApiError && error.status === 404) {

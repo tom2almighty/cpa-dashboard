@@ -7,12 +7,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/context";
 import { PayloadRules } from "./payload-rules";
-import { ConfigYamlProvider, GROUPS, SettingsGroup, useConfigYaml } from "./settings";
+import { ConfigSettingsProvider, GROUPS, SettingsGroup, useConfigSettings } from "./settings";
 import { YamlEditor } from "./yaml-editor";
 
 function ConfigHeaderActions() {
   const { t } = useI18n();
-  const { dirtyCount, resetPatch, saveAll, isSaving } = useConfigYaml();
+  const { dirtyCount, resetPatch, saveAll, isSaving } = useConfigSettings();
   if (dirtyCount === 0) return null;
 
   return (
@@ -24,14 +24,7 @@ function ConfigHeaderActions() {
         <RotateCcw className="size-3.5" />
         {t("config.discard")}
       </Button>
-      <Button
-        size="sm"
-        onClick={() => {
-          void saveAll();
-        }}
-        disabled={isSaving}
-        className="h-8 text-xs"
-      >
+      <Button size="sm" onClick={saveAll} disabled={isSaving} className="h-8 text-xs">
         {isSaving ? <Spinner className="size-3.5" /> : <Save className="size-3.5" />}
         {t("config.save_changes")}
       </Button>
@@ -96,8 +89,8 @@ function ConfigPageInner() {
 
 export function ConfigPage() {
   return (
-    <ConfigYamlProvider>
+    <ConfigSettingsProvider>
       <ConfigPageInner />
-    </ConfigYamlProvider>
+    </ConfigSettingsProvider>
   );
 }

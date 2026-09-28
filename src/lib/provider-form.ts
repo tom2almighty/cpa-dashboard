@@ -24,9 +24,15 @@ export const KINDS: Kind[] = [
   },
   { endpoint: "vertex", label: "Vertex" },
   { endpoint: "xai", label: "xAI", baseUrlRequired: true, websockets: true },
-  { endpoint: "meta", label: "Meta", websockets: true },
+  { endpoint: "meta", label: "Meta" },
   { endpoint: "interactions", label: "Interactions" },
 ];
+
+// /observability/usage/api-keys 的分组名:OpenAI 兼容按名称(小写),interactions 用运行时 provider 名
+export function usageGroup(kind: Kind, item: Json): string {
+  if (kind.openai) return str(item.name).trim().toLowerCase();
+  return kind.endpoint === "interactions" ? "gemini-interactions" : kind.endpoint;
+}
 
 export type ProviderKey = {
   "api-key": string;
@@ -37,7 +43,6 @@ export type ProviderKey = {
 
 export type Form = {
   name: string;
-  apiKey: string;
   keys: string;
   baseUrl: string;
   proxyUrl: string;
@@ -46,7 +51,6 @@ export type Form = {
   headers: string;
   models: string;
   excluded: string;
-  disabled: boolean;
   websockets: boolean;
 };
 
@@ -84,7 +88,8 @@ export function formatModelRows(rows: ModelRow[]): string {
     .map((r) => {
       const name = r.name.trim();
       const alias = r.alias.trim();
-      return alias && alias !== name ? `${name} => ${alias}` : name;
+      // 别名与原名相同也保留(Vertex 模型必须有别名)
+      return alias ? `${name} => ${alias}` : name;
     })
     .join("\n");
 }
@@ -92,7 +97,8 @@ export function formatModelRows(rows: ModelRow[]): string {
 const KIND_CHANNEL_MAP: Record<string, string[]> = {
   claude: ["claude"],
   codex: ["codex"],
-  gemini: ["gemini-cli", "aistudio"],
+  gemini: ["gemini", "aistudio"],
+  interactions: ["gemini-interactions"],
   vertex: ["vertex"],
   xai: ["xai"],
   meta: ["meta"],
@@ -177,23 +183,22 @@ export function mask(key: string): string {
   return key.length > 12 ? `${key.slice(0, 6)}…${key.slice(-4)}` : key;
 }
 
-export function identity(_kind: Kind, item: Json): string {
+export function identity(item: Json): string {
   const name = str(item.name);
   if (name) return name;
-  const keysList = list<ProviderKey>(item.keys);
-  const firstKey = keysList[0]?.["api-key"] ?? str(item["api-key"]);
-  return `${firstKey}|${str(item["base-url"])}`;
+  return `${str(list<ProviderKey>(item.keys)[0]?.["api-key"])}|${str(item["base-url"])}`;
+}
+
+// 分组显示名:没有名称时用第一个 key 的掩码
+export function groupTitle(item: Json): string {
+  return str(item.name) || mask(str(list<ProviderKey>(item.keys)[0]?.["api-key"]));
 }
 
 export function toForm(item: Json): Form {
   const keysList = list<ProviderKey>(item.keys);
-  const firstKey = keysList[0]?.["api-key"] ?? str(item["api-key"]);
-  const allKeys = keysList.length > 0 ? keysList.map((k) => str(k["api-key"])).join("\n") : str(item["api-key"]);
-
   return {
     name: str(item.name),
-    apiKey: firstKey,
-    keys: allKeys,
+    keys: keysList.map((k) => str(k["api-key"])).join("\n"),
     baseUrl: str(item["base-url"]),
     proxyUrl: str(item["proxy-url"]),
     prefix: str(item.prefix),
@@ -202,17 +207,16 @@ export function toForm(item: Json): Form {
       .map(([k, v]) => `${k}: ${v}`)
       .join("\n"),
     models: list<Model>(item.models)
-      .map((m) => (m.alias && m.alias !== m.name ? `${m.name} => ${m.alias}` : m.name))
+      .map((m) => (m.alias ? `${m.name} => ${m.alias}` : m.name))
       .join("\n"),
     excluded: list<string>(item["excluded-models"]).join("\n"),
-    disabled: item.disabled === true,
-    websockets: item.websockets === true || (keysList[0] && keysList[0].websockets === true),
+    websockets: keysList.some((k) => k.websockets === true),
   };
 }
 
+// 分组字段按 v8 校验:OpenAI 兼容没有分组级 proxy-url / excluded-models(代理在 keys[].proxy-url)
 export function fromForm(kind: Kind, form: Form, original: Json): Json {
   const out: Json = { ...original };
-  delete out["auth-index"];
   const set = (key: string, value: unknown) => {
     const empty =
       value === undefined ||
@@ -224,24 +228,27 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
   };
 
   set("name", form.name.trim() || undefined);
-  const existingKeys = list<ProviderKey>(original.keys);
-  const keysMap = new Map(existingKeys.map((k) => [str(k["api-key"]), k]));
-  const enteredKeys = lines(form.keys.trim() ? form.keys : form.apiKey);
-
+  // 按 api-key 匹配保留每个 key 上的其它字段(weight、proxy-url 等)
+  const prevKeys = new Map(list<ProviderKey>(original.keys).map((k) => [str(k["api-key"]), k]));
+  // WebSocket 开关没动时不改已有 key 的设置,只给新 key 套用
+  const wsChanged = form.websockets !== toForm(original).websockets;
   set(
     "keys",
-    enteredKeys.map((k) => {
-      const prev = keysMap.get(k);
-      const entry: Json = typeof prev === "object" && prev !== null ? { ...prev, "api-key": k } : { "api-key": k };
-      if (kind.websockets && form.websockets) entry.websockets = true;
+    lines(form.keys).map((k) => {
+      const prev = prevKeys.get(k);
+      const entry: Json = { ...prev, "api-key": k };
+      if (kind.websockets && (!prev || wsChanged)) {
+        if (form.websockets) entry.websockets = true;
+        else delete entry.websockets;
+      }
       return entry;
     }),
   );
-  if (kind.openai) {
-    set("disabled", form.disabled || undefined);
-  }
   set("base-url", form.baseUrl.trim());
-  set("proxy-url", form.proxyUrl.trim());
+  if (!kind.openai) {
+    set("proxy-url", form.proxyUrl.trim());
+    set("excluded-models", lines(form.excluded, true));
+  }
   set("prefix", form.prefix.trim());
   set("priority", form.priority.trim() ? Number(form.priority) : undefined);
   set(
@@ -256,26 +263,25 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
   const models = new Map(list<Model>(original.models).map((m) => [m.name, m]));
   set(
     "models",
-    lines(form.models)
-      .map((line) => line.split("=>").map((part) => part.trim()))
-      .filter(([name]) => name)
-      .map(([name, alias]) => {
-        const model: Model = { ...models.get(name), name };
-        if (alias) model.alias = alias;
-        else delete model.alias;
-        return model;
-      }),
+    parseModelRows(form.models).map(({ name, alias }) => {
+      const model: Model = { ...models.get(name), name };
+      if (alias) model.alias = alias;
+      else delete model.alias;
+      return model;
+    }),
   );
-  set("excluded-models", lines(form.excluded, true));
   return out;
 }
 
 export function validate(kind: Kind, form: Form): string | null {
   if (kind.openai && !form.name.trim()) return i18n.t("provider_form.name_required");
-  if (!form.apiKey.trim() && !form.keys.trim()) return i18n.t("provider_form.api_key_required");
+  if (!form.keys.trim()) return i18n.t("provider_form.api_key_required");
   if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) return i18n.t("provider_form.base_url_required");
   if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) return i18n.t("provider_form.priority_integer");
   if (lines(form.headers).some((l) => !l.includes(":"))) return i18n.t("provider_form.headers_format");
+  // CPA 会丢弃没有别名的 Vertex 模型
+  if (kind.endpoint === "vertex" && parseModelRows(form.models).some((r) => !r.alias))
+    return i18n.t("provider_form.vertex_alias_required");
   return null;
 }
 
@@ -291,6 +297,7 @@ export async function testProviderConnectivity(
     if (i > 0) customHeaders[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   }
 
+  const key = lines(form.keys)[0] ?? "";
   const modelRows = parseModelRows(form.models);
   const testModel = modelRows[0]?.name || "";
 
@@ -300,8 +307,7 @@ export async function testProviderConnectivity(
 
   if (kind.openai) {
     if (!cleanBase) throw new Error(i18n.t("provider_form.base_url_required_test"));
-    const firstKey = lines(form.keys)[0]?.trim() || "";
-    if (firstKey) customHeaders.Authorization = `Bearer ${firstKey}`;
+    if (key) customHeaders.Authorization = `Bearer ${key}`;
     customHeaders["Content-Type"] = "application/json";
 
     url = cleanBase.endsWith("/chat/completions")
@@ -317,7 +323,6 @@ export async function testProviderConnectivity(
       stream: false,
     };
   } else if (kind.endpoint === "claude") {
-    const key = form.apiKey.trim();
     if (key) customHeaders["x-api-key"] = key;
     customHeaders["anthropic-version"] = "2023-06-01";
     customHeaders["Content-Type"] = "application/json";
@@ -329,7 +334,6 @@ export async function testProviderConnectivity(
       messages: [{ role: "user", content: "Hi" }],
     };
   } else if (kind.endpoint === "gemini" || kind.endpoint === "interactions") {
-    const key = form.apiKey.trim();
     const host = cleanBase || "https://generativelanguage.googleapis.com";
     const m = testModel || "gemini-1.5-flash";
     url = `${host}/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
@@ -339,13 +343,11 @@ export async function testProviderConnectivity(
     };
   } else if (kind.endpoint === "codex") {
     if (!cleanBase) throw new Error(i18n.t("provider_form.base_url_required_for", { name: "Codex" }));
-    const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
     url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/models`;
     method = "GET";
   } else if (kind.endpoint === "xai") {
     if (!cleanBase) throw new Error(i18n.t("provider_form.base_url_required_for", { name: "xAI" }));
-    const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
     customHeaders["Content-Type"] = "application/json";
     url = cleanBase.endsWith("/chat/completions") ? cleanBase : `${cleanBase}/v1/chat/completions`;
@@ -356,7 +358,6 @@ export async function testProviderConnectivity(
     };
   } else {
     if (!cleanBase) throw new Error(i18n.t("provider_form.base_url_required"));
-    const key = form.apiKey.trim();
     if (key) customHeaders.Authorization = `Bearer ${key}`;
     url = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/models`;
     method = "GET";

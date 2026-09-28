@@ -18,24 +18,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
-import { api } from "@/lib/api";
+import { api, CONFIG_KEY, configPath, configQuery, orNotFound } from "@/lib/api";
 
-// OAuth 渠道名,与认证文件的 provider 一致
+// 静态模型目录支持的渠道(routing/model-definitions/:channel)
 const CHANNELS = [
   "codex",
   "claude",
-  "gemini-cli",
+  "gemini",
+  "gemini-interactions",
   "antigravity",
   "vertex",
   "aistudio",
   "kimi",
   "xai",
+  "devin",
   "meta",
-  "qwen",
-  "iflow",
 ];
+// OAuth 别名/排除按认证文件的 provider 分渠道,gemini 系列只走 API Key,不在其中
+const OAUTH_CHANNELS = CHANNELS.filter((c) => !c.startsWith("gemini"));
+type OAuthConfig = { "model-alias"?: Record<string, Alias[]>; "excluded-models"?: Record<string, string[]> };
+const oauthOf = (c: Record<string, unknown>) => (c.oauth ?? {}) as OAuthConfig;
 type Alias = { name: string; alias: string; fork?: boolean; "display-name"?: string; "force-mapping"?: boolean };
-type AliasMap = Record<string, Alias[]>;
 type CatalogModel = { id: string; display_name?: string; owned_by?: string; context_length?: number };
 
 function useCatalog(channel: string) {
@@ -62,7 +65,7 @@ function ChannelInput({ value, onChange, id }: { value: string; onChange: (v: st
         placeholder={t("models.channel_placeholder")}
       />
       <datalist id={`${id}-options`}>
-        {CHANNELS.map((c) => (
+        {OAUTH_CHANNELS.map((c) => (
           <option key={c} value={c} />
         ))}
       </datalist>
@@ -105,14 +108,15 @@ function AliasDialog({
           if (!out["force-mapping"]) delete out["force-mapping"];
           return out;
         });
-      // v8: /config/oauth/model-alias/<channel>，数组整体替换或删除
+      // v8: /config/oauth/model-alias/<channel>，数组整体替换;清空时删除,本就不存在也算成功
+      const path = configPath("oauth", "model-alias", channel);
       return clean.length
-        ? api(`/v8/management/config/oauth/model-alias/${encodeURIComponent(channel)}`, { method: "PUT", body: clean })
-        : api(`/v8/management/config/oauth/model-alias/${encodeURIComponent(channel)}`, { method: "DELETE" });
+        ? api(path, { method: "PUT", body: clean })
+        : api(path, { method: "DELETE" }).catch(orNotFound(null));
     },
     onSuccess: () => {
       toast.success(t("models.alias_saved"));
-      queryClient.invalidateQueries({ queryKey: ["cpa", "oauth-model-alias"] });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       onClose();
     },
   });
@@ -225,9 +229,8 @@ function Aliases() {
   const { t } = useI18n();
   const [editing, setEditing] = useState<{ channel: string; aliases: Alias[] } | null>(null);
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ["cpa", "oauth-model-alias"],
-    queryFn: () => api<AliasMap>("/v8/management/config/oauth/model-alias").catch(() => ({})),
-    select: (res) => Object.entries(res ?? {}).filter(([, list]) => list?.length),
+    ...configQuery,
+    select: (c) => Object.entries(oauthOf(c)["model-alias"] ?? {}).filter(([, list]) => list?.length),
   });
 
   if (isError) {
@@ -359,16 +362,14 @@ function ExcludedDialog({
     mutationFn: () => {
       const clean = rules.map((s) => s.trim()).filter(Boolean);
       // v8: /config/oauth/excluded-models/<provider>
+      const path = configPath("oauth", "excluded-models", provider);
       return clean.length
-        ? api(`/v8/management/config/oauth/excluded-models/${encodeURIComponent(provider)}`, {
-            method: "PUT",
-            body: clean,
-          })
-        : api(`/v8/management/config/oauth/excluded-models/${encodeURIComponent(provider)}`, { method: "DELETE" });
+        ? api(path, { method: "PUT", body: clean })
+        : api(path, { method: "DELETE" }).catch(orNotFound(null));
     },
     onSuccess: () => {
       toast.success(t("models.excluded_saved"));
-      queryClient.invalidateQueries({ queryKey: ["cpa", "oauth-excluded-models"] });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       onClose();
     },
   });
@@ -608,9 +609,8 @@ function Excluded() {
   const { t } = useI18n();
   const [editing, setEditing] = useState<{ provider: string; models: string[] } | null>(null);
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ["cpa", "oauth-excluded-models"],
-    queryFn: () => api<Record<string, string[]>>("/v8/management/config/oauth/excluded-models").catch(() => ({})),
-    select: (res) => Object.entries(res ?? {}).filter(([, list]) => list?.length),
+    ...configQuery,
+    select: (c) => Object.entries(oauthOf(c)["excluded-models"] ?? {}).filter(([, list]) => list?.length),
   });
 
   if (isError) {
@@ -747,11 +747,19 @@ function AvailableModels() {
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
 
+  // /v1/models 要客户端密钥,取第一个 access.api-keys;没有就不带(服务端未开启鉴权时仍可访问)
+  const clientKey = useQuery({
+    ...configQuery,
+    select: (c) => (c.access as { "api-keys"?: string[] } | undefined)?.["api-keys"]?.[0] ?? "",
+  });
   // /v1/models 按模型 ID 去重,owned_by 只是其中一个提供方,所以只列模型名
   const { data, isPending, isError, error, isRefetching } = useQuery({
-    queryKey: ["cpa", "v1-models"],
+    queryKey: ["cpa", "v1-models", clientKey.data],
+    enabled: !clientKey.isPending,
     queryFn: async () => {
-      const res = await api<{ data?: V1Model[]; models?: V1Model[] } | V1Model[]>("/v1/models");
+      const res = await api<{ data?: V1Model[]; models?: V1Model[] } | V1Model[]>("/v1/models", {
+        headers: clientKey.data ? { Authorization: `Bearer ${clientKey.data}` } : undefined,
+      });
       const list = Array.isArray(res)
         ? res
         : Array.isArray(res?.data)

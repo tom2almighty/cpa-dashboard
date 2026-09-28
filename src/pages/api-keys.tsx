@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n/context";
-import { api, storedBaseUrl } from "@/lib/api";
+import { api, CONFIG_KEY, configPath, configQuery, storedBaseUrl } from "@/lib/api";
 
 function randomKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -75,19 +75,17 @@ export function ApiKeysPage() {
     if (key.length <= 8) return "••••••••";
     return `${key.slice(0, 4)}••••••••••••${key.slice(-4)}`;
   };
-  const { data, isPending } = useQuery({
-    queryKey: ["cpa", "api-keys"],
-    queryFn: () => api<string[]>("/v8/management/config/access/api-keys"),
-    select: (res) => (Array.isArray(res) ? res : []),
+  const { data, isPending, isError, error } = useQuery({
+    ...configQuery,
+    select: (c) => (c.access as { "api-keys"?: string[] } | undefined)?.["api-keys"] ?? [],
   });
 
+  // 列表整体替换,删到空时写 [](空列表是合法值)
   const save = useMutation({
-    mutationFn: (keys: string[]) => api("/v8/management/config/access/api-keys", { method: "PUT", body: keys }),
+    mutationFn: (keys: string[]) => api(configPath("access", "api-keys"), { method: "PUT", body: keys }),
     onSuccess: () => {
       setAdding("");
-      queryClient.invalidateQueries({ queryKey: ["cpa", "api-keys"] });
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config.yaml"] });
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       toast.success(t("api_keys.updated"));
     },
   });
@@ -143,6 +141,10 @@ export function ApiKeysPage() {
         </div>
         {isPending ? (
           <Skeleton className="h-32 w-full" />
+        ) : isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {t("api_keys.load_failed", { message: error.message })}
+          </p>
         ) : (
           <ul className="divide-y rounded-lg border min-w-0 overflow-hidden">
             {keys.map((key) => {
@@ -290,7 +292,7 @@ export function ApiKeysPage() {
             >
               {t("api_keys.generate_and_add")}
             </Button>
-            <Button type="submit" className="flex-1 sm:flex-none" disabled={!adding.trim() || save.isPending}>
+            <Button type="submit" className="flex-1 sm:flex-none" disabled={!data || !adding.trim() || save.isPending}>
               <Plus />
               {t("api_keys.add_key")}
             </Button>

@@ -51,20 +51,42 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { api, download, fetchBlob, saveBlob } from "@/lib/api";
 import { formatDateTime, formatInteger, formatRelative } from "@/lib/format";
-import type { AuthFile } from "@/lib/types";
+import { type AuthFile, authState } from "@/lib/types";
 
 const QUERY_KEY = ["cpa", "auth-files"];
 const file = (name: string) => encodeURIComponent(name);
 const PAGE_SIZE = 50;
 
+type BatchResult = { files?: string[]; failed?: { name: string; error: string }[] };
+
+// 批量接口部分失败时返回 207 和 failed 列表,逐条列出
+function reportFailed(failed: BatchResult["failed"]) {
+  if (!failed?.length) return;
+  toast.error(i18n.t("auth_files.batch_partial_failed", { count: failed.length }), {
+    description: failed.map((f) => `${f.name}: ${f.error}`).join("\n"),
+  });
+}
+
+// 列表不返回 prefix、proxy_url、headers 等,只能读认证文件本身;仅存在于内存的凭据没有文件
+function contentQuery(target: AuthFile) {
+  return {
+    queryKey: ["cpa", "auth-file-content", target.name],
+    queryFn: () => api<Record<string, unknown>>(`/v8/management/credentials/download?name=${file(target.name)}`),
+    enabled: !target.runtime_only,
+    refetchOnWindowFocus: false,
+  };
+}
+
 function StatusCell({ file: f }: { file: AuthFile }) {
   const { t } = useI18n();
-  if (f.disabled) return <Badge variant="outline">{t("auth_files.status_disabled")}</Badge>;
+  const state = authState(f);
+  if (state === "disabled") return <Badge variant="outline">{t("auth_files.status_disabled")}</Badge>;
 
-  if (f.cooldowns && f.cooldowns.length > 0) {
+  if (state === "cooldown" && f.cooldowns) {
     const credWide = f.cooldowns.some((c) => c.scope === "credential");
     const modelCount = f.cooldowns.filter((c) => c.scope === "model").length;
     const earliestSec = Math.min(...f.cooldowns.map((c) => c.remaining_seconds || 0));
@@ -85,20 +107,19 @@ function StatusCell({ file: f }: { file: AuthFile }) {
     );
   }
 
-  if (f.unavailable) {
-    const retry = f.next_retry_after ? Date.parse(f.next_retry_after) : Number.NaN;
+  if (state === "error") {
     return (
-      <span className="grid gap-0.5">
-        <Badge variant="destructive" title={f.status_message}>
-          {t("auth_files.status_cooldown")}
+      <span className="grid gap-0.5" title={f.status_message}>
+        <Badge variant="destructive" className="w-fit">
+          {t("auth_files.status_auth_error")}
         </Badge>
-        {Number.isFinite(retry) && retry > Date.now() && (
-          <span className="text-xs text-muted-foreground">{formatDateTime(retry)}</span>
+        {f.status_message && (
+          <span className="max-w-48 truncate text-xs text-muted-foreground">{f.status_message}</span>
         )}
       </span>
     );
   }
-  if (f.status && f.status !== "ready" && f.status !== "active") {
+  if (f.status === "pending" || f.status === "refreshing") {
     return (
       <Badge variant="secondary" title={f.status_message}>
         {f.status}
@@ -154,7 +175,22 @@ function ModelsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
   );
 }
 
-type Fields = { note: string; prefix: string; proxy_url: string; priority: string; headers: string };
+type Fields = {
+  note: string;
+  prefix: string;
+  proxy_url: string;
+  priority: string;
+  weight: string;
+  request_retry: string;
+  websockets: boolean;
+  headers: string;
+};
+
+const NUMBER_FIELDS = [
+  ["priority", "auth_files.field_priority"],
+  ["weight", "auth_files.field_weight"],
+  ["request_retry", "auth_files.field_request_retry"],
+] as const;
 
 function readFields(source: Record<string, unknown>): Fields {
   const text = (v: unknown) => (v === undefined || v === null ? "" : String(v));
@@ -162,8 +198,11 @@ function readFields(source: Record<string, unknown>): Fields {
   return {
     note: text(source.note),
     prefix: text(source.prefix),
-    proxy_url: text(source.proxy_url),
+    proxy_url: text(source.proxy_url ?? source["proxy-url"]),
     priority: text(source.priority),
+    weight: text(source.weight),
+    request_retry: text(source.request_retry ?? source["request-retry"]),
+    websockets: source.websockets === true || source.websockets === "true",
     headers: Object.entries(headers)
       .map(([k, v]) => `${k}: ${v}`)
       .join("\n"),
@@ -180,13 +219,16 @@ function parseHeaders(text: string): Record<string, string> {
   );
 }
 
-// 只提交改动的字段;清空的文本写成空字符串,清空的优先级写成 null,删掉的请求头写成空值
+// 只提交改动的字段;清空的文本写成空字符串,清空的数字写成 null(恢复继承),删掉的请求头写成空值
 function diffFields(before: Fields, after: Fields): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   for (const key of ["note", "prefix", "proxy_url"] as const) {
     if (before[key] !== after[key]) patch[key] = after[key].trim();
   }
-  if (before.priority !== after.priority) patch.priority = after.priority.trim() ? Number(after.priority) : null;
+  for (const [key] of NUMBER_FIELDS) {
+    if (before[key] !== after[key]) patch[key] = after[key].trim() ? Number(after[key]) : null;
+  }
+  if (before.websockets !== after.websockets) patch.websockets = after.websockets;
   if (before.headers !== after.headers) {
     const old = parseHeaders(before.headers);
     const next = parseHeaders(after.headers);
@@ -198,21 +240,14 @@ function diffFields(before: Fields, after: Fields): Record<string, unknown> {
 function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const source = useQuery({
-    queryKey: ["cpa", "auth-file-content", target.name],
-    queryFn: () =>
-      target.runtime_only
-        ? Promise.resolve(target as unknown as Record<string, unknown>)
-        : api<Record<string, unknown>>(`/v8/management/credentials/download?name=${file(target.name)}`),
-    select: readFields,
-    refetchOnWindowFocus: false,
-  });
+  const source = useQuery({ ...contentQuery(target), select: readFields });
   const [draft, setDraft] = useState<Fields | null>(null);
   const form = draft ?? source.data;
 
   const save = useMutation({
+    // 服务端先按 ID 查找,同一文件展开的多个凭据用 ID 才能定位到这一个
     mutationFn: (patch: Record<string, unknown>) =>
-      api("/v8/management/credentials/fields", { method: "PATCH", body: { name: target.name, ...patch } }),
+      api("/v8/management/credentials/fields", { method: "PATCH", body: { name: target.id, ...patch } }),
     onSuccess: () => {
       toast.success(t("auth_files.saved"));
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -224,8 +259,9 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!form || !source.data) return;
-    if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) {
-      toast.error(t("auth_files.priority_integer"));
+    const invalid = NUMBER_FIELDS.find(([key]) => form[key].trim() && !/^-?\d+$/.test(form[key].trim()));
+    if (invalid) {
+      toast.error(t("auth_files.integer_required", { field: t(invalid[1]) }));
       return;
     }
     const patch = diffFields(source.data, form);
@@ -241,7 +277,11 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
         <DialogHeader>
           <DialogTitle>{t("auth_files.save_properties", { name: accountName(target) })}</DialogTitle>
         </DialogHeader>
-        {!form ? (
+        {source.isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {t("overview.load_failed", { message: source.error.message })}
+          </p>
+        ) : !form ? (
           <Skeleton className="h-72" />
         ) : (
           <form id="fields-form" onSubmit={submit} className="grid gap-4">
@@ -249,20 +289,23 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
               <Label htmlFor="f-note">{t("auth_files.field_note")}</Label>
               <Input id="f-note" value={form.note} onChange={(e) => update({ note: e.target.value })} />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-prefix">{t("auth_files.field_prefix")}</Label>
-                <Input id="f-prefix" value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-priority">{t("auth_files.field_priority")}</Label>
-                <Input
-                  id="f-priority"
-                  inputMode="numeric"
-                  value={form.priority}
-                  onChange={(e) => update({ priority: e.target.value })}
-                />
-              </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="f-prefix">{t("auth_files.field_prefix")}</Label>
+              <Input id="f-prefix" value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {NUMBER_FIELDS.map(([key, label]) => (
+                <div key={key} className="grid gap-1.5">
+                  <Label htmlFor={`f-${key}`}>{t(label)}</Label>
+                  <Input
+                    id={`f-${key}`}
+                    inputMode="numeric"
+                    value={form[key]}
+                    placeholder={t("auth_files.inherit_placeholder")}
+                    onChange={(e) => update({ [key]: e.target.value })}
+                  />
+                </div>
+              ))}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="f-proxy">{t("auth_files.field_proxy")}</Label>
@@ -271,6 +314,14 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
                 value={form.proxy_url}
                 placeholder={t("auth_files.proxy_placeholder")}
                 onChange={(e) => update({ proxy_url: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="f-websockets">{t("auth_files.field_websockets")}</Label>
+              <Switch
+                id="f-websockets"
+                checked={form.websockets}
+                onCheckedChange={(checked) => update({ websockets: checked })}
               />
             </div>
             <div className="grid gap-1.5">
@@ -359,6 +410,11 @@ function VertexDialog({ onClose }: { onClose: () => void }) {
 
 function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
   const { t } = useI18n();
+  const content = useQuery(contentQuery(target));
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const prefix = text(content.data?.prefix);
+  const proxyUrl = text(content.data?.proxy_url ?? content.data?.["proxy-url"]);
+  const state = authState(target);
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
@@ -392,11 +448,13 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
             <div>
               <span className="text-muted-foreground">{t("auth_files.status_label")}</span>
               <p className="font-medium">
-                {target.disabled
+                {state === "disabled"
                   ? t("auth_files.status_disabled")
-                  : target.unavailable
+                  : state === "cooldown"
                     ? t("overview.cooldown")
-                    : target.status || t("auth_files.status_normal")}
+                    : state === "error"
+                      ? t("auth_files.status_auth_error")
+                      : target.status || t("auth_files.status_normal")}
               </p>
             </div>
             <div>
@@ -437,18 +495,18 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
             </div>
           )}
 
-          {(target.prefix || target.proxy_url || target.priority !== undefined || target.note) && (
+          {(prefix || proxyUrl || target.priority !== undefined || target.note) && (
             <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
-              {target.prefix && (
+              {prefix && (
                 <div>
                   <span className="text-muted-foreground">{t("auth_files.routing_prefix")}</span>
-                  <p className="font-mono">{target.prefix}</p>
+                  <p className="font-mono">{prefix}</p>
                 </div>
               )}
-              {target.proxy_url && (
+              {proxyUrl && (
                 <div>
                   <span className="text-muted-foreground">{t("auth_files.proxy_url")}</span>
-                  <p className="font-mono">{target.proxy_url}</p>
+                  <p className="font-mono">{proxyUrl}</p>
                 </div>
               )}
               {target.priority !== undefined && (
@@ -492,7 +550,7 @@ export function AuthFilesPage() {
   const [keyword, setKeyword] = useState("");
   const [provider, setProvider] = useState("");
   const [tab, setTab] = useState<"list" | "quota">("list");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cooldown" | "disabled">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cooldown" | "error" | "disabled">("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialogs>(null);
   const deferredKeyword = useDeferredValue(keyword);
@@ -510,9 +568,15 @@ export function AuthFilesPage() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: QUERY_KEY });
 
+  // 同一文件展开的插件虚拟凭据共用 name,带上 auth_index 才能定位
+  const patchStatus = (f: AuthFile, disabled: boolean) =>
+    api("/v8/management/credentials/status", {
+      method: "PATCH",
+      body: { name: f.name, auth_index: f.auth_index, disabled },
+    });
+
   const toggle = useMutation({
-    mutationFn: (f: AuthFile) =>
-      api("/v8/management/credentials/status", { method: "PATCH", body: { name: f.name, disabled: !f.disabled } }),
+    mutationFn: (f: AuthFile) => patchStatus(f, !f.disabled),
     onSuccess: refresh,
   });
 
@@ -550,6 +614,7 @@ export function AuthFilesPage() {
         }),
       );
       refresh();
+      queryClient.invalidateQueries({ queryKey: ["quota", f.auth_index] });
     },
   });
   const manualRefresh = useMutation({
@@ -561,48 +626,48 @@ export function AuthFilesPage() {
     onSuccess: (_, f) => {
       toast.success(t("auth_files.refreshed", { name: accountName(f) }));
       refresh();
+      queryClient.invalidateQueries({ queryKey: ["quota", f.auth_index] });
     },
     onError: (err: Error) => {
       toast.error(t("auth_files.refresh_failed", { message: err.message }));
     },
+    meta: { quiet: true },
   });
 
+  // 多个 name 一次请求删除,部分失败返回 207;失败的保持选中方便重试
   const batchDelete = useMutation({
-    mutationFn: async (names: string[]) => {
-      for (const name of names) {
-        await api(`/v8/management/credentials?name=${file(name)}`, { method: "DELETE" });
-      }
-      return names.length;
-    },
-    onSuccess: (count) => {
-      toast.success(t("auth_files.batch_deleted", { count }));
-      setSelected([]);
+    mutationFn: (names: string[]) =>
+      api<BatchResult>("/v8/management/credentials", { method: "DELETE", body: { names } }),
+    onSuccess: (res, names) => {
+      const count = res.files?.length ?? names.length;
+      if (count) toast.success(t("auth_files.batch_deleted", { count }));
+      reportFailed(res.failed);
+      setSelected(res.failed?.map((f) => f.name) ?? []);
       setDialog(null);
-      refresh();
     },
     onError: (err: Error) => {
       toast.error(t("auth_files.batch_delete_failed", { message: err.message }));
     },
+    onSettled: refresh,
+    meta: { quiet: true },
   });
 
+  // 状态没有批量接口,并发逐个设置
   const batchToggle = useMutation({
     mutationFn: async (disabled: boolean) => {
-      for (const name of selected) {
-        await api("/v8/management/credentials/status", {
-          method: "PATCH",
-          body: { name, disabled },
-        });
-      }
-      return { count: selected.length, disabled };
+      const targets = (data ?? []).filter((f) => selected.includes(f.name));
+      const results = await Promise.allSettled(targets.map((f) => patchStatus(f, disabled)));
+      const failed = results.flatMap((r, i) =>
+        r.status === "rejected" ? [{ name: targets[i].name, error: (r.reason as Error).message }] : [],
+      );
+      return { count: targets.length - failed.length, failed, disabled };
     },
-    onSuccess: ({ count, disabled }) => {
-      toast.success(t(disabled ? "auth_files.batch_disabled" : "auth_files.batch_enabled", { count }));
-      setSelected([]);
-      refresh();
+    onSuccess: ({ count, failed, disabled }) => {
+      if (count) toast.success(t(disabled ? "auth_files.batch_disabled" : "auth_files.batch_enabled", { count }));
+      reportFailed(failed);
+      setSelected(failed.map((f) => f.name));
     },
-    onError: (err: Error) => {
-      toast.error(t("auth_files.batch_status_failed", { message: err.message }));
-    },
+    onSettled: refresh,
   });
   // 选中的文件打包成一个 zip 下载,仅存在于内存的凭据没有文件,跳过
   const batchDownload = useMutation({
@@ -626,18 +691,21 @@ export function AuthFilesPage() {
         }),
       ),
     onError: (err: Error) => toast.error(t("auth_files.batch_download_failed", { message: err.message })),
+    meta: { quiet: true },
   });
 
+  // 多个文件放在同一个 multipart 请求里上传,部分失败返回 207
   const upload = useMutation({
-    mutationFn: async (files: File[]) => {
-      for (const f of files) {
-        const form = new FormData();
-        form.append("file", f);
-        await api("/v8/management/credentials", { method: "POST", body: form, raw: true });
-      }
-      return files.length;
+    mutationFn: (files: File[]) => {
+      const form = new FormData();
+      for (const f of files) form.append("file", f);
+      return api<BatchResult>("/v8/management/credentials", { method: "POST", body: form, raw: true });
     },
-    onSuccess: (count) => toast.success(t("auth_files.uploaded", { count })),
+    onSuccess: (res, files) => {
+      const count = res.files?.length ?? files.length;
+      if (count) toast.success(t("auth_files.uploaded", { count }));
+      reportFailed(res.failed);
+    },
     onSettled: refresh,
   });
 
@@ -654,12 +722,10 @@ export function AuthFilesPage() {
 
   const files = useMemo(() => {
     const k = deferredKeyword.trim().toLowerCase();
+    const wanted = statusFilter === "active" ? "ok" : statusFilter;
     return (data ?? []).filter((f) => {
       if (provider && f.provider !== provider) return false;
-      const isCooldown = f.unavailable || (f.cooldowns && f.cooldowns.length > 0);
-      if (statusFilter === "disabled" && !f.disabled) return false;
-      if (statusFilter === "cooldown" && !isCooldown) return false;
-      if (statusFilter === "active" && (f.disabled || isCooldown)) return false;
+      if (wanted !== "all" && authState(f) !== wanted) return false;
       if (k) {
         const match = [f.name, f.email, f.label, f.note, f.provider].some((v) => v?.toLowerCase().includes(k));
         if (!match) return false;
@@ -678,7 +744,8 @@ export function AuthFilesPage() {
     setSelected((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
   };
 
-  const cooling = data?.filter((f) => f.unavailable && !f.disabled).length ?? 0;
+  const cooling = data?.filter((f) => authState(f) === "cooldown").length ?? 0;
+  const erroring = data?.filter((f) => authState(f) === "error").length ?? 0;
 
   return (
     <>
@@ -689,7 +756,9 @@ export function AuthFilesPage() {
             ? t("auth_files.summary_desc", {
                 total: data.length,
                 disabled: data.filter((f) => f.disabled).length,
-                cooling: cooling ? t("auth_files.cooling_suffix", { cooling }) : "",
+                cooling:
+                  (cooling ? t("auth_files.cooling_suffix", { cooling }) : "") +
+                  (erroring ? t("auth_files.error_suffix", { count: erroring }) : ""),
               })
             : undefined
         }
@@ -751,6 +820,7 @@ export function AuthFilesPage() {
                     <SelectItem value="all">{t("auth_files.status_all")}</SelectItem>
                     <SelectItem value="active">{t("auth_files.status_active")}</SelectItem>
                     <SelectItem value="cooldown">{t("auth_files.status_cooldown")}</SelectItem>
+                    <SelectItem value="error">{t("auth_files.status_auth_error")}</SelectItem>
                     <SelectItem value="disabled">{t("auth_files.status_disabled")}</SelectItem>
                   </SelectContent>
                 </Select>
@@ -908,7 +978,7 @@ export function AuthFilesPage() {
                       <TableCell>
                         <Switch
                           checked={!f.disabled}
-                          disabled={toggle.isPending && toggle.variables?.name === f.name}
+                          disabled={toggle.isPending && toggle.variables?.id === f.id}
                           onCheckedChange={() => toggle.mutate(f)}
                           aria-label={t(f.disabled ? "auth_files.enable_item" : "auth_files.disable_item", {
                             name: accountName(f),
@@ -944,7 +1014,10 @@ export function AuthFilesPage() {
                               <Boxes />
                               {t("auth_files.view_models")}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setDialog({ kind: "fields", target: f })}>
+                            <DropdownMenuItem
+                              disabled={f.runtime_only}
+                              onClick={() => setDialog({ kind: "fields", target: f })}
+                            >
                               <PencilLine />
                               {t("auth_files.edit_properties")}
                             </DropdownMenuItem>

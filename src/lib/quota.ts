@@ -1,5 +1,5 @@
 import i18n from "@/i18n";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import type { AuthFile } from "@/lib/types";
 
 // 额度窗口:usedPercent 为 0~100,resetAt 为毫秒时间戳
@@ -73,7 +73,9 @@ const QUOTA_PROVIDERS: Record<string, true> = {
 };
 
 export function supportsQuota(file: AuthFile): boolean {
-  return Boolean(QUOTA_PROVIDERS[(file.provider ?? "").toLowerCase()]) && Boolean(file.auth_index);
+  return (
+    Boolean(file.auth_index) && Boolean(file.supports_quota || QUOTA_PROVIDERS[(file.provider ?? "").toLowerCase()])
+  );
 }
 
 // ---------- 通用解析 ----------
@@ -325,6 +327,7 @@ export function parseAntigravity(payload: Json): Quota {
         label: [groupName, name].filter(Boolean).join(" ") || i18n.t("quota.label.quota"),
         usedPercent: remainingToUsed(pick(bucket, "remainingFraction", "remaining_fraction")),
         resetAt: toMs(pick(bucket, "resetTime", "reset_time")),
+        detail: str(bucket.description) ?? undefined,
       });
     }
   }
@@ -382,14 +385,14 @@ export function parseMeta(payload: Json): Quota {
     const raw = obj(rawVal);
     if (!raw) return;
     const used = clampPercent(num(raw.used_percent));
-    const resetAt = num(raw.resets_at);
+    const resetAt = toMs(raw.resets_at);
     const durationMins = num(raw.window_duration_mins);
     if (used !== null || resetAt !== null) {
       windows.push({
         id: `meta-${id}`,
         label,
         usedPercent: used,
-        resetAt: resetAt && resetAt > 0 ? resetAt : null,
+        resetAt,
         detail: durationMins ? i18n.t("quota.label.minutes_window", { n: durationMins }) : undefined,
       });
     }
@@ -432,7 +435,7 @@ async function upstream(authIndex: string, method: string, url: string, header: 
   return obj(body) ?? {};
 }
 
-// 在认证文件条目(含 id_token、metadata 等嵌套字段)里找指定字段,JWT 字符串会解码后再找
+// 在凭据条目或认证文件里找指定字段,JWT 字符串会解码后再找
 function findField(value: unknown, keys: string[], depth = 0): string | null {
   if (depth > 3) return null;
   if (typeof value === "string" && value.split(".").length === 3) {
@@ -448,67 +451,88 @@ function findField(value: unknown, keys: string[], depth = 0): string | null {
     const found = str(record[key]);
     if (found) return found;
   }
-  for (const nested of ["id_token", "metadata", "attributes", "https://api.openai.com/auth"]) {
+  for (const nested of ["id_token", "https://api.openai.com/auth"]) {
     const found = findField(record[nested], keys, depth + 1);
     if (found) return found;
   }
   return null;
 }
 
-async function antigravityProject(file: AuthFile): Promise<string> {
-  const direct = findField(file, ["project_id", "projectId"]);
-  if (direct) return direct;
+// 列表接口不返回 dca_token、xAI 的 sub 等字段,只能下载认证文件读取;按 auth_index 缓存,查询失败时清掉重新下载
+const fileCache = new Map<string, Promise<Json | null>>();
+
+function credentialFile(file: AuthFile, authIndex: string): Promise<Json | null> {
+  if (file.runtime_only) return Promise.resolve(null);
+  let cached = fileCache.get(authIndex);
+  if (!cached) {
+    cached = api<unknown>(`/v8/management/credentials/download?name=${encodeURIComponent(file.name)}`).then((raw) =>
+      obj(typeof raw === "string" ? JSON.parse(raw) : raw),
+    );
+    fileCache.set(authIndex, cached);
+  }
+  return cached;
+}
+
+// 插件 QuotaProvider / quota_probe 返回的统一结构:subscription、summary、groups[].buckets[]
+export function parsePluginQuota(payload: Json): Quota {
+  const subscription = obj(payload.subscription);
+  const summary = Array.isArray(payload.summary) ? payload.summary : [];
+  const notes = summary.flatMap((item) => {
+    const m = obj(item);
+    const value = num(m?.value);
+    if (!m || value === null) return [];
+    const currency = m.format === "currency" ? str(m.currency) : null;
+    const text = currency
+      ? new Intl.NumberFormat(i18n.language, { style: "currency", currency }).format(value)
+      : `${value}${str(m.unit) ? ` ${m.unit}` : ""}`;
+    return [`${str(m.label) ?? str(m.key) ?? ""} ${text}`.trim()];
+  });
+  return {
+    plan: str(subscription?.plan) ?? str(pick(subscription, "tierName", "tier_name")),
+    windows: parseAntigravity(payload).windows,
+    notes,
+  };
+}
+
+// 额度查询并发上限:排序需要全部账号的数据所以不分页,只限制同时在途的请求数
+const MAX_CONCURRENT = 4;
+let running = 0;
+const waiting: (() => void)[] = [];
+
+async function limited<T>(task: () => Promise<T>): Promise<T> {
+  if (running >= MAX_CONCURRENT) await new Promise<void>((resolve) => waiting.push(resolve));
+  else running++;
   try {
-    const raw = await api<unknown>(`/v8/management/credentials/download?name=${encodeURIComponent(file.name)}`);
-    const parsed = obj(typeof raw === "string" ? JSON.parse(raw) : raw);
-    return findField(parsed, ["project_id", "projectId"]) ?? ANTIGRAVITY_DEFAULT_PROJECT;
-  } catch {
-    return ANTIGRAVITY_DEFAULT_PROJECT;
+    return await task();
+  } finally {
+    // 名额直接交给下一个排队的请求
+    const next = waiting.shift();
+    if (next) next();
+    else running--;
   }
 }
-export async function fetchQuota(file: AuthFile): Promise<Quota> {
+
+export function fetchQuota(file: AuthFile): Promise<Quota> {
   const authIndex = file.auth_index ?? "";
-  if (!authIndex) throw new Error(i18n.t("quota.error.missing_auth_index"));
+  if (!authIndex) return Promise.reject(new Error(i18n.t("quota.error.missing_auth_index")));
+  return limited(() => fetchQuotaNow(file, authIndex)).catch((error) => {
+    fileCache.delete(authIndex);
+    throw error;
+  });
+}
 
-  // 1. 优先尝试 v8 官方配额总线
-  try {
-    const res = await api<{
-      plan?: string;
-      windows?: QuotaWindow[];
-      notes?: string[];
-      quota?: Quota;
-    }>("/v8/management/credentials/quota/fetch", {
-      method: "POST",
-      body: {
-        auth_index: authIndex,
-        ...(file.provider ? { provider: file.provider } : {}),
-      },
-    });
-
-    if (res.quota) return res.quota;
-    if (res.windows && Array.isArray(res.windows)) {
-      return {
-        plan: res.plan ?? null,
-        windows: res.windows,
-        notes: res.notes ?? [],
-      };
-    }
-  } catch {
-    // 若当前凭据来自插件，尝试插件专属配额接口
-    if (file.source === "plugin" && file.provider) {
-      try {
-        const plugRes = await api<{ quota?: Quota; windows?: QuotaWindow[] }>(
-          `/v8/management/plugins/${encodeURIComponent(file.provider)}/quota?auth_index=${encodeURIComponent(authIndex)}`,
-        );
-        if (plugRes.quota) return plugRes.quota;
-        if (plugRes.windows && Array.isArray(plugRes.windows)) {
-          return { plan: null, windows: plugRes.windows, notes: [] };
-        }
-      } catch {}
+async function fetchQuotaNow(file: AuthFile, authIndex: string): Promise<Quota> {
+  // CPA 自身没有内置额度提供方,只有插件 QuotaProvider 或凭据的 quota_probe;没有时返回 501,再走 api-call
+  if (file.supports_quota) {
+    try {
+      return parsePluginQuota(
+        await api<Json>("/v8/management/credentials/quota/fetch", { method: "POST", body: { auth_index: authIndex } }),
+      );
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 501)) throw error;
     }
   }
 
-  // 2. 无插件或后端未注册提供方（报 501）时，走前端免 CORS 的 /requests/api-call 代理通道
   switch ((file.provider ?? "").toLowerCase()) {
     case "codex": {
       const accountId = findField(file, ["chatgpt_account_id", "chatgptAccountId"]);
@@ -525,7 +549,7 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
     case "kimi":
       return parseKimi(await upstream(authIndex, "GET", KIMI_USAGE_URL, HEADERS.kimi));
     case "xai": {
-      const userId = findField(file, ["sub", "user_id", "userId"]);
+      const userId = findField(await credentialFile(file, authIndex), ["sub", "user_id", "userId"]);
       const header = userId ? { ...HEADERS.xai, "x-userid": userId } : HEADERS.xai;
       const [weekly, monthly] = await Promise.all([
         upstream(authIndex, "GET", XAI_WEEKLY_URL, header),
@@ -534,7 +558,8 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
       return parseXai(weekly, monthly);
     }
     case "antigravity": {
-      const data = JSON.stringify({ project: await antigravityProject(file) });
+      // 列表里的 project_id 就取自认证文件,缺失时用官方客户端的默认项目
+      const data = JSON.stringify({ project: file.project_id || ANTIGRAVITY_DEFAULT_PROJECT });
       let lastError: unknown = new Error(i18n.t("quota.error.no_data"));
       for (const url of ANTIGRAVITY_URLS) {
         try {
@@ -562,14 +587,7 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
       return parseDevin(await upstream(authIndex, "POST", DEVIN_STATUS_URL, HEADERS.devin, data));
     }
     case "meta": {
-      let dcaToken = findField(file, ["dca_token", "dcaToken"]);
-      if (!dcaToken && file.name) {
-        try {
-          const raw = await api<unknown>(`/v8/management/credentials/download?name=${encodeURIComponent(file.name)}`);
-          const parsed = obj(typeof raw === "string" ? JSON.parse(raw) : raw);
-          dcaToken = findField(parsed, ["dca_token", "dcaToken"]);
-        } catch {}
-      }
+      const dcaToken = findField(await credentialFile(file, authIndex), ["dca_token", "dcaToken"]);
       if (!dcaToken) throw new Error(i18n.t("quota.error.missing_dca_token"));
       const header = {
         Accept: "application/json",
@@ -581,36 +599,5 @@ export async function fetchQuota(file: AuthFile): Promise<Quota> {
     }
     default:
       throw new Error(i18n.t("quota.error.unsupported"));
-  }
-}
-
-export async function resetQuota(file: AuthFile): Promise<void> {
-  const authIndex = file.auth_index ?? "";
-  if (!authIndex) throw new Error(i18n.t("quota.error.missing_auth_index"));
-
-  if (file.source === "plugin" && file.provider) {
-    try {
-      await api(
-        `/v8/management/plugins/${encodeURIComponent(file.provider)}/quota?auth_index=${encodeURIComponent(authIndex)}`,
-        { method: "DELETE" },
-      );
-      return;
-    } catch {}
-  }
-
-  try {
-    await api("/v8/management/credentials/quota/reset", {
-      method: "POST",
-      body: {
-        auth_index: authIndex,
-        ...(file.provider ? { provider: file.provider } : {}),
-      },
-    });
-    return;
-  } catch {
-    await api("/v8/management/routing/cooldown/reset", {
-      method: "POST",
-      body: { auth_index: authIndex },
-    });
   }
 }

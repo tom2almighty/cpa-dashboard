@@ -6,6 +6,7 @@ import {
   parseDevin,
   parseKimi,
   parseMeta,
+  parsePluginQuota,
   parseXai,
   windowLabel,
 } from "./quota";
@@ -135,4 +136,26 @@ test("meta 窗口与每周额度", () => {
     ["会话窗口", 35, "180 分钟窗口"],
     ["每周额度", 70, undefined],
   ]);
+});
+
+test("插件额度结构:套餐、分组与汇总", () => {
+  const q = parsePluginQuota({
+    subscription: { tierName: "Team" },
+    summary: [
+      { key: "credits_used", label: "Credits used", value: 1740.28, unit: "credits", format: "number" },
+      { key: "charged", label: "Charged", value: 29.61, format: "currency", currency: "USD" },
+    ],
+    groups: [
+      {
+        displayName: "Claude",
+        buckets: [{ window: "5h", remainingFraction: 0.4, resetTime: "2026-09-24T05:00:00Z", description: "40/100" }],
+      },
+    ],
+  });
+  expect(q.plan).toBe("Team");
+  expect(q.windows.map((w) => [w.label, w.usedPercent, w.resetAt, w.detail])).toEqual([
+    ["Claude 5h", 60, Date.parse("2026-09-24T05:00:00Z"), "40/100"],
+  ]);
+  expect(q.notes[0]).toBe("Credits used 1740.28 credits");
+  expect(q.notes[1]).toContain("29.61");
 });

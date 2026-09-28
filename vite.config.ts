@@ -37,7 +37,6 @@ export default defineConfig(() => {
       proxy: {
         "/v8": target,
         "/v1": target,
-        "/v0": target,
       },
     },
   };

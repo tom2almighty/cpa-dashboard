@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { i18n, useI18n } from "@/i18n/context";
-import { ApiError, api, download } from "@/lib/api";
+import { ApiError, api, CONFIG_KEY, configPath, configQuery, download } from "@/lib/api";
 import { formatDateTime, formatInteger } from "@/lib/format";
 import { appendLines, type Level, type LogEntry } from "@/lib/log-parse";
 
@@ -33,6 +33,11 @@ type LogsResponse = { lines: string[]; "next-cursor"?: string; "cursor-reset"?: 
 const POLL_MS = 3000;
 // ponytail: 只保留最近的条目,行渲染靠 content-visibility 跳过屏幕外的布局,量再大需要虚拟列表
 const MAX_ENTRIES = 3000;
+
+// CPA 未开启 logging-to-file 时读日志返回 400,error 字段就是这句话
+function fileLoggingDisabled(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "logging to file disabled";
+}
 
 const LEVELS: { value: Level | "all"; labelKey: string }[] = [
   { value: "all", labelKey: "common.all" },
@@ -140,35 +145,41 @@ function LiveLogs() {
   const stick = useRef(true);
   const deferredKeyword = useDeferredValue(keyword);
 
+  // 上一次请求返回后再排下一次,避免同一游标并发拉取出重复行
   // biome-ignore lint/correctness/useExhaustiveDependencies: generation 变化时从头重新拉取
   useEffect(() => {
     let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     async function tick() {
-      try {
-        const used = cursor.current;
-        const query = used ? `cursor=${encodeURIComponent(used)}&limit=1000` : "limit=1000";
-        const res = await api<LogsResponse>(`/v8/management/observability/logs?${query}`);
-        if (stopped) return;
-        cursor.current = res["next-cursor"];
-        // 没带游标(或游标失效)时返回的是最新的一段,直接替换
-        const replace = !used || res["cursor-reset"];
-        if (res.lines.length > 0 || replace) {
-          setEntries((prev) => {
-            const next = appendLines(replace ? [] : prev, res.lines, nextId.current, MAX_ENTRIES);
-            nextId.current = (next.at(-1)?.id ?? nextId.current) + 1;
-            return next;
-          });
+      if (!document.hidden) {
+        try {
+          const used = cursor.current;
+          const query = used ? `cursor=${encodeURIComponent(used)}&limit=1000` : "limit=1000";
+          const res = await api<LogsResponse>(`/v8/management/observability/logs?${query}`);
+          if (stopped) return;
+          cursor.current = res["next-cursor"];
+          // 没带游标(或游标失效)时返回的是最新的一段,直接替换
+          const replace = !used || res["cursor-reset"];
+          if (res.lines.length > 0 || replace) {
+            setEntries((prev) => {
+              const next = appendLines(replace ? [] : prev, res.lines, nextId.current, MAX_ENTRIES);
+              nextId.current = (next.at(-1)?.id ?? nextId.current) + 1;
+              return next;
+            });
+          }
+          setError(null);
+        } catch (e) {
+          if (stopped) return;
+          setError(e as Error);
+          if (fileLoggingDisabled(e)) return;
         }
-        setError(null);
-      } catch (e) {
-        if (!stopped) setError(e as Error);
       }
+      if (live && !stopped) timer = setTimeout(tick, POLL_MS);
     }
     tick();
-    const id = live ? setInterval(tick, POLL_MS) : undefined;
     return () => {
       stopped = true;
-      clearInterval(id);
+      clearTimeout(timer);
     };
   }, [live, generation]);
 
@@ -209,9 +220,9 @@ function LiveLogs() {
   }
 
   const enable = useMutation({
-    mutationFn: () => api("/v8/management/config/observability/logs/logging-to-file", { method: "PUT", body: true }),
+    mutationFn: () => api(configPath("observability", "logs", "logging-to-file"), { method: "PUT", body: true }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       restart();
     },
   });
@@ -224,7 +235,7 @@ function LiveLogs() {
     },
   });
 
-  if (error instanceof ApiError && error.status === 400 && /disabled/i.test(error.message)) {
+  if (fileLoggingDisabled(error)) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">
         <p className="text-sm text-muted-foreground">{t("logs.file_logging_disabled")}</p>
@@ -356,8 +367,8 @@ function RequestLogs() {
   const queryClient = useQueryClient();
   const [requestId, setRequestId] = useState("");
   const config = useQuery({
-    queryKey: ["cpa", "config"],
-    queryFn: () => api<Record<string, unknown>>("/v8/management/config"),
+    ...configQuery,
+    select: (c) => (c.observability as { logs?: { "request-log"?: boolean } } | null)?.logs?.["request-log"] === true,
   });
   const files = useQuery({
     queryKey: ["cpa", "request-error-logs"],
@@ -365,14 +376,12 @@ function RequestLogs() {
       api<{ files?: { name: string; size: number; modified: number }[] }>("/v8/management/observability/logs/errors"),
     select: (res) => res.files ?? [],
   });
-  const requestLog =
-    config.data?.["request-log"] === true ||
-    (config.data?.observability as { logs?: { "request-log"?: boolean } })?.logs?.["request-log"] === true;
+  const requestLog = config.data === true;
   const toggle = useMutation({
     mutationFn: (value: boolean) =>
-      api("/v8/management/config/observability/logs/request-log", { method: "PUT", body: value }),
+      api(configPath("observability", "logs", "request-log"), { method: "PUT", body: value }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cpa", "config"] });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       queryClient.invalidateQueries({ queryKey: ["cpa", "request-error-logs"] });
     },
   });

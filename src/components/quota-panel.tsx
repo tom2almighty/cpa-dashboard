@@ -18,16 +18,16 @@ export function accountName(file: AuthFile): string {
   return file.email || file.label || file.account || file.name;
 }
 
-const CHANNELS: { id: string; label: string }[] = [
-  { id: "all", label: "" },
-  { id: "claude", label: "Claude" },
-  { id: "codex", label: "Codex" },
-  { id: "devin", label: "Devin" },
-  { id: "kimi", label: "Kimi" },
-  { id: "meta", label: "Meta" },
-  { id: "xai", label: "xAI" },
-  { id: "antigravity", label: "Antigravity" },
-];
+// 内置渠道的显示名;插件提供的额度渠道直接显示 provider
+const CHANNEL_LABELS: Record<string, string> = {
+  claude: "Claude",
+  codex: "Codex",
+  devin: "Devin",
+  kimi: "Kimi",
+  meta: "Meta",
+  xai: "xAI",
+  antigravity: "Antigravity",
+};
 
 // 剩余不超过该百分比视为紧张,卡片、统计与"仅看告警"共用
 const WARN_REMAINING = 20;
@@ -147,12 +147,12 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
   }, [targets, results]);
 
   const channelCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: targets.length };
-    for (const item of items) {
+    const counts: Record<string, number> = { all: items.length };
+    for (const item of [...items].sort((a, b) => a.provider.localeCompare(b.provider))) {
       counts[item.provider] = (counts[item.provider] || 0) + 1;
     }
     return counts;
-  }, [targets, items]);
+  }, [items]);
 
   const metrics = useMemo(() => {
     let healthy = 0;
@@ -321,19 +321,14 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs value={selectedChannel} onValueChange={setSelectedChannel} className="w-full sm:w-auto">
           <TabsList className="h-9 flex-wrap">
-            {CHANNELS.filter((ch) => channelCounts[ch.id]).map((ch) => {
-              const count = channelCounts[ch.id];
-              return (
-                <TabsTrigger key={ch.id} value={ch.id} className="gap-1.5 text-xs">
-                  {ch.id === "all" ? t("common.all") : ch.label}
-                  {count > 0 && (
-                    <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold">
-                      {count}
-                    </span>
-                  )}
-                </TabsTrigger>
-              );
-            })}
+            {Object.entries(channelCounts).map(([id, count]) => (
+              <TabsTrigger key={id} value={id} className="gap-1.5 text-xs">
+                {id === "all" ? t("common.all") : (CHANNEL_LABELS[id] ?? id)}
+                <span className="rounded-full bg-muted-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold">
+                  {count}
+                </span>
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
 

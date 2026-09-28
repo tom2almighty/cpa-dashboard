@@ -1,52 +1,22 @@
 {
   "common": {
     "login": "Login",
-    "logout": "Logout",
-    "back": "Back",
     "cancel": "Cancel",
-    "confirm": "Confirm",
     "save": "Save",
-    "saving": "Saving...",
     "delete": "Delete",
-    "deleting": "Deleting...",
     "edit": "Edit",
     "add": "Add",
-    "update": "Update",
     "refresh": "Refresh",
     "refreshing": "Refreshing...",
-    "close": "Close",
     "search": "Search...",
-    "filter": "Filter",
     "copy": "Copy",
     "copied": "Copied",
     "copy_failed": "Copy failed",
-    "success": "Success",
-    "error": "Error",
-    "warning": "Warning",
-    "info": "Info",
-    "loading": "Loading...",
     "enabled": "Enabled",
-    "disabled": "Disabled",
-    "normal": "Normal",
-    "abnormal": "Abnormal",
     "all": "All",
     "actions": "Actions",
-    "status": "Status",
     "name": "Name",
-    "type": "Type",
-    "description": "Description",
-    "created_at": "Created At",
-    "updated_at": "Updated At",
-    "required": "Required",
-    "optional": "Optional",
-    "none": "None",
-    "empty": "No Data",
-    "reset": "Reset",
-    "details": "Details",
-    "view": "View",
     "download": "Download",
-    "upload": "Upload",
-    "submit": "Submit",
     "request_failed_status": "Request failed ({{status}})"
   },
   "theme": {
@@ -77,11 +47,6 @@
     "back_home": "Back to home"
   },
   "footer": {
-    "version_center": "Version & Updates",
-    "panel": "Panel",
-    "cpa": "CPA",
-    "update": "Update",
-    "github": "GitHub Repo",
     "logout": "Logout",
     "collapse_sidebar": "Collapse sidebar",
     "expand_sidebar": "Expand sidebar"
@@ -100,7 +65,7 @@
     "show_key": "Show key",
     "hide_key": "Hide key",
     "secret_key_hint": "Enter management.secret-key from configuration, or MANAGEMENT_PASSWORD environment variable.",
-    "remember_me": "Remember connection and key on this device (securely stored)",
+    "remember_me": "Remember connection and key on this device (stored in plain text in browser local storage)",
     "submit": "Login",
     "submitting": "Connecting...",
     "error_unauthorized": "Incorrect management key",
@@ -110,17 +75,6 @@
   },
   "overview": {
     "title": "Overview",
-    "system_status": "System Status",
-    "active_credentials": "Active Credentials",
-    "today_requests": "Today's Requests",
-    "uptime": "Uptime",
-    "memory": "Memory Usage",
-    "quota_monitor": "Quota Monitor",
-    "recent_trend": "Request Trend (Last 100 mins)",
-    "refresh": "Refresh Status",
-    "healthy": "Healthy",
-    "warning": "Warning",
-    "error": "Error",
     "available_accounts": "Available Accounts",
     "disabled_accounts": "Disabled Accounts",
     "provider_keys": "API Key Providers",
@@ -134,32 +88,25 @@
     "usable": "usable",
     "needs_attention": "Needs Attention",
     "all_accounts_healthy": "All active accounts are functioning normally",
-    "live_requests": "Live Requests (Usage Queue)",
-    "sync_interval": "Syncs every 5s",
-    "no_recent_requests": "No recent request events. When observability.usage.usage-statistics-enabled is enabled, new requests will appear here in real-time.",
     "cooldown": "Cooldown",
     "load_failed": "Failed to load: {{message}}",
     "unknown_provider": "Unknown",
     "summary_label": "Runtime summary",
-    "list_separator": ", ",
-    "failed": "Failed"
+    "list_separator": ", "
   },
   "auth_files": {
     "title": "Auth Files",
-    "desc": "Manage auth files, service accounts, and OAuth credentials for upstream models",
     "summary_desc": "{{total}} auth files in total, {{disabled}} disabled{{cooling}}.",
     "cooling_suffix": ", {{cooling}} in cooldown",
     "tab_list": "List View",
     "tab_quota": "Quota Monitor",
     "upload_files": "Upload Auth Files",
     "import_vertex": "Import Vertex Service Account",
-    "batch_actions": "Batch Actions",
     "batch_delete": "Batch Delete",
     "batch_enable": "Batch Enable",
     "batch_disable": "Batch Disable",
     "batch_download": "Batch Download",
     "delete_all": "Delete All Auth Files",
-    "delete_all_confirm": "Are you sure you want to delete all auth files? This cannot be undone.",
     "selected_count": "{{count}} auth files selected",
     "clear_selection": "Clear Selection",
     "view_details": "View Details",
@@ -169,22 +116,17 @@
     "download_file": "Download Auth File",
     "cooldown_reset": "Reset Cooldown",
     "filter_provider": "All Providers",
-    "search_placeholder": "Search file name, account, or project ID...",
     "status_all": "All Statuses",
     "status_active": "Active",
     "status_cooldown": "In Cooldown",
     "status_disabled": "Disabled",
     "status_normal": "Normal",
-    "requests": "Requests (Success / Failed)",
-    "quota": "Quota",
     "th_account": "Account / Credential",
     "th_provider": "Provider",
     "th_status": "Status",
     "th_recent": "Last 200 mins",
     "th_requests": "Success / Failed",
     "th_last_refresh": "Last Refresh",
-    "th_quota": "Quota",
-    "th_actions": "Actions",
     "available_models_title": "Available models for {{name}}",
     "no_models": "No models available for this account",
     "details_title": "Credential Details - {{name}}",
@@ -224,7 +166,6 @@
     },
     "models_count": "{{count}} model(s)",
     "saved": "Saved",
-    "priority_integer": "Priority must be an integer",
     "field_note": "Note",
     "field_prefix": "Model Prefix",
     "field_priority": "Priority",
@@ -242,7 +183,6 @@
     "batch_delete_failed": "Batch delete failed: {{message}}",
     "batch_enabled": "Enabled {{count}} auth file(s)",
     "batch_disabled": "Disabled {{count}} auth file(s)",
-    "batch_status_failed": "Failed to update status: {{message}}",
     "no_downloadable": "None of the selected credentials have downloadable files",
     "batch_downloaded": "Downloaded {{count}} auth file(s) as zip{{skipped}}",
     "batch_download_skipped": ", skipped {{skipped}} credential(s) without files",
@@ -266,13 +206,20 @@
     "batch_delete_desc": "The {{count}} selected file(s) will be permanently removed from the CPA auth directory. This cannot be undone.",
     "delete_all_desc": "All JSON files in the auth directory will be deleted and the corresponding accounts will stop working immediately. This cannot be undone.",
     "delete_all_btn": "Delete All",
-    "confirm_delete": "Confirm Delete"
+    "confirm_delete": "Confirm Delete",
+    "status_auth_error": "Auth error",
+    "error_suffix": ", {{count}} with auth errors",
+    "batch_partial_failed": "{{count}} auth files failed",
+    "integer_required": "{{field}} must be an integer",
+    "field_weight": "Weight",
+    "field_request_retry": "Request retries",
+    "field_websockets": "Use WebSocket transport",
+    "inherit_placeholder": "Empty to inherit"
   },
   "oauth": {
     "title": "OAuth Login",
     "desc": "After successful login, CPA saves the auth file to the credentials directory, viewable on the Auth Files page.",
     "login_btn": "Login",
-    "logging_in": "Logging in...",
     "waiting_auth": "Waiting for authorization...",
     "cancel_login": "Cancel",
     "submit_callback": "Submit",
@@ -290,15 +237,16 @@
       "anthropic": "Login with Claude.ai account",
       "antigravity": "Login with Google account",
       "xai": "Login with Grok account",
-      "devin": "Requires CPA 7.3.1 or higher, complete authorization within 5 minutes",
+      "devin": "Sign in with a Devin account, complete authorization within 5 minutes",
       "kimi": "Login with Kimi China account (kimi.com, device code)",
       "kimi-ai": "Login with Kimi International account (kimi.ai, device code)",
       "meta": "Device code login"
     },
     "login_success": "{{name}} login succeeded, auth file saved",
     "callback_submitted": "Callback submitted, waiting for CPA to complete login",
-    "xai_callback_placeholder": "Full callback URL or the code shown on the page",
-    "unknown_error": "Unknown error"
+    "unknown_error": "Unknown error",
+    "code_expires_in": "(expires in {{time}})",
+    "code_expired": "Device code expired, please log in again"
   },
   "providers": {
     "title": "AI Providers",
@@ -307,23 +255,6 @@
     "edit": "Edit Provider",
     "test_connectivity": "Test Connectivity",
     "testing": "Testing...",
-    "base_url": "API Base URL",
-    "weight": "Weight",
-    "fetch_models": "Fetch Models",
-    "fetching_models": "Fetching models...",
-    "model_count": "models",
-    "th_provider": "Provider",
-    "th_endpoint": "Endpoint",
-    "th_weight": "Weight",
-    "th_models": "Models",
-    "th_actions": "Actions",
-    "api_key_label": "API Key",
-    "api_key_placeholder": "Enter upstream API key",
-    "base_url_placeholder": "e.g. https://api.openai.com/v1",
-    "custom_headers": "Custom Headers",
-    "models_label": "Supported Models",
-    "models_hint": "If left unselected, all models will be forwarded to this upstream by default.",
-    "delete_confirm": "Are you sure you want to delete this provider?",
     "err_stale": "This entry was modified or deleted. Refresh and try again.",
     "base_url_required": "Enter the Base URL first",
     "no_models_fetched": "No models found. Check the URL and key, or enter model names manually.",
@@ -383,7 +314,8 @@
     "delete_aria": "Delete {{name}}",
     "delete_title": "Delete {{kind}} Config",
     "delete_desc": "{{name}} will be removed from the CPA config.",
-    "load_failed": "Failed to load: {{message}}"
+    "load_failed": "Failed to load: {{message}}",
+    "group_name_hint": "Optional, identifies this group"
   },
   "api_keys": {
     "title": "Client API Keys",
@@ -393,8 +325,6 @@
     "copied_base_url": "Copied API Base URL",
     "test_connectivity_cmd": "Copy connectivity test command (cURL)",
     "copied_test_cmd": "Copied test connectivity command",
-    "configured_keys": "Configured Keys",
-    "configured_keys_desc": "Bearer tokens validated when clients call CPA proxy endpoints.",
     "show_all": "Show All",
     "hide_all": "Hide All",
     "keys_count": "{{count}} Keys",
@@ -412,14 +342,14 @@
     "generate_and_add": "Generate & Add",
     "add_key": "Add Key",
     "save_note": "Save Note",
-    "view_models": "View available models",
     "updated": "API keys updated",
     "copy_failed": "Copy failed, please copy manually",
     "new_key_label": "New API key",
     "note_label": "Key note",
     "note_saved": "Note saved",
     "edit_note_title": "Edit API Key Note",
-    "edit_note_placeholder": "Enter a note, e.g. Cursor, Dev testing"
+    "edit_note_placeholder": "Enter a note, e.g. Cursor, Dev testing",
+    "load_failed": "Failed to load: {{message}}"
   },
   "models": {
     "title": "Model Management",
@@ -428,24 +358,17 @@
     "tab_alias": "Aliases",
     "tab_excluded": "Exclusions",
     "tab_catalog": "Static Catalog",
-    "aliases": "Model Aliases",
     "add_alias": "Add Alias",
-    "target_model": "Target Model",
     "alias_name": "Alias Name",
     "excluded": "Excluded Models",
     "add_excluded": "Add Exclusion Rule",
-    "definitions": "Static Model Definitions",
     "th_channel": "Channel",
-    "th_target": "Target Model",
     "th_alias": "Alias",
-    "th_actions": "Actions",
     "desc_alias": "Set aliases for models of OAuth accounts by channel.",
     "desc_excluded": "Exclude specific models by channel from being routed or called.",
-    "desc_catalog": "Static model definitions and default parameters built into CPA.",
     "no_aliases": "No model aliases configured yet",
     "no_excluded": "No exclusion rules configured yet",
     "channel": "Channel",
-    "search_models": "Search model names or aliases...",
     "channel_placeholder": "e.g. codex",
     "alias_saved": "Model aliases saved",
     "edit_alias_title": "Edit Model Aliases for {{channel}}",
@@ -505,16 +428,8 @@
     "desc": "View installed plugins, manage configurations, and install extensions from the store",
     "tab_installed": "Installed",
     "tab_store": "Plugin Store",
-    "installed": "Installed",
-    "store": "Plugin Store",
     "install": "Install",
-    "installing": "Installing...",
     "update": "Update",
-    "updating": "Updating...",
-    "uninstall": "Uninstall",
-    "configure": "Configure",
-    "official": "Official",
-    "third_party": "Third-party",
     "status_running": "Running",
     "status_disabled": "Disabled",
     "status_unloaded": "Not Loaded",
@@ -523,16 +438,12 @@
     "th_status": "Status",
     "th_switch": "Enable/Disable",
     "th_actions": "Actions",
-    "badge_official": "Official",
     "badge_third_party": "Third-party",
     "badge_installed": "Installed",
     "badge_update_available": "Update Available",
     "badge_auth_required": "Auth Required",
     "badge_auth_configured": "Auth Configured",
     "search_placeholder": "Search plugin name, id, description, or tags...",
-    "filter_all_sources": "All Sources",
-    "source": "Source",
-    "author": "Author",
     "license": "License",
     "platforms": "Platforms",
     "install_type": "Install Type",
@@ -549,7 +460,6 @@
     "reload_page": "Reload page",
     "open_named_in_new_tab": "Open {{name}} in new tab",
     "deleted": "Deleted {{id}}",
-    "deleted_restart": "Deleted {{id}}, takes effect after restarting CPA",
     "load_failed": "Failed to load plugins: {{message}}",
     "plugins_disabled": "Plugins are disabled in CPA. Enable them under plugins in config.yaml to load plugins.",
     "empty_installed": "No plugins yet. Install one from the Plugin Store.",
@@ -560,7 +470,6 @@
     "delete_title": "Delete Plugin",
     "delete_desc": "This deletes the plugin files and saved config of {{id}}.",
     "installed_toast": "Installed {{name}} {{version}}",
-    "installed_restart": "Installed {{name}} {{version}}, takes effect after restarting CPA",
     "store_load_failed": "Failed to load Plugin Store: {{message}}",
     "source_load_failed": "Failed to load store source {{name}}: {{error}}",
     "store_hint": "Plugins run as binaries in the host process. Only install from trusted sources.",
@@ -576,7 +485,16 @@
     "security_risk_title": "Security risk:",
     "security_risk_desc": "CPA plugins run as local shared libraries or binary processes with exactly the same system privileges as CPA. They can read environment variables, all account credentials, and request payloads, and can make arbitrary network connections.",
     "install_confirm_question": "Make sure you fully trust this plugin and its source. Continue installing?",
-    "trust_and_install": "Trust and Install"
+    "trust_and_install": "Trust and Install",
+    "field_invalid_number": "{{name}} must be a valid number",
+    "field_invalid_json": "{{name}} is not valid JSON",
+    "err_delete_requires_restart": "The plugin is loaded and can't be deleted. Disable it and restart CPA, then delete it.",
+    "err_update_requires_restart": "The plugin is loaded and can't be overwritten. Disable it and restart CPA, then update it.",
+    "err_source_conflict": "This plugin was installed from a different store source. Uninstall it before switching sources.",
+    "err_installed_source_unknown": "The installed plugin's source can't be verified. Uninstall it before reinstalling from the store.",
+    "err_rate_limited": "The plugin store hit GitHub's rate limit. Try again later.",
+    "warn_source_different": "This plugin is installed from store source {{source}}. Installing from here will be rejected until you uninstall it.",
+    "warn_source_unknown": "The plugin's current install source can't be verified. The install may be rejected, in which case uninstall it first."
   },
   "logs": {
     "title": "Running Logs",
@@ -586,10 +504,7 @@
     "live": "Live",
     "paused": "Paused",
     "clear": "Clear Logs",
-    "download": "Download Logs",
-    "autoscroll": "Auto-scroll",
     "search": "Filter log content...",
-    "level_all": "All Levels",
     "level_error": "Error",
     "level_warn": "Warning",
     "level_info": "Info",
@@ -635,11 +550,7 @@
     "tab_plugins": "Plugins",
     "tab_payload_rules": "Payload Rules",
     "tab_yaml_editor": "YAML Editor",
-    "basic": "Basic Settings",
-    "payload_rules": "Payload Rules",
-    "yaml_editor": "YAML Editor",
     "save_changes": "Save Changes",
-    "reload": "Reload",
     "pending_save": "unsaved changes",
     "discard": "Discard Changes",
     "save_success": "Configuration saved. CPA will reload it automatically",
@@ -649,9 +560,9 @@
       "copy_value": "Copy value",
       "secret_key_set": "Secret key is set (leave empty to keep it, or enter a new one to replace it)",
       "secret_key_unset": "No secret key set (enter one to configure)",
-      "password_unset": "No password set",
       "show_secret": "Show secret in plain text",
-      "modified": "Modified"
+      "modified": "Modified",
+      "invalid_value": "{{field}}: invalid format"
     },
     "payload": {
       "title": "Request Payload Rules",
@@ -695,7 +606,8 @@
       "invalid_json": "Invalid params: must be a valid JSON object",
       "updated": "Payload rules updated and applied",
       "deleted": "Rule deleted",
-      "delete_failed": "Delete failed: {{message}}"
+      "delete_failed": "Delete failed: {{message}}",
+      "hidden_fields": "This rule has content the form doesn't show (e.g. multiple models, headers or match conditions). It is kept as-is on save; use the YAML editor to change it."
     },
     "yaml": {
       "load_failed": "Failed to load config: {{message}}",
@@ -704,7 +616,8 @@
       "clear_search": "Clear search",
       "prev_match": "Previous match",
       "next_match": "Next match",
-      "save_hint": "Ctrl/⌘ + S to save"
+      "save_hint": "Ctrl/⌘ + S to save",
+      "conflict": "The config file was changed elsewhere, nothing was saved. Copy your edits, then click \"Discard\" to load the latest version"
     },
     "groups": {
       "server": "HTTP/HTTPS listen address, port and general server behavior",
@@ -788,7 +701,7 @@
       },
       "routing/retry/request-retry": {
         "label": "Request Retry",
-        "hint": "Extra retry rounds on 429/500/503, default 3"
+        "hint": "Extra credential retry rounds after the first one; 0 when unset"
       },
       "routing/retry/max-retry-credentials": {
         "label": "Max Retry Credentials",
@@ -827,8 +740,8 @@
         "hint": "Retries on network or protocol errors before the first byte is sent"
       },
       "requests/nonstream-keepalive-interval": {
-        "label": "Non-Stream Keepalive Interval",
-        "hint": "Periodically send blank lines to keep long non-streaming requests alive, e.g. 10s, 30s"
+        "label": "Non-Stream Keepalive Interval (seconds)",
+        "hint": "Emit a blank line every N seconds for non-streaming responses; 0 disables it"
       },
       "oauth/auth-dir": {
         "label": "Auth Dir",
@@ -935,16 +848,77 @@
       "plugins/dir": {
         "label": "Plugin Dir",
         "hint": "Directory for discovering plugin libraries or binaries, default plugins"
+      },
+      "server/trusted-proxies": {
+        "label": "Trusted Proxies",
+        "hint": "IPs or CIDRs allowed to send forwarded client IP headers, one per line; empty trusts none. Requires restart"
+      },
+      "server/discovery/enabled": {
+        "label": "LAN Service Discovery",
+        "hint": "Advertise the service via mDNS / DNS-SD; Docker needs host networking"
+      },
+      "oauth/request-scoped-errors": {
+        "label": "OAuth Request-Scoped Errors",
+        "hint": "Per-channel upstream error rules (JSON object), e.g. {\"codex\": [{\"status\": 429, \"match\": [\"...\"], \"action\": \"stop\"}]}"
+      },
+      "oauth/providers/codex/disable-codex-cloaking": {
+        "label": "Disable Codex Cloaking",
+        "hint": "Don't force the official Codex User-Agent and Originator headers on HTTP, SSE or WebSocket requests"
+      },
+      "oauth/providers/codex/model-level-cooling": {
+        "label": "Codex Model-Level Cooling",
+        "hint": "Scope usage_limit_reached cooldowns to the requested model instead of the whole credential"
+      },
+      "oauth/providers/codex/stream-bootstrap-buffering": {
+        "label": "Codex Stream Bootstrap Buffering",
+        "hint": "Hold handshake and heartbeat frames until the first generated event so in-stream overloads can fail over before headers are sent"
+      },
+      "oauth/providers/codex/stream-bootstrap-timeout": {
+        "label": "Codex Stream Bootstrap Timeout",
+        "hint": "Maximum buffering time, e.g. 20s; 0 means no limit"
+      },
+      "oauth/providers/codex/response-steering": {
+        "label": "Codex Response Steering (experimental)",
+        "hint": "Full-duplex Responses WebSocket; one socket stays on one account and model"
+      },
+      "oauth/providers/codex/optimize-multi-agent-v2": {
+        "label": "Codex Multi-Agent v2 Optimization",
+        "hint": "Optimize multi-agent v2 requests from Codex Desktop, codex-tui and codex_cli_rs; not applied to API key credentials"
+      },
+      "oauth/providers/claude/model-level-cooling": {
+        "label": "Claude Model-Level Cooling",
+        "hint": "Scope quota cooldowns to the requested model instead of the whole credential"
+      },
+      "oauth/providers/claude/claude-code/disable-cloaking-model-list": {
+        "label": "Uncloaked Claude Model List",
+        "hint": "Return original model IDs in the Anthropic model list instead of cloaked ones"
+      },
+      "oauth/providers/xai/inject-x-search": {
+        "label": "xAI Inject x_search",
+        "hint": "Inject the native x_search tool when the request doesn't declare it"
+      },
+      "oauth/providers/antigravity/connection-pool/enabled": {
+        "label": "Antigravity Connection Pool",
+        "hint": "Enable upstream HTTP connection pooling; short-lived connections are used by default"
+      },
+      "oauth/providers/antigravity/connection-pool/idle-conn-timeout": {
+        "label": "Antigravity Idle Connection Timeout",
+        "hint": "How long idle connections are kept, e.g. 30s; capped at 210 seconds"
+      },
+      "oauth/providers/antigravity/connection-pool/max-idle-conns-per-host": {
+        "label": "Antigravity Max Idle Connections per Host",
+        "hint": "Maximum idle connections kept per credential per host"
+      },
+      "plugins/store-sources": {
+        "label": "Plugin Store Sources",
+        "hint": "Extra plugin store registry URLs, one per line; the official registry is always included"
       }
     }
   },
   "quota": {
-    "title": "Quota Monitor",
     "refresh_all": "Refresh All",
     "alerts_only": "Alerts Only",
-    "remaining": "Remaining Quota",
     "upcoming_resets": "Upcoming Resets",
-    "no_resets": "No upcoming resets",
     "sort_lowest": "Lowest remaining quota first",
     "sort_earliest": "Earliest reset time first",
     "sort_name": "By account name",
@@ -1012,10 +986,6 @@
     "standalone": "Single-file bundle (management.html)",
     "running_version": "Current version:",
     "latest_release": "Latest release:",
-    "repo": "Repository:",
-    "current": "Current Version",
-    "latest": "Latest Version",
-    "check_update": "Check Updates",
     "up_to_date": "Up to date",
     "update_available": "Update available",
     "found_new_version": "New version available",
@@ -1026,7 +996,8 @@
     "auto_update_hint": "If <code>panel-github-repository</code> is configured in CPA's <code>config.yaml</code>, CPA periodically pulls the latest single-file panel in the background and hot-reloads it, so no manual download is needed. To apply immediately, restart the CPA service.",
     "cpa_desc": "CPA proxy gateway core",
     "cpa_upgrade_to": "CPA can be upgraded to {{version}}!",
-    "cpa_release": "CPA official Release"
+    "cpa_release": "CPA official Release",
+    "check_failed": "Check failed"
   },
   "time": {
     "never": "Never",
@@ -1064,6 +1035,7 @@
     "headers_format": "One header per line, formatted as Name: Value",
     "test_ok": "Responded successfully ({{ms}}ms)",
     "upstream_http": "Upstream returned HTTP {{status}}",
-    "request_failed": "Request failed"
+    "request_failed": "Request failed",
+    "vertex_alias_required": "Vertex models need an alias; CPA ignores models without one"
   }
 }

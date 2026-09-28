@@ -9,16 +9,19 @@ import {
   validate,
 } from "./provider-form";
 
-const rawClaude = KINDS.find((k) => k.endpoint === "claude");
-const rawOpenai = KINDS.find((k) => k.endpoint === "openai-compatibility");
-if (!rawClaude || !rawOpenai) throw new Error("缺少提供商定义");
-const claude = rawClaude;
-const openai = rawOpenai;
+function kindOf(endpoint: string) {
+  const kind = KINDS.find((k) => k.endpoint === endpoint);
+  if (!kind) throw new Error(`缺少提供商定义 ${endpoint}`);
+  return kind;
+}
+const claude = kindOf("claude");
+const openai = kindOf("openai-compatibility");
+const codex = kindOf("codex");
+const vertex = kindOf("vertex");
 
 test("编辑时保留表单不管的字段,清空的字段会删除", () => {
   const original = {
     keys: [{ "api-key": "sk-a" }],
-    "auth-index": "a1b2",
     "proxy-url": "socks5://p",
     cloak: { mode: "auto" },
     models: [{ name: "claude-x", alias: "x", "force-mapping": true }],
@@ -32,21 +35,46 @@ test("编辑时保留表单不管的字段,清空的字段会删除", () => {
   });
 });
 
-test("OpenAI 兼容保留已有 key 条目的代理设置", () => {
+test("非 OpenAI 分组可改 key、多 key,并按 api-key 保留每个 key 的字段", () => {
+  const original = { name: "c1", keys: [{ "api-key": "k1", weight: 3, "proxy-url": "http://p" }, { "api-key": "k2" }] };
+  const out = fromForm(claude, { ...toForm(original), keys: "k1\nk3" }, original);
+  expect(out.keys).toEqual([{ "api-key": "k1", weight: 3, "proxy-url": "http://p" }, { "api-key": "k3" }]);
+  expect(out.name).toBe("c1");
+});
+
+test("OpenAI 兼容保留 key 的代理,不写分组级 proxy-url / excluded-models", () => {
   const original = {
     name: "or",
     "base-url": "https://x",
+    disabled: true,
     keys: [{ "api-key": "k1", "proxy-url": "http://p" }],
   };
-  const out = fromForm(openai, { ...toForm(original), keys: "k1\nk2" }, original);
+  const out = fromForm(openai, { ...toForm(original), keys: "k1\nk2", proxyUrl: "http://g", excluded: "m" }, original);
   expect(out.keys).toEqual([{ "api-key": "k1", "proxy-url": "http://p" }, { "api-key": "k2" }]);
-  expect(out.disabled).toBeUndefined();
+  expect(out["proxy-url"]).toBeUndefined();
+  expect(out["excluded-models"]).toBeUndefined();
+  expect(out.disabled).toBe(true);
+});
+
+test("WebSocket 开关:关闭时删除,未改动时不影响已有 key", () => {
+  const original = { "base-url": "https://x", keys: [{ "api-key": "k1", websockets: true }, { "api-key": "k2" }] };
+  const unchanged = fromForm(codex, { ...toForm(original), keys: "k1\nk2\nk3" }, original);
+  expect(unchanged.keys).toEqual([
+    { "api-key": "k1", websockets: true },
+    { "api-key": "k2" },
+    { "api-key": "k3", websockets: true },
+  ]);
+  const off = fromForm(codex, { ...toForm(original), websockets: false }, original);
+  expect(off.keys).toEqual([{ "api-key": "k1" }, { "api-key": "k2" }]);
 });
 
 test("校验必填项", () => {
   expect(validate(claude, toForm({}))).toBe("请填写 API Key");
   expect(validate(openai, { ...toForm({}), name: "or", keys: "sk-test" })).toBe("请填写 Base URL");
   expect(validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), priority: "1.5" })).toBe("优先级必须是整数");
+  const vertexForm = toForm({ keys: [{ "api-key": "k" }], models: [{ name: "gemini-pro", alias: "gemini-pro" }] });
+  expect(validate(vertex, vertexForm)).toBeNull();
+  expect(validate(vertex, { ...vertexForm, models: "gemini-pro" })).not.toBeNull();
 });
 
 test("解析与格式化模型行", () => {
@@ -59,8 +87,8 @@ test("解析与格式化模型行", () => {
   ]);
   expect(formatModelRows(rows)).toBe("gpt-4o => 4o\ngpt-4o-mini\nclaude-3-5-sonnet => sonnet");
 
-  // 别名与原名相同时应省略 =>
-  expect(formatModelRows([{ name: "gpt-4o", alias: "gpt-4o" }])).toBe("gpt-4o");
+  // 别名与原名相同也保留(Vertex 需要显式别名)
+  expect(formatModelRows([{ name: "gpt-4o", alias: "gpt-4o" }])).toBe("gpt-4o => gpt-4o");
   // 空行或空名称过滤
   expect(
     formatModelRows([

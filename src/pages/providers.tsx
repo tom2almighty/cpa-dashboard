@@ -1,4 +1,4 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
@@ -35,51 +35,48 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
-import { api } from "@/lib/api";
+import { api, CONFIG_KEY, configPath, configQuery, orNotFound } from "@/lib/api";
 import {
   type Form,
   fetchProviderModels,
   formatModelRows,
   fromForm,
+  groupTitle,
   identity,
   type Json,
   KINDS,
   type Kind,
   lines,
   list,
-  mask,
   parseModelRows,
   str,
   testProviderConnectivity,
   toForm,
+  usageGroup,
   validate,
 } from "@/lib/provider-form";
 import type { RecentBucket } from "@/lib/types";
 
 type KeyUsage = { success: number; failed: number; recent_requests?: RecentBucket[] };
 
-// /observability/usage/api-keys 按 provider -> "base-url|api-key" 分组
+// /observability/usage/api-keys 按 provider 分组 -> "base_url|api_key"
 function useKeyUsage() {
   return useQuery({
     queryKey: ["cpa", "api-key-usage"],
-    queryFn: () =>
-      api<Record<string, Record<string, KeyUsage>>>("/v8/management/observability/usage/api-keys").catch(() => ({})),
-    select: (res) => new Map(Object.values(res ?? {}).flatMap((group) => Object.entries(group ?? {}))),
+    queryFn: () => api<Record<string, Record<string, KeyUsage>>>("/v8/management/observability/usage/api-keys"),
     refetchInterval: 60_000,
     retry: false,
   });
 }
 
-// 一个条目可能有多个 Key(OpenAI 兼容),把它们的桶按位置相加
-function usageOf(_kind: Kind, item: Json, usage: Map<string, KeyUsage> | undefined): RecentBucket[] {
-  if (!usage) return [];
-  const base = str(item["base-url"]);
-  const keysList = list(item.keys);
-  const keys = keysList.length > 0 ? keysList.map((e) => str(e["api-key"] ?? e)) : [str(item["api-key"])];
-  const found = keys.map((k) => usage.get(`${base}|${k}`)).filter((u): u is KeyUsage => Boolean(u));
+// 一个分组可能有多个 Key,把它们的桶按位置相加
+function usageOf(kind: Kind, item: Json, usage: Record<string, Record<string, KeyUsage>> | undefined): RecentBucket[] {
+  const group = usage?.[usageGroup(kind, item)];
+  if (!group) return [];
+  const base = str(item["base-url"]).trim();
   const buckets: RecentBucket[] = [];
-  for (const u of found) {
-    (u.recent_requests ?? []).forEach((b, i) => {
+  for (const k of list(item.keys)) {
+    (group[`${base}|${str(k["api-key"]).trim()}`]?.recent_requests ?? []).forEach((b, i) => {
       const acc = buckets[i] ?? { time: b.time, success: 0, failed: 0 };
       buckets[i] = { time: acc.time, success: acc.success + b.success, failed: acc.failed + b.failed };
     });
@@ -87,22 +84,16 @@ function usageOf(_kind: Kind, item: Json, usage: Map<string, KeyUsage> | undefin
   return buckets;
 }
 
-// v8: /config/api-keys/<provider> 整体替换
+// v8: /config/api-keys/<provider> 整体替换;写前重新读取,只有 404 视为空列表,避免读失败后覆盖掉其它分组
 async function mutateList(kind: Kind, change: (items: Json[]) => Json[]) {
-  const current = await api<Json[]>(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`).catch(
-    () => [],
-  );
-  const items = list(current).map(({ "auth-index": _, ...rest }) => rest);
-  const updated = change(items);
-  if (updated.length > 0) {
-    await api(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`, { method: "PUT", body: updated });
-  } else {
-    await api(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`, { method: "DELETE" });
-  }
+  const path = configPath("api-keys", kind.endpoint);
+  const updated = change(list(await api<Json[]>(path).catch(orNotFound([]))));
+  if (updated.length > 0) await api(path, { method: "PUT", body: updated });
+  else await api(path, { method: "DELETE" }).catch(orNotFound(null));
 }
 
-function findIndex(kind: Kind, items: Json[], target: Json): number {
-  const i = items.findIndex((x) => identity(kind, x) === identity(kind, target));
+function findIndex(items: Json[], target: Json): number {
+  const i = items.findIndex((x) => identity(x) === identity(target));
   if (i < 0) throw new Error(i18n.t("providers.err_stale"));
   return i;
 }
@@ -135,7 +126,7 @@ function ModelMappingEditor({
   const handleFetch = async () => {
     setIsFetching(true);
     try {
-      const key = kind.openai ? lines(form.keys)[0] || "" : form.apiKey.trim();
+      const key = lines(form.keys)[0] ?? "";
       if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) {
         toast.error(t("providers.base_url_required"));
         return;
@@ -381,13 +372,13 @@ function EditDialog({
     mutationFn: () =>
       mutateList(kind, (items) => {
         if (!target) return [...items, fromForm(kind, form, {})];
-        const i = findIndex(kind, items, target);
+        const i = findIndex(items, target);
         items[i] = fromForm(kind, form, items[i]);
         return items;
       }),
     onSuccess: () => {
       toast.success(target ? t("providers.saved") : t("providers.added"));
-      queryClient.invalidateQueries({ queryKey: ["cpa", "providers"] });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       onClose();
     },
   });
@@ -409,30 +400,21 @@ function EditDialog({
           </DialogTitle>
         </DialogHeader>
         <form id={`form-${p}`} onSubmit={submit} className="grid gap-4">
-          {kind.openai ? (
-            <>
-              <Field id={`${p}-name`} label={t("common.name")} hint={t("providers.name_hint")}>
-                <Input id={`${p}-name`} value={form.name} onChange={(e) => update({ name: e.target.value })} />
-              </Field>
-              <Field id={`${p}-keys`} label="API Key" hint={t("providers.keys_hint")}>
-                <Textarea
-                  id={`${p}-keys`}
-                  value={form.keys}
-                  onChange={(e) => update({ keys: e.target.value })}
-                  className="min-h-20 font-mono text-sm"
-                />
-              </Field>
-            </>
-          ) : (
-            <Field id={`${p}-key`} label="API Key">
-              <Input
-                id={`${p}-key`}
-                value={form.apiKey}
-                onChange={(e) => update({ apiKey: e.target.value })}
-                className="font-mono"
-              />
-            </Field>
-          )}
+          <Field
+            id={`${p}-name`}
+            label={t("common.name")}
+            hint={kind.openai ? t("providers.name_hint") : t("providers.group_name_hint")}
+          >
+            <Input id={`${p}-name`} value={form.name} onChange={(e) => update({ name: e.target.value })} />
+          </Field>
+          <Field id={`${p}-keys`} label="API Key" hint={t("providers.keys_hint")}>
+            <Textarea
+              id={`${p}-keys`}
+              value={form.keys}
+              onChange={(e) => update({ keys: e.target.value })}
+              className="min-h-20 font-mono text-sm"
+            />
+          </Field>
           <Field
             id={`${p}-base`}
             label="Base URL"
@@ -440,14 +422,16 @@ function EditDialog({
           >
             <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
           </Field>
-          <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
-            <Input
-              id={`${p}-proxy`}
-              value={form.proxyUrl}
-              onChange={(e) => update({ proxyUrl: e.target.value })}
-              placeholder="socks5://127.0.0.1:1080"
-            />
-          </Field>
+          {!kind.openai && (
+            <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
+              <Input
+                id={`${p}-proxy`}
+                value={form.proxyUrl}
+                onChange={(e) => update({ proxyUrl: e.target.value })}
+                placeholder="socks5://127.0.0.1:1080"
+              />
+            </Field>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id={`${p}-prefix`} label={t("providers.prefix")} hint={t("providers.prefix_hint")}>
               <Input id={`${p}-prefix`} value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
@@ -471,14 +455,16 @@ function EditDialog({
             </div>
           )}
           <ModelMappingEditor kind={kind} form={form} update={update} />
-          <Field id={`${p}-excluded`} label={t("providers.excluded_models")} hint={t("providers.excluded_hint")}>
-            <Textarea
-              id={`${p}-excluded`}
-              value={form.excluded}
-              onChange={(e) => update({ excluded: e.target.value })}
-              className="min-h-16 font-mono text-sm"
-            />
-          </Field>
+          {!kind.openai && (
+            <Field id={`${p}-excluded`} label={t("providers.excluded_models")} hint={t("providers.excluded_hint")}>
+              <Textarea
+                id={`${p}-excluded`}
+                value={form.excluded}
+                onChange={(e) => update({ excluded: e.target.value })}
+                className="min-h-16 font-mono text-sm"
+              />
+            </Field>
+          )}
           <Field id={`${p}-headers`} label={t("providers.extra_headers")} hint={t("providers.headers_hint")}>
             <Textarea
               id={`${p}-headers`}
@@ -537,10 +523,10 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
   const [editing, setEditing] = useState<Json | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Json | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["cpa", "providers"] });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
 
   const handleTestItem = async (item: Json) => {
-    const id = identity(kind, item);
+    const id = identity(item);
     setTestingId(id);
     try {
       const f = toForm(item);
@@ -556,7 +542,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
   const remove = useMutation({
     mutationFn: (target: Json) =>
       mutateList(kind, (all) => {
-        const i = findIndex(kind, all, target);
+        const i = findIndex(all, target);
         return all.filter((_, j) => j !== i);
       }),
     onSuccess: () => {
@@ -566,10 +552,11 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
     },
   });
 
+  // 只有 OpenAI 兼容分组支持 disabled
   const toggle = useMutation({
     mutationFn: (target: Json) =>
       mutateList(kind, (all) => {
-        const i = findIndex(kind, all, target);
+        const i = findIndex(all, target);
         const next = { ...all[i] };
         if (next.disabled) delete next.disabled;
         else next.disabled = true;
@@ -579,7 +566,8 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
     onSuccess: refresh,
   });
 
-  const columns = kind.openai ? 8 : 7;
+  // OpenAI 兼容显示启用开关,其它类型显示分组代理,列数相同
+  const columns = 7;
   return (
     <>
       <div className="mb-3 flex justify-end">
@@ -595,9 +583,9 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
             <TableHead>Base URL</TableHead>
             <TableHead className="text-right">{t("providers.th_key_count")}</TableHead>
             <TableHead className="text-right">{t("providers.th_model_count")}</TableHead>
-            <TableHead>{t("providers.proxy")}</TableHead>
+            {!kind.openai && <TableHead>{t("providers.proxy")}</TableHead>}
             <TableHead>{t("providers.th_recent")}</TableHead>
-            <TableHead className="w-16">{t("common.enabled")}</TableHead>
+            {kind.openai && <TableHead className="w-16">{t("common.enabled")}</TableHead>}
             <TableHead className="w-28">
               <span className="sr-only">{t("common.actions")}</span>
             </TableHead>
@@ -610,13 +598,9 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
             <EmptyRow columns={columns}>{t("providers.empty", { kind: kind.label })}</EmptyRow>
           ) : (
             items.map((item) => {
-              const keysList = list(item.keys);
-              const title =
-                str(item.name) ||
-                (keysList[0]?.["api-key"] ? mask(str(keysList[0]["api-key"])) : t("providers.unnamed_group"));
-              const keysCount = keysList.length || (item["api-key"] ? 1 : 0);
+              const title = groupTitle(item) || t("providers.unnamed_group");
               return (
-                <TableRow key={identity(kind, item)} className={item.disabled ? "text-muted-foreground" : undefined}>
+                <TableRow key={identity(item)} className={item.disabled ? "text-muted-foreground" : undefined}>
                   <TableCell className="font-medium">
                     {title}
                     {str(item.prefix) && (
@@ -628,7 +612,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                   <TableCell className="max-w-72 truncate text-muted-foreground" title={str(item["base-url"])}>
                     {str(item["base-url"]) || t("providers.official_url")}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{keysCount}</TableCell>
+                  <TableCell className="text-right tabular-nums">{list(item.keys).length}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {list(item.models).length || t("common.all")}
                     {list(item["excluded-models"]).length > 0 && (
@@ -637,32 +621,36 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="max-w-48 truncate text-muted-foreground">
-                    {str(item["proxy-url"]) || "—"}
-                  </TableCell>
+                  {!kind.openai && (
+                    <TableCell className="max-w-48 truncate text-muted-foreground">
+                      {str(item["proxy-url"]) || "—"}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <RequestSparkline buckets={usageOf(kind, item, usage.data)} label={title} />
                   </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={!item.disabled}
-                      disabled={toggle.isPending}
-                      onCheckedChange={() => toggle.mutate(item)}
-                      aria-label={t(item.disabled ? "providers.enable_aria" : "providers.disable_aria", {
-                        name: title,
-                      })}
-                    />
-                  </TableCell>
+                  {kind.openai && (
+                    <TableCell>
+                      <Switch
+                        checked={!item.disabled}
+                        disabled={toggle.isPending}
+                        onCheckedChange={() => toggle.mutate(item)}
+                        aria-label={t(item.disabled ? "providers.enable_aria" : "providers.disable_aria", {
+                          name: title,
+                        })}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       aria-label={t("providers.test_aria", { name: title })}
                       title={t("providers.test_connectivity")}
-                      disabled={testingId === identity(kind, item)}
+                      disabled={testingId === identity(item)}
                       onClick={() => handleTestItem(item)}
                     >
-                      {testingId === identity(kind, item) ? (
+                      {testingId === identity(item) ? (
                         <Spinner className="size-3.5" />
                       ) : (
                         <Activity className="size-3.5" />
@@ -702,7 +690,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
             <AlertDialogDescription>
               {deleting &&
                 t("providers.delete_desc", {
-                  name: kind.openai ? str(deleting.name) : mask(str(deleting["api-key"])),
+                  name: groupTitle(deleting),
                 })}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -725,48 +713,37 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
 
 export function ProvidersPage() {
   const { t } = useI18n();
-  const results = useQueries({
-    queries: KINDS.map((kind) => ({
-      queryKey: ["cpa", "providers", kind.endpoint],
-      queryFn: () =>
-        api<Json[]>(`/v8/management/config/api-keys/${encodeURIComponent(kind.endpoint)}`)
-          .then((res) => ({ [kind.endpoint]: Array.isArray(res) ? res : [] }))
-          .catch(() => ({ [kind.endpoint]: [] })),
-    })),
+  const { data, isPending, isError, error } = useQuery({
+    ...configQuery,
+    select: (c) => (c["api-keys"] ?? {}) as Record<string, unknown>,
   });
 
   return (
     <>
       <PageHeader title={t("providers.title")} description={t("providers.desc")} />
-      <Tabs defaultValue={KINDS[0].endpoint}>
-        <TabsList className="mb-6 flex-wrap">
-          {KINDS.map((kind, i) => (
-            <TabsTrigger key={kind.endpoint} value={kind.endpoint}>
-              {kind.label}
-              {list(results[i].data?.[kind.endpoint]).length > 0 && (
-                <span className="text-muted-foreground tabular-nums">
-                  {list(results[i].data?.[kind.endpoint]).length}
-                </span>
-              )}
-            </TabsTrigger>
+      {isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {t("providers.load_failed", { message: error.message })}
+        </p>
+      ) : (
+        <Tabs defaultValue={KINDS[0].endpoint}>
+          <TabsList className="mb-6 flex-wrap">
+            {KINDS.map((kind) => (
+              <TabsTrigger key={kind.endpoint} value={kind.endpoint}>
+                {kind.label}
+                {list(data?.[kind.endpoint]).length > 0 && (
+                  <span className="text-muted-foreground tabular-nums">{list(data?.[kind.endpoint]).length}</span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {KINDS.map((kind) => (
+            <TabsContent key={kind.endpoint} value={kind.endpoint}>
+              <ProviderTable kind={kind} items={list(data?.[kind.endpoint])} isPending={isPending} />
+            </TabsContent>
           ))}
-        </TabsList>
-        {KINDS.map((kind, i) => (
-          <TabsContent key={kind.endpoint} value={kind.endpoint}>
-            {results[i].isError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {t("providers.load_failed", { message: results[i].error?.message })}
-              </p>
-            ) : (
-              <ProviderTable
-                kind={kind}
-                items={list(results[i].data?.[kind.endpoint])}
-                isPending={results[i].isPending}
-              />
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+        </Tabs>
+      )}
     </>
   );
 }
