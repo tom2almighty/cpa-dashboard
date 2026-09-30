@@ -17,6 +17,7 @@
     "actions": "操作",
     "name": "名称",
     "download": "下载",
+    "loading_progress": "已加载 {{loaded}} / {{total}}",
     "request_failed_status": "请求失败（{{status}}）"
   },
   "theme": {

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
+import { CREDENTIALS_KEY } from "@/lib/credentials";
 
 type Provider = { id: string; name: string; hintKey: string; plugin?: boolean };
 
@@ -94,7 +95,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
   useEffect(() => {
     if (!done) return;
     toast.success(t("oauth.login_success", { name: provider.name }));
-    queryClient.invalidateQueries({ queryKey: ["cpa", "auth-files"] });
+    queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
     setSession(null);
   }, [done, provider.name, queryClient, t]);
 

@@ -17,6 +17,7 @@
     "actions": "Actions",
     "name": "Name",
     "download": "Download",
+    "loading_progress": "Loaded {{loaded}} / {{total}}",
     "request_failed_status": "Request failed ({{status}})"
   },
   "theme": {

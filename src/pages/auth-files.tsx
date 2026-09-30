@@ -54,10 +54,10 @@ import { Textarea } from "@/components/ui/textarea";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { api, download, fetchBlob, saveBlob } from "@/lib/api";
+import { CREDENTIALS_KEY, useCredentials } from "@/lib/credentials";
 import { formatDateTime, formatInteger, formatRelative } from "@/lib/format";
 import { type AuthFile, authState } from "@/lib/types";
 
-const QUERY_KEY = ["cpa", "auth-files"];
 const file = (name: string) => encodeURIComponent(name);
 const PAGE_SIZE = 50;
 
@@ -250,7 +250,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
       api("/v8/management/credentials/fields", { method: "PATCH", body: { name: target.id, ...patch } }),
     onSuccess: () => {
       toast.success(t("auth_files.saved"));
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
       queryClient.invalidateQueries({ queryKey: ["cpa", "auth-file-content", target.name] });
       onClose();
     },
@@ -368,7 +368,7 @@ function VertexDialog({ onClose }: { onClose: () => void }) {
     },
     onSuccess: (res) => {
       toast.success(t("auth_files.vertex_imported", { project: res.project_id ?? "" }));
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
       onClose();
     },
   });
@@ -560,13 +560,9 @@ export function AuthFilesPage() {
   const page = pager.filterKey === filterKey ? pager.page : 1;
   const setPage = (next: number) => setPager({ filterKey, page: next });
 
-  const { data, isPending, isError, error } = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => api<{ files: AuthFile[] }>("/v8/management/credentials"),
-    select: (res) => res.files ?? [],
-  });
+  const { files: data, total, isPending, isError, error, isComplete } = useCredentials();
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
 
   // 同一文件展开的插件虚拟凭据共用 name,带上 auth_index 才能定位
   const patchStatus = (f: AuthFile, disabled: boolean) =>
@@ -655,7 +651,7 @@ export function AuthFilesPage() {
   // 状态没有批量接口,并发逐个设置
   const batchToggle = useMutation({
     mutationFn: async (disabled: boolean) => {
-      const targets = (data ?? []).filter((f) => selected.includes(f.name));
+      const targets = data.filter((f) => selected.includes(f.name));
       const results = await Promise.allSettled(targets.map((f) => patchStatus(f, disabled)));
       const failed = results.flatMap((r, i) =>
         r.status === "rejected" ? [{ name: targets[i].name, error: (r.reason as Error).message }] : [],
@@ -672,7 +668,7 @@ export function AuthFilesPage() {
   // 选中的文件打包成一个 zip 下载,仅存在于内存的凭据没有文件,跳过
   const batchDownload = useMutation({
     mutationFn: async (names: string[]) => {
-      const targets = (data ?? []).filter((f) => names.includes(f.name) && !f.runtime_only);
+      const targets = data.filter((f) => names.includes(f.name) && !f.runtime_only);
       if (targets.length === 0) throw new Error(t("auth_files.no_downloadable"));
       const entries = await Promise.all(
         targets.map(async (f) => {
@@ -715,15 +711,12 @@ export function AuthFilesPage() {
     if (files.length) upload.mutate(files);
   }
 
-  const providers = useMemo(
-    () => [...new Set((data ?? []).map((f) => f.provider ?? "").filter(Boolean))].sort(),
-    [data],
-  );
+  const providers = useMemo(() => [...new Set(data.map((f) => f.provider ?? "").filter(Boolean))].sort(), [data]);
 
   const files = useMemo(() => {
     const k = deferredKeyword.trim().toLowerCase();
     const wanted = statusFilter === "active" ? "ok" : statusFilter;
-    return (data ?? []).filter((f) => {
+    return data.filter((f) => {
       if (provider && f.provider !== provider) return false;
       if (wanted !== "all" && authState(f) !== wanted) return false;
       if (k) {
@@ -744,23 +737,23 @@ export function AuthFilesPage() {
     setSelected((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
   };
 
-  const cooling = data?.filter((f) => authState(f) === "cooldown").length ?? 0;
-  const erroring = data?.filter((f) => authState(f) === "error").length ?? 0;
+  const cooling = data.filter((f) => authState(f) === "cooldown").length;
+  const erroring = data.filter((f) => authState(f) === "error").length;
 
   return (
     <>
       <PageHeader
         title={t("auth_files.title")}
         description={
-          data
-            ? t("auth_files.summary_desc", {
+          isPending
+            ? undefined
+            : t("auth_files.summary_desc", {
                 total: data.length,
                 disabled: data.filter((f) => f.disabled).length,
                 cooling:
                   (cooling ? t("auth_files.cooling_suffix", { cooling }) : "") +
                   (erroring ? t("auth_files.error_suffix", { count: erroring }) : ""),
               })
-            : undefined
         }
         actions={
           <div className="flex">
@@ -859,9 +852,15 @@ export function AuthFilesPage() {
             )}
           </div>
           <TabsContent value="quota">
-            <QuotaPanel files={data ?? []} />
+            <QuotaPanel files={data} />
           </TabsContent>
           <TabsContent value="list">
+            {!isComplete && (
+              <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Spinner className="size-3" />
+                {t("common.loading_progress", { loaded: formatInteger(data.length), total: formatInteger(total) })}
+              </p>
+            )}
             {selected.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-xs">
                 <span>{t("auth_files.selected_count", { count: selected.length })}</span>

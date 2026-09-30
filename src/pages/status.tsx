@@ -5,8 +5,10 @@ import { PageHeader } from "@/components/page-header";
 import { accountName } from "@/components/quota-panel";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n/context";
-import { api, configQuery } from "@/lib/api";
+import { configQuery } from "@/lib/api";
+import { useCredentials } from "@/lib/credentials";
 import { formatInteger } from "@/lib/format";
 import { type Json, KINDS, list } from "@/lib/provider-form";
 import { type AuthFile, authState } from "@/lib/types";
@@ -29,12 +31,7 @@ function Stat({ label, value, detail }: { label: string; value: string; detail?:
 
 export function StatusPage() {
   const { t } = useI18n();
-  const files = useQuery({
-    queryKey: ["cpa", "auth-files"],
-    queryFn: () => api<{ files: AuthFile[] }>("/v8/management/credentials"),
-    select: (res) => res.files ?? [],
-    refetchInterval: 30_000,
-  });
+  const { files: data, total, isPending, isError, error, isComplete } = useCredentials({ refetchInterval: 30_000 });
   // 提供商分组数与客户端密钥数都从共用的配置缓存里取
   const config = useQuery({
     ...configQuery,
@@ -49,13 +46,13 @@ export function StatusPage() {
     },
   });
 
-  if (!files.data) {
+  if (isPending || isError) {
     return (
       <>
         <PageHeader title={t("overview.title")} />
-        {files.isError ? (
+        {isError ? (
           <p role="alert" className="text-sm text-destructive">
-            {t("overview.load_failed", { message: files.error.message })}
+            {t("overview.load_failed", { message: error?.message ?? "" })}
           </p>
         ) : (
           <Skeleton className="h-96" />
@@ -64,7 +61,7 @@ export function StatusPage() {
     );
   }
 
-  const accounts = files.data;
+  const accounts = data;
   const active = accounts.filter((f) => !f.disabled);
   const attention = accounts.filter(needsAttention);
 
@@ -81,6 +78,13 @@ export function StatusPage() {
   return (
     <>
       <PageHeader title={t("overview.title")} />
+
+      {!isComplete && (
+        <p className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Spinner className="size-3" />
+          {t("common.loading_progress", { loaded: formatInteger(accounts.length), total: formatInteger(total) })}
+        </p>
+      )}
 
       <section
         aria-label={t("overview.summary_label")}
