@@ -215,6 +215,15 @@
     "field_weight": "Weight",
     "field_request_retry": "Request retries",
     "field_websockets": "Use WebSocket transport",
+    "field_timezone": "Cloaking timezone",
+    "timezone_placeholder": "e.g. Asia/Singapore",
+    "timezone_hint": "IANA timezone used for the cloaked currentDate; empty inherits the global setting",
+    "field_model_aliases": "Model aliases",
+    "model_aliases_placeholder": "claude-sonnet-4-5 => cs4.5",
+    "model_aliases_hint": "One \"upstream model => client-visible name\" per line. Applies to this credential only and overrides global aliases with the same name; fields not edited here are preserved on save",
+    "field_excluded_models": "Excluded models",
+    "excluded_models_placeholder": "claude-3-5-haiku-20241022",
+    "excluded_models_hint": "One model name per line, supports * wildcards. Applies to this credential only",
     "inherit_placeholder": "Empty to inherit"
   },
   "oauth": {

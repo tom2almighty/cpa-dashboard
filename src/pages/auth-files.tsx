@@ -54,6 +54,7 @@ import { Textarea } from "@/components/ui/textarea";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { api, download, fetchBlob, saveBlob } from "@/lib/api";
+import { diffFields, type Fields, NUMBER_FIELDS, readFields } from "@/lib/auth-file-fields";
 import { CREDENTIALS_KEY, useCredentials } from "@/lib/credentials";
 import { formatDateTime, formatInteger, formatRelative } from "@/lib/format";
 import { type AuthFile, authState } from "@/lib/types";
@@ -175,68 +176,6 @@ function ModelsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
   );
 }
 
-type Fields = {
-  note: string;
-  prefix: string;
-  proxy_url: string;
-  priority: string;
-  weight: string;
-  request_retry: string;
-  websockets: boolean;
-  headers: string;
-};
-
-const NUMBER_FIELDS = [
-  ["priority", "auth_files.field_priority"],
-  ["weight", "auth_files.field_weight"],
-  ["request_retry", "auth_files.field_request_retry"],
-] as const;
-
-function readFields(source: Record<string, unknown>): Fields {
-  const text = (v: unknown) => (v === undefined || v === null ? "" : String(v));
-  const headers = (source.headers ?? {}) as Record<string, string>;
-  return {
-    note: text(source.note),
-    prefix: text(source.prefix),
-    proxy_url: text(source.proxy_url ?? source["proxy-url"]),
-    priority: text(source.priority),
-    weight: text(source.weight),
-    request_retry: text(source.request_retry ?? source["request-retry"]),
-    websockets: source.websockets === true || source.websockets === "true",
-    headers: Object.entries(headers)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join("\n"),
-  };
-}
-
-function parseHeaders(text: string): Record<string, string> {
-  return Object.fromEntries(
-    text
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.includes(":"))
-      .map((l) => [l.slice(0, l.indexOf(":")).trim(), l.slice(l.indexOf(":") + 1).trim()]),
-  );
-}
-
-// 只提交改动的字段;清空的文本写成空字符串,清空的数字写成 null(恢复继承),删掉的请求头写成空值
-function diffFields(before: Fields, after: Fields): Record<string, unknown> {
-  const patch: Record<string, unknown> = {};
-  for (const key of ["note", "prefix", "proxy_url"] as const) {
-    if (before[key] !== after[key]) patch[key] = after[key].trim();
-  }
-  for (const [key] of NUMBER_FIELDS) {
-    if (before[key] !== after[key]) patch[key] = after[key].trim() ? Number(after[key]) : null;
-  }
-  if (before.websockets !== after.websockets) patch.websockets = after.websockets;
-  if (before.headers !== after.headers) {
-    const old = parseHeaders(before.headers);
-    const next = parseHeaders(after.headers);
-    patch.headers = { ...Object.fromEntries(Object.keys(old).map((k) => [k, ""])), ...next };
-  }
-  return patch;
-}
-
 function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
@@ -333,6 +272,38 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
                 className="min-h-20 font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">{t("auth_files.headers_hint")}</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="f-timezone">{t("auth_files.field_timezone")}</Label>
+              <Input
+                id="f-timezone"
+                value={form.timezone}
+                placeholder={t("auth_files.timezone_placeholder")}
+                onChange={(e) => update({ timezone: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">{t("auth_files.timezone_hint")}</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="f-aliases">{t("auth_files.field_model_aliases")}</Label>
+              <Textarea
+                id="f-aliases"
+                value={form.model_aliases}
+                placeholder={t("auth_files.model_aliases_placeholder")}
+                onChange={(e) => update({ model_aliases: e.target.value })}
+                className="min-h-20 font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">{t("auth_files.model_aliases_hint")}</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="f-excluded">{t("auth_files.field_excluded_models")}</Label>
+              <Textarea
+                id="f-excluded"
+                value={form.excluded_models}
+                placeholder={t("auth_files.excluded_models_placeholder")}
+                onChange={(e) => update({ excluded_models: e.target.value })}
+                className="min-h-20 font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">{t("auth_files.excluded_models_hint")}</p>
             </div>
           </form>
         )}

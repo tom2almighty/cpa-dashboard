@@ -215,6 +215,15 @@
     "field_weight": "权重",
     "field_request_retry": "请求重试次数",
     "field_websockets": "使用 WebSocket 传输",
+    "field_timezone": "伪装时区",
+    "timezone_placeholder": "例如 Asia/Singapore",
+    "timezone_hint": "Claude 伪装 currentDate 使用的 IANA 时区，空值继承全局设置",
+    "field_model_aliases": "模型别名",
+    "model_aliases_placeholder": "claude-sonnet-4-5 => cs4.5",
+    "model_aliases_hint": "每行一条「上游模型名 => 客户端可见名」，只作用于该凭据并覆盖同名全局别名；保存时保留条目上未在此编辑的字段",
+    "field_excluded_models": "排除模型",
+    "excluded_models_placeholder": "claude-3-5-haiku-20241022",
+    "excluded_models_hint": "每行一个模型名，支持 * 通配符，只作用于该凭据",
     "inherit_placeholder": "留空继承"
   },
   "oauth": {
