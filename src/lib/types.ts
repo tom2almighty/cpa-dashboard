@@ -40,6 +40,8 @@ export type AuthFile = {
   note?: string;
   // 有插件 QuotaProvider 或凭据内配置了 quota_probe 时为 true
   supports_quota?: boolean;
+  // 由插件提供额度时返回的来源渠道;只有这种凭据支持重置额度
+  quota_provider?: string;
   last_refresh?: string;
   updated_at?: string;
 };

@@ -1077,6 +1077,12 @@
     "query_failed": "查询额度失败",
     "updated_ago": "{{time}}更新",
     "refresh_account": "刷新 {{name}} 的额度",
+    "source_plugin": "插件额度",
+    "reset_account": "重置 {{name}} 的额度",
+    "reset_hint": "通过插件额度提供方重置该凭据的额度，同时清除它的路由额度冷却",
+    "reset_done": "{{name}} 的额度已重置{{message}}",
+    "reset_message": "：{{message}}",
+    "reset_failed": "额度重置失败：{{message}}",
     "retry": "重试",
     "no_details": "上游未返回额度明细",
     "label": {

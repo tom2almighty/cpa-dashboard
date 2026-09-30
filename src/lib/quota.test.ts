@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import {
   parseAntigravity,
   parseClaude,
@@ -8,8 +8,55 @@ import {
   parseMeta,
   parsePluginQuota,
   parseXai,
+  resetQuota,
   windowLabel,
 } from "./quota";
+
+// bun test 没有 DOM,api.ts 解析地址与密钥时要用到 Web Storage
+const memory = new Map<string, string>();
+const storage = {
+  getItem: (key: string) => memory.get(key) ?? null,
+  setItem: (key: string, value: string) => void memory.set(key, String(value)),
+  removeItem: (key: string) => void memory.delete(key),
+  clear: () => memory.clear(),
+} as unknown as Storage;
+globalThis.localStorage ??= storage;
+globalThis.sessionStorage ??= storage;
+
+const originalFetch = globalThis.fetch;
+
+afterAll(() => {
+  globalThis.fetch = originalFetch;
+});
+
+test("resetQuota 带 auth_index 打 /credentials/quota/reset", async () => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+    return new Response(JSON.stringify({ status: "ok", message: "restored" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const res = await resetQuota({ id: "a", name: "a.json", auth_index: "idx1" });
+
+  expect(calls[0].url).toBe("/v8/management/credentials/quota/reset");
+  expect(calls[0].init?.method).toBe("POST");
+  expect(JSON.parse(String(calls[0].init?.body))).toEqual({ auth_index: "idx1" });
+  expect(res).toEqual({ status: "ok", message: "restored" });
+});
+
+test("缺少 auth_index 时不发请求", async () => {
+  let called = false;
+  globalThis.fetch = (async () => {
+    called = true;
+    return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  await expect(resetQuota({ id: "a", name: "a.json" })).rejects.toThrow();
+  expect(called).toBe(false);
+});
 
 const now = Date.UTC(2026, 8, 24);
 

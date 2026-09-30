@@ -1077,6 +1077,12 @@
     "query_failed": "Failed to query quota",
     "updated_ago": "Updated {{time}}",
     "refresh_account": "Refresh quota for {{name}}",
+    "source_plugin": "Plugin quota",
+    "reset_account": "Reset quota for {{name}}",
+    "reset_hint": "Reset this credential's quota through the plugin quota provider and clear its routing quota cooldown",
+    "reset_done": "Quota for {{name}} reset{{message}}",
+    "reset_message": ": {{message}}",
+    "reset_failed": "Quota reset failed: {{message}}",
     "retry": "Retry",
     "no_details": "Upstream returned no quota details",
     "label": {

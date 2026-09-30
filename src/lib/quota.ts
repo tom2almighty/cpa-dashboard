@@ -521,6 +521,19 @@ export function fetchQuota(file: AuthFile): Promise<Quota> {
   });
 }
 
+/**
+ * 通过插件额度提供方重置该凭据的额度,CPA 会顺带清掉路由侧的额度冷却。
+ * 只有 file.quota_provider 存在(插件提供方)时可用,否则 CPA 返回 501。
+ */
+export function resetQuota(file: AuthFile): Promise<{ message?: string }> {
+  const authIndex = file.auth_index ?? "";
+  if (!authIndex) return Promise.reject(new Error(i18n.t("quota.error.missing_auth_index")));
+  return api<{ message?: string }>("/v8/management/credentials/quota/reset", {
+    method: "POST",
+    body: { auth_index: authIndex },
+  });
+}
+
 async function fetchQuotaNow(file: AuthFile, authIndex: string): Promise<Quota> {
   // CPA 自身没有内置额度提供方,只有插件 QuotaProvider 或凭据的 quota_probe;没有时返回 501,再走 api-call
   if (file.supports_quota) {

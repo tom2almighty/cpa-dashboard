@@ -1,5 +1,5 @@
-import { useQueries } from "@tanstack/react-query";
-import { AlertTriangle, ArrowUpDown, Clock, OctagonAlert, RefreshCw, Search } from "lucide-react";
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, ArrowUpDown, Clock, OctagonAlert, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Pagination, paginate } from "@/components/pagination";
@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/context";
+import { CREDENTIALS_KEY } from "@/lib/credentials";
 import { formatCountdown, formatDateTime, formatRelative } from "@/lib/format";
-import { fetchQuota, type QuotaWindow, supportsQuota } from "@/lib/quota";
+import { fetchQuota, type QuotaWindow, resetQuota, supportsQuota } from "@/lib/quota";
 import type { AuthFile } from "@/lib/types";
 export function accountName(file: AuthFile): string {
   return file.email || file.label || file.account || file.name;
@@ -91,6 +92,7 @@ function MeterRow({ window: w }: { window: QuotaWindow }) {
 
 export function QuotaPanel({ files }: { files: AuthFile[] }) {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const [selectedChannel, setSelectedChannel] = useState("all");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -236,6 +238,23 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
     if (failed) toast.error(t("quota.refresh_failed_count", { count: failed }));
     else toast.success(t("quota.refreshed"));
   };
+
+  // 重置走插件额度提供方,CPA 会同时清掉该凭据的路由额度冷却
+  const reset = useMutation({
+    mutationFn: (file: AuthFile) => resetQuota(file),
+    onSuccess: (res, file) => {
+      toast.success(
+        t("quota.reset_done", {
+          name: accountName(file),
+          message: res.message ? t("quota.reset_message", { message: res.message }) : "",
+        }),
+      );
+      queryClient.invalidateQueries({ queryKey: ["quota", file.auth_index] });
+      queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
+    },
+    onError: (error: Error) => toast.error(t("quota.reset_failed", { message: error.message })),
+    meta: { quiet: true },
+  });
 
   if (targets.length === 0) {
     return (
@@ -398,18 +417,43 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                           {q && q.dataUpdatedAt > 0 && (
                             <span>{t("quota.updated_ago", { time: formatRelative(q.dataUpdatedAt) })}</span>
                           )}
+                          {item.file.quota_provider && (
+                            <Badge variant="outline" className="text-[11px] font-normal">
+                              {t("quota.source_plugin")}
+                            </Badge>
+                          )}
                         </div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("quota.refresh_account", { name: item.name })}
-                        disabled={q?.isFetching}
-                        onClick={() => q?.refetch()}
-                      >
-                        <RefreshCw className={q?.isFetching ? "animate-spin" : undefined} />
-                      </Button>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        {item.file.quota_provider && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title={t("quota.reset_hint")}
+                            aria-label={t("quota.reset_account", { name: item.name })}
+                            disabled={reset.isPending && reset.variables?.auth_index === item.file.auth_index}
+                            onClick={() => reset.mutate(item.file)}
+                          >
+                            <RotateCcw
+                              className={
+                                reset.isPending && reset.variables?.auth_index === item.file.auth_index
+                                  ? "animate-spin"
+                                  : undefined
+                              }
+                            />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t("quota.refresh_account", { name: item.name })}
+                          disabled={q?.isFetching}
+                          onClick={() => q?.refetch()}
+                        >
+                          <RefreshCw className={q?.isFetching ? "animate-spin" : undefined} />
+                        </Button>
+                      </div>
                     </div>
 
                     {q?.isPending ? (
