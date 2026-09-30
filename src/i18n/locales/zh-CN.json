@@ -71,7 +71,7 @@
     "submitting": "连接中...",
     "error_unauthorized": "管理密钥不正确",
     "error_forbidden": "CPA 不允许远程管理，需要在配置中设置 management.allow-remote: true",
-    "error_not_found": "CPA 没有开启管理接口，需要在配置中设置 management.secret-key 或启动环境变量 MANAGEMENT_PASSWORD",
+    "error_not_found": "CPA 没有开启管理接口：需要在配置中设置 management.secret-key 或启动环境变量 MANAGEMENT_PASSWORD；若 CPA 以 Home 模式运行则不提供该接口",
     "error_network": "无法连接到 CPA 服务，请确认 CPA 地址是否正确，且已允许跨域（CORS）或网络可达"
   },
   "overview": {
@@ -257,6 +257,24 @@
     "unknown_error": "未知错误",
     "code_expires_in": "（{{time}} 后过期）",
     "code_expired": "设备码已过期，请重新登录"
+  },
+  "api_error": {
+    "remote_management_disabled": "CPA 不允许远程管理，需要在配置里设置 management.allow-remote: true",
+    "auth_manager_unavailable": "CPA 的认证管理器不可用，请稍后重试",
+    "logging_to_file_disabled": "需要先在配置里开启「应用日志写入文件」",
+    "unknown_channel": "CPA 不认识这个渠道",
+    "auth_not_found": "CPA 里找不到这个凭据",
+    "no_quota_provider": "该凭据没有可用的插件额度提供方",
+    "cannot_delete_config": "不接受删除整份配置，请删除具体字段",
+    "invalid_config": "配置未通过 CPA 校验：{{message}}",
+    "invalid_yaml": "YAML 无法解析：{{message}}",
+    "provider_not_found": "CPA 不支持该登录提供商",
+    "read_only_field": "该字段由 CPA 托管，不能修改",
+    "delete_requires_restart": "该插件无法热卸载，删除后需要重启 CPA",
+    "update_requires_restart": "该插件无法热更新，更新后需要重启 CPA",
+    "store_source_conflict": "该插件已从其它商店源安装，请先确认来源",
+    "store_installed_source_unknown": "无法确认插件当前的安装来源",
+    "store_rate_limited": "插件商店请求过于频繁，请稍后重试"
   },
   "providers": {
     "title": "AI 提供商",
@@ -528,11 +546,6 @@
     "trust_and_install": "信任并安装",
     "field_invalid_number": "{{name}} 需要填写有效的数字",
     "field_invalid_json": "{{name}} 不是有效的 JSON",
-    "err_delete_requires_restart": "插件正在运行，无法删除。请先停用并重启 CPA 后再删除。",
-    "err_update_requires_restart": "插件正在运行，无法覆盖更新。请先停用并重启 CPA 后再更新。",
-    "err_source_conflict": "该插件已从其他商店源安装，需要先卸载才能切换来源。",
-    "err_installed_source_unknown": "无法确认已安装插件的来源，需要先卸载再从商店重新安装。",
-    "err_rate_limited": "插件商店请求 GitHub 被限流，请稍后再试。",
     "warn_source_different": "该插件已从商店源 {{source}} 安装，从这里安装会被拒绝，需要先卸载。",
     "warn_source_unknown": "无法确认该插件当前的安装来源，安装可能被拒绝，届时需要先卸载。"
   },

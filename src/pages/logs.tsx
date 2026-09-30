@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { i18n, useI18n } from "@/i18n/context";
-import { ApiError, api, CONFIG_KEY, configPath, configQuery, download } from "@/lib/api";
+import { ApiError, api, CONFIG_KEY, configPath, configQuery, download, errorText } from "@/lib/api";
 import { formatDateTime, formatInteger } from "@/lib/format";
 import { appendLines, type Level, type LogEntry } from "@/lib/log-parse";
 
@@ -314,7 +314,7 @@ function LiveLogs() {
       </div>
       {error && (
         <p role="alert" className="mb-2 text-sm text-destructive">
-          {t("logs.load_failed", { message: error.message })}
+          {t("logs.load_failed", { message: errorText(error) })}
         </p>
       )}
       <div className="relative">
@@ -467,7 +467,7 @@ function RequestLogs() {
                         download(
                           `/v8/management/observability/logs/errors/${encodeURIComponent(f.name)}`,
                           f.name,
-                        ).catch((e: Error) => toast.error(e.message))
+                        ).catch((e: Error) => toast.error(errorText(e)))
                       }
                     >
                       <Download />

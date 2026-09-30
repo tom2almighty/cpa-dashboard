@@ -43,7 +43,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { i18n, useI18n } from "@/i18n/context";
-import { ApiError, api, CONFIG_KEY, configPath, configQuery, resolveUrl } from "@/lib/api";
+import { ApiError, api, CONFIG_KEY, configPath, configQuery, errorText, resolveUrl } from "@/lib/api";
 
 type ConfigField = { name: string; type?: string; enum_values?: string[] | null; description?: string };
 
@@ -132,20 +132,6 @@ function fromForm(fields: ConfigField[], values: Record<string, unknown>): Recor
   return out;
 }
 
-// 409/429 按错误码给出可操作的提示
-const ERROR_KEYS: Record<string, string> = {
-  plugin_delete_requires_restart: "plugins.err_delete_requires_restart",
-  plugin_update_requires_restart: "plugins.err_update_requires_restart",
-  plugin_store_source_conflict: "plugins.err_source_conflict",
-  plugin_store_installed_source_unknown: "plugins.err_installed_source_unknown",
-  plugin_store_rate_limited: "plugins.err_rate_limited",
-};
-
-function errorText(error: Error): string {
-  const key = error instanceof ApiError ? ERROR_KEYS[error.code] : undefined;
-  return key ? i18n.t(key) : error.message;
-}
-
 type PluginsResponse = { plugins_enabled?: boolean; plugins_dir?: string; plugins?: Plugin[] };
 
 type PluginPlatform = { goos?: string; goarch?: string };
@@ -225,12 +211,22 @@ type StoreResponse = {
 
 const PLUGINS_KEY = ["cpa", "plugins"];
 const STORE_KEY = ["cpa", "plugin-store"];
+// 插件重载是异步的:写入配置后轮询几次,直到列表状态与预期一致(或放弃)
+const REFRESH_ATTEMPTS = 4;
+const REFRESH_DELAY_MS = 700;
 
-// 服务端改完配置后异步重载插件,稍后再拉一次插件状态
-function refreshPlugins(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
-  queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
-  setTimeout(() => queryClient.invalidateQueries({ queryKey: PLUGINS_KEY }), 1000);
+const fetchPlugins = () => api<PluginsResponse>("/v8/management/plugins");
+
+async function refreshPlugins(queryClient: QueryClient, waitFor?: (plugins: Plugin[]) => boolean) {
+  await queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
+
+  for (let attempt = 0; ; attempt++) {
+    const data = await queryClient.fetchQuery({ queryKey: PLUGINS_KEY, queryFn: fetchPlugins, staleTime: 0 });
+    if (!waitFor || waitFor(data.plugins ?? []) || attempt >= REFRESH_ATTEMPTS) return;
+    const { promise, resolve } = Promise.withResolvers<void>();
+    setTimeout(resolve, REFRESH_DELAY_MS);
+    await promise;
+  }
 }
 
 function FieldControl({
@@ -373,7 +369,7 @@ function ConfigDialog({ plugin, onClose }: { plugin: Plugin; onClose: () => void
         )}
         {error ? (
           <p role="alert" className="text-sm text-destructive">
-            {error.message}
+            {errorText(error)}
           </p>
         ) : !data ? (
           <Skeleton className="h-80" />
@@ -491,7 +487,8 @@ function Installed() {
   const toggle = useMutation({
     mutationFn: (p: Plugin) =>
       api(configPath("plugins", "configs", p.id, "enabled"), { method: "PUT", body: !p.enabled }),
-    onSuccess: () => refreshPlugins(queryClient),
+    onSuccess: (_res, p) =>
+      refreshPlugins(queryClient, (plugins) => plugins.find((x) => x.id === p.id)?.effective_enabled === !p.enabled),
   });
 
   const remove = useMutation({
@@ -500,7 +497,7 @@ function Installed() {
     onSuccess: (_res, p) => {
       toast.success(t("plugins.deleted", { id: p.id }));
       setDeleting(null);
-      refreshPlugins(queryClient);
+      refreshPlugins(queryClient, (plugins) => !plugins.some((x) => x.id === p.id));
     },
     onError: (e) => {
       toast.error(errorText(e));
@@ -512,7 +509,7 @@ function Installed() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {t("plugins.load_failed", { message: error.message })}
+        {t("plugins.load_failed", { message: errorText(error) })}
       </p>
     );
   }
@@ -753,7 +750,7 @@ function Store() {
     onSuccess: (res, { plugin: p }) => {
       toast.success(t("plugins.installed_toast", { name: p.name || p.id, version: res.version ?? "" }));
       queryClient.invalidateQueries({ queryKey: STORE_KEY });
-      refreshPlugins(queryClient);
+      refreshPlugins(queryClient, (plugins) => plugins.some((x) => x.id === p.id));
       setInstallingTarget(null);
       setCustomVersion("");
     },

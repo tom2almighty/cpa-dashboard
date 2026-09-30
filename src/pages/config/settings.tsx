@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
-import { api, CONFIG_KEY, configPath, configQuery, orNotFound, replaceKey } from "@/lib/api";
+import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound, replaceKey } from "@/lib/api";
 
 export type Json = Record<string, unknown>;
 
@@ -447,7 +447,7 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
       toast.success(t("config.save_success"));
     },
     onError: (err: Error) => {
-      toast.error(t("config.save_failed", { message: err.message }));
+      toast.error(t("config.save_failed", { message: errorText(err) }));
     },
   });
 
@@ -634,7 +634,7 @@ function SettingsState({ children }: { children: React.ReactNode }) {
   if (error)
     return (
       <p role="alert" className="text-sm text-destructive">
-        {t("config.yaml.load_failed", { message: error.message })}
+        {t("config.yaml.load_failed", { message: errorText(error) })}
       </p>
     );
   if (isPending) return <Skeleton className="h-64 w-full" />;

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n/context";
-import { api, CONFIG_KEY } from "@/lib/api";
+import { api, CONFIG_KEY, errorText } from "@/lib/api";
 
 // 挂在 CONFIG_KEY 前缀下,任何配置写入后 invalidate CONFIG_KEY 都会一并刷新
 const YAML_KEY = [...CONFIG_KEY, "yaml"];
@@ -170,7 +170,7 @@ export function YamlEditor() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {t("config.yaml.load_failed", { message: error.message })}
+        {t("config.yaml.load_failed", { message: errorText(error) })}
       </p>
     );
   }

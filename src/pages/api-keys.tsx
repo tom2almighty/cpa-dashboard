@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n/context";
-import { api, CONFIG_KEY, configPath, configQuery, storedBaseUrl } from "@/lib/api";
+import { api, CONFIG_KEY, configPath, configQuery, errorText, storedBaseUrl } from "@/lib/api";
 
 function randomKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -143,7 +143,7 @@ export function ApiKeysPage() {
           <Skeleton className="h-32 w-full" />
         ) : isError ? (
           <p role="alert" className="text-sm text-destructive">
-            {t("api_keys.load_failed", { message: error.message })}
+            {t("api_keys.load_failed", { message: errorText(error) })}
           </p>
         ) : (
           <ul className="divide-y rounded-lg border min-w-0 overflow-hidden">

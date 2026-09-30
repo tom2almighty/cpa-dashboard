@@ -53,7 +53,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
-import { api, download, fetchBlob, saveBlob } from "@/lib/api";
+import { api, download, errorText, fetchBlob, saveBlob } from "@/lib/api";
 import { diffFields, type Fields, NUMBER_FIELDS, readFields } from "@/lib/auth-file-fields";
 import { CREDENTIALS_KEY, useCredentials } from "@/lib/credentials";
 import { formatDateTime, formatInteger, formatRelative } from "@/lib/format";
@@ -155,7 +155,7 @@ function ModelsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
           <Skeleton className="h-48" />
         ) : isError ? (
           <p role="alert" className="text-sm text-destructive">
-            {t("overview.load_failed", { message: error.message })}
+            {t("overview.load_failed", { message: errorText(error) })}
           </p>
         ) : data.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{t("auth_files.no_models")}</p>
@@ -218,7 +218,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
         </DialogHeader>
         {source.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            {t("overview.load_failed", { message: source.error.message })}
+            {t("overview.load_failed", { message: errorText(source.error) })}
           </p>
         ) : !form ? (
           <Skeleton className="h-72" />
@@ -596,7 +596,7 @@ export function AuthFilesPage() {
       queryClient.invalidateQueries({ queryKey: ["quota", f.auth_index] });
     },
     onError: (err: Error) => {
-      toast.error(t("auth_files.refresh_failed", { message: err.message }));
+      toast.error(t("auth_files.refresh_failed", { message: errorText(err) }));
     },
     meta: { quiet: true },
   });
@@ -613,7 +613,7 @@ export function AuthFilesPage() {
       setDialog(null);
     },
     onError: (err: Error) => {
-      toast.error(t("auth_files.batch_delete_failed", { message: err.message }));
+      toast.error(t("auth_files.batch_delete_failed", { message: errorText(err) }));
     },
     onSettled: refresh,
     meta: { quiet: true },
@@ -625,7 +625,7 @@ export function AuthFilesPage() {
       const targets = data.filter((f) => selected.includes(f.name));
       const results = await Promise.allSettled(targets.map((f) => patchStatus(f, disabled)));
       const failed = results.flatMap((r, i) =>
-        r.status === "rejected" ? [{ name: targets[i].name, error: (r.reason as Error).message }] : [],
+        r.status === "rejected" ? [{ name: targets[i].name, error: errorText(r.reason) }] : [],
       );
       return { count: targets.length - failed.length, failed, disabled };
     },
@@ -657,7 +657,7 @@ export function AuthFilesPage() {
           skipped: skipped ? t("auth_files.batch_download_skipped", { skipped }) : "",
         }),
       ),
-    onError: (err: Error) => toast.error(t("auth_files.batch_download_failed", { message: err.message })),
+    onError: (err: Error) => toast.error(t("auth_files.batch_download_failed", { message: errorText(err) })),
     meta: { quiet: true },
   });
 
@@ -762,7 +762,7 @@ export function AuthFilesPage() {
 
       {isError ? (
         <p role="alert" className="text-sm text-destructive">
-          {t("auth_files.load_accounts_failed", { message: error.message })}
+          {t("auth_files.load_accounts_failed", { message: errorText(error) })}
         </p>
       ) : (
         <Tabs value={tab} onValueChange={(v) => setTab((v as typeof tab) ?? "list")}>
@@ -1002,7 +1002,7 @@ export function AuthFilesPage() {
                                 <DropdownMenuItem
                                   onClick={() =>
                                     download(`/v8/management/credentials/download?name=${file(f.name)}`, f.name).catch(
-                                      (e: Error) => toast.error(e.message),
+                                      (e: Error) => toast.error(errorText(e)),
                                     )
                                   }
                                 >

@@ -122,6 +122,36 @@ export function isNotFound(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
+// CPA 返回的错误码(见 v8 文档「错误响应」)对应的文案 key,其余码沿用服务端 message
+const ERROR_KEYS: Record<string, string> = {
+  "remote management disabled": "api_error.remote_management_disabled",
+  "core auth manager unavailable": "api_error.auth_manager_unavailable",
+  "logging to file disabled": "api_error.logging_to_file_disabled",
+  "unknown channel": "api_error.unknown_channel",
+  "auth not found": "api_error.auth_not_found",
+  "no quota provider available for credential": "api_error.no_quota_provider",
+  "no quota provider available for credential to reset": "api_error.no_quota_provider",
+  "quota provider not found for plugin": "api_error.no_quota_provider",
+  "quota provider did not handle reset request": "api_error.no_quota_provider",
+  cannot_delete_config: "api_error.cannot_delete_config",
+  invalid_config: "api_error.invalid_config",
+  invalid_yaml: "api_error.invalid_yaml",
+  provider_not_found: "api_error.provider_not_found",
+  read_only_field: "api_error.read_only_field",
+  plugin_delete_requires_restart: "api_error.delete_requires_restart",
+  plugin_update_requires_restart: "api_error.update_requires_restart",
+  plugin_store_source_conflict: "api_error.store_source_conflict",
+  plugin_store_installed_source_unknown: "api_error.store_installed_source_unknown",
+  plugin_store_rate_limited: "api_error.store_rate_limited",
+};
+
+/** 把 CPA 的错误码翻成文案,没有覆盖到的码直接用服务端 message */
+export function errorText(error: unknown): string {
+  if (!(error instanceof ApiError)) return error instanceof Error ? error.message : String(error);
+  const key = ERROR_KEYS[error.code];
+  return key ? i18n.t(key, { message: error.message }) : error.message;
+}
+
 // 读取可能不存在的配置节点:只有 404 视为空值,其它错误照常抛出,避免读失败后整体覆盖写
 export function orNotFound<T>(fallback: T) {
   return (error: unknown): T => {

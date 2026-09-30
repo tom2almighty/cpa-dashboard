@@ -36,7 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
-import { api, CONFIG_KEY, configPath, configQuery, orNotFound } from "@/lib/api";
+import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound } from "@/lib/api";
 import {
   CLOAK_MODES,
   type Form,
@@ -851,7 +851,7 @@ export function ProvidersPage() {
       <PageHeader title={t("providers.title")} description={t("providers.desc")} />
       {isError ? (
         <p role="alert" className="text-sm text-destructive">
-          {t("providers.load_failed", { message: error.message })}
+          {t("providers.load_failed", { message: errorText(error) })}
         </p>
       ) : (
         <Tabs defaultValue={KINDS[0].endpoint}>

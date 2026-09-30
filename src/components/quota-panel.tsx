@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/context";
+import { errorText } from "@/lib/api";
 import { CREDENTIALS_KEY } from "@/lib/credentials";
 import { formatCountdown, formatDateTime, formatRelative } from "@/lib/format";
 import { fetchQuota, type QuotaWindow, resetQuota, supportsQuota } from "@/lib/quota";
@@ -252,7 +253,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
       queryClient.invalidateQueries({ queryKey: ["quota", file.auth_index] });
       queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
     },
-    onError: (error: Error) => toast.error(t("quota.reset_failed", { message: error.message })),
+    onError: (error: Error) => toast.error(t("quota.reset_failed", { message: errorText(error) })),
     meta: { quiet: true },
   });
 
@@ -461,7 +462,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                     ) : q?.isError ? (
                       <div className="rounded-md bg-destructive/10 p-3 text-xs text-destructive">
                         <p className="font-medium">{t("quota.query_failed")}</p>
-                        <p className="mt-1 break-words opacity-90">{q.error.message}</p>
+                        <p className="mt-1 break-words opacity-90">{errorText(q.error)}</p>
                         <Button
                           variant="outline"
                           size="sm"

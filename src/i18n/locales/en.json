@@ -71,7 +71,7 @@
     "submitting": "Connecting...",
     "error_unauthorized": "Incorrect management key",
     "error_forbidden": "CPA does not allow remote management. Set management.allow-remote: true in the config",
-    "error_not_found": "CPA management API is not enabled. Set management.secret-key in the config or the MANAGEMENT_PASSWORD environment variable",
+    "error_not_found": "CPA management API is not enabled: set management.secret-key in the config or the MANAGEMENT_PASSWORD environment variable. Home mode does not expose this API at all",
     "error_network": "Cannot connect to CPA. Check that the CPA URL is correct and that CORS is allowed or the network is reachable"
   },
   "overview": {
@@ -257,6 +257,24 @@
     "unknown_error": "Unknown error",
     "code_expires_in": "(expires in {{time}})",
     "code_expired": "Device code expired, please log in again"
+  },
+  "api_error": {
+    "remote_management_disabled": "Remote management is disabled; set management.allow-remote: true in the config",
+    "auth_manager_unavailable": "CPA auth manager is unavailable, try again later",
+    "logging_to_file_disabled": "Enable write-app-logs-to-file in the config first",
+    "unknown_channel": "CPA does not know this channel",
+    "auth_not_found": "CPA has no such credential",
+    "no_quota_provider": "No plugin quota provider is available for this credential",
+    "cannot_delete_config": "Deleting the whole config is not allowed; delete specific fields",
+    "invalid_config": "CPA rejected this config: {{message}}",
+    "invalid_yaml": "YAML cannot be parsed: {{message}}",
+    "provider_not_found": "CPA does not support this login provider",
+    "read_only_field": "This field is owned by CPA and cannot be changed",
+    "delete_requires_restart": "This plugin cannot be hot-unloaded; restart CPA after deleting it",
+    "update_requires_restart": "This plugin cannot be hot-updated; restart CPA after updating it",
+    "store_source_conflict": "This plugin is installed from another store source; confirm the source first",
+    "store_installed_source_unknown": "Cannot confirm which source the plugin was installed from",
+    "store_rate_limited": "Plugin store is rate limited, try again later"
   },
   "providers": {
     "title": "AI Providers",
@@ -528,11 +546,6 @@
     "trust_and_install": "Trust and Install",
     "field_invalid_number": "{{name}} must be a valid number",
     "field_invalid_json": "{{name}} is not valid JSON",
-    "err_delete_requires_restart": "The plugin is loaded and can't be deleted. Disable it and restart CPA, then delete it.",
-    "err_update_requires_restart": "The plugin is loaded and can't be overwritten. Disable it and restart CPA, then update it.",
-    "err_source_conflict": "This plugin was installed from a different store source. Uninstall it before switching sources.",
-    "err_installed_source_unknown": "The installed plugin's source can't be verified. Uninstall it before reinstalling from the store.",
-    "err_rate_limited": "The plugin store hit GitHub's rate limit. Try again later.",
     "warn_source_different": "This plugin is installed from store source {{source}}. Installing from here will be rejected until you uninstall it.",
     "warn_source_unknown": "The plugin's current install source can't be verified. The install may be rejected, in which case uninstall it first."
   },

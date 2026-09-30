@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
-import { api, CONFIG_KEY, configPath, configQuery, orNotFound } from "@/lib/api";
+import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound } from "@/lib/api";
 
 // 静态模型目录支持的渠道(routing/model-definitions/:channel),别名 kimi.ai / x-ai 等由 CPA 内部归一
 const CHANNELS = [
@@ -258,7 +258,7 @@ function Aliases() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {t("models.load_failed", { message: error.message })}
+        {t("models.load_failed", { message: errorText(error) })}
       </p>
     );
   }
@@ -638,7 +638,7 @@ function Excluded() {
   if (isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {t("models.load_failed", { message: error.message })}
+        {t("models.load_failed", { message: errorText(error) })}
       </p>
     );
   }
@@ -741,7 +741,7 @@ function Catalog() {
           {isPending ? (
             <SkeletonRows columns={3} />
           ) : isError ? (
-            <EmptyRow columns={3}>{t("models.catalog_error", { message: error.message })}</EmptyRow>
+            <EmptyRow columns={3}>{t("models.catalog_error", { message: errorText(error) })}</EmptyRow>
           ) : data.length === 0 ? (
             <EmptyRow columns={3}>{t("models.no_models")}</EmptyRow>
           ) : (
@@ -852,7 +852,7 @@ function AvailableModels() {
         <Skeleton className="h-40" />
       ) : isError ? (
         <p role="alert" className="text-sm text-destructive">
-          {t("models.fetch_failed", { message: error.message })}
+          {t("models.fetch_failed", { message: errorText(error) })}
         </p>
       ) : models.length === 0 ? (
         <p className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
