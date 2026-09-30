@@ -40,7 +40,7 @@ function level(remaining: number | null): "ok" | "warn" | "danger" {
   return "ok";
 }
 
-function MeterRow({ window: w }: { window: QuotaWindow }) {
+export function MeterRow({ window: w }: { window: QuotaWindow }) {
   const { t } = useI18n();
   const remaining = w.usedPercent === null ? null : Math.max(0, Math.min(100, 100 - Math.round(w.usedPercent)));
   const state = level(remaining);

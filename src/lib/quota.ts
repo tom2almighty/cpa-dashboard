@@ -534,6 +534,19 @@ export function resetQuota(file: AuthFile): Promise<{ message?: string }> {
   });
 }
 
+const pluginQuotaPath = (pluginId: string, authIndex: string) =>
+  `/v8/management/plugins/${encodeURIComponent(pluginId)}/quota?auth_index=${encodeURIComponent(authIndex)}`;
+
+/** 指定插件额度提供方查询一个凭据的额度 */
+export async function fetchPluginQuota(pluginId: string, authIndex: string): Promise<Quota> {
+  return parsePluginQuota(await api<Json>(pluginQuotaPath(pluginId, authIndex)));
+}
+
+/** 指定插件额度提供方重置一个凭据的额度,同样会清除路由额度冷却 */
+export function resetPluginQuota(pluginId: string, authIndex: string): Promise<{ message?: string }> {
+  return api<{ message?: string }>(pluginQuotaPath(pluginId, authIndex), { method: "DELETE" });
+}
+
 async function fetchQuotaNow(file: AuthFile, authIndex: string): Promise<Quota> {
   // CPA 自身没有内置额度提供方,只有插件 QuotaProvider 或凭据的 quota_probe;没有时返回 501,再走 api-call
   if (file.supports_quota) {

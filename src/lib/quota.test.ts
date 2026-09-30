@@ -1,5 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import {
+  fetchPluginQuota,
   parseAntigravity,
   parseClaude,
   parseCodex,
@@ -8,6 +9,7 @@ import {
   parseMeta,
   parsePluginQuota,
   parseXai,
+  resetPluginQuota,
   resetQuota,
   windowLabel,
 } from "./quota";
@@ -56,6 +58,29 @@ test("缺少 auth_index 时不发请求", async () => {
 
   await expect(resetQuota({ id: "a", name: "a.json" })).rejects.toThrow();
   expect(called).toBe(false);
+});
+
+test("插件额度按 plugin id 与 auth_index 定位", async () => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+    return new Response(
+      JSON.stringify({
+        subscription: { plan: "pro" },
+        groups: [{ displayName: "Claude", buckets: [{ displayName: "5 小时", remainingFraction: 0.4 }] }],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  const quota = await fetchPluginQuota("cpa-quota", "idx 1");
+  expect(calls[0].url).toBe("/v8/management/plugins/cpa-quota/quota?auth_index=idx%201");
+  expect(quota.plan).toBe("pro");
+  expect(quota.windows.map((w) => [w.label, w.usedPercent])).toEqual([["Claude 5 小时", 60]]);
+
+  await resetPluginQuota("cpa-quota", "idx1");
+  expect(calls[1].url).toBe("/v8/management/plugins/cpa-quota/quota?auth_index=idx1");
+  expect(calls[1].init?.method).toBe("DELETE");
 });
 
 const now = Date.UTC(2026, 8, 24);

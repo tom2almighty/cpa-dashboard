@@ -4,6 +4,7 @@ import {
   ArrowUp,
   Download,
   ExternalLink,
+  Gauge,
   Globe,
   Puzzle,
   RefreshCw,
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 import { CodeEditor } from "@/components/code-editor";
 import { PageHeader } from "@/components/page-header";
 import { Pagination, paginate } from "@/components/pagination";
+import { PluginQuotaDialog } from "@/components/plugin-quota-dialog";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import {
   AlertDialog,
@@ -54,6 +56,8 @@ type Plugin = {
   effective_enabled?: boolean;
   supports_oauth?: boolean;
   oauth_provider?: string;
+  supports_quota?: boolean;
+  quota_provider?: string;
   logo?: string;
   config_fields?: ConfigField[] | null;
   menus?: PluginMenu[] | null;
@@ -474,6 +478,7 @@ function Installed() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [configuring, setConfiguring] = useState<Plugin | null>(null);
+  const [quotaPlugin, setQuotaPlugin] = useState<Plugin | null>(null);
   const [deleting, setDeleting] = useState<Plugin | null>(null);
   const [viewingResource, setViewingResource] = useState<{ title: string; subtitle?: string; url: string } | null>(
     null,
@@ -635,6 +640,16 @@ function Installed() {
                   />
                 </TableCell>
                 <TableCell className="text-right">
+                  {p.effective_enabled && p.supports_quota && p.quota_provider && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("plugins.quota_named", { name: p.id })}
+                      onClick={() => setQuotaPlugin(p)}
+                    >
+                      <Gauge />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -660,6 +675,14 @@ function Installed() {
       </Table>
 
       {configuring && <ConfigDialog plugin={configuring} onClose={() => setConfiguring(null)} />}
+      {quotaPlugin?.quota_provider && (
+        <PluginQuotaDialog
+          pluginId={quotaPlugin.id}
+          provider={quotaPlugin.quota_provider}
+          title={t("plugins.quota_title", { name: quotaPlugin.metadata?.name || quotaPlugin.id })}
+          onClose={() => setQuotaPlugin(null)}
+        />
+      )}
       {viewingResource && (
         <PluginViewerDialog
           title={viewingResource.title}
