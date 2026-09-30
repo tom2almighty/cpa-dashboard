@@ -9,11 +9,13 @@ export type Kind = {
   openai?: boolean;
   baseUrlRequired?: boolean;
   websockets?: boolean;
+  /** 键级支持 cloak.mode(仅官方 Claude API key) */
+  cloak?: boolean;
 };
 
 export const KINDS: Kind[] = [
   { endpoint: "gemini", label: "Gemini" },
-  { endpoint: "claude", label: "Claude" },
+  { endpoint: "claude", label: "Claude", cloak: true },
   { endpoint: "codex", label: "Codex", baseUrlRequired: true, websockets: true },
   {
     endpoint: "openai-compatibility",
@@ -39,11 +41,22 @@ export type ProviderKey = {
   weight?: number;
   "proxy-url"?: string;
   websockets?: boolean;
+  cloak?: { mode?: string } & Json;
+};
+
+// 键级字段:weight 决定加权轮询份额,proxy-url 覆盖分组代理,websockets 仅个别渠道支持
+export type KeyRow = {
+  id: string;
+  "api-key": string;
+  weight: string;
+  "proxy-url": string;
+  websockets: boolean;
+  cloakMode: string;
 };
 
 export type Form = {
   name: string;
-  keys: string;
+  keys: KeyRow[];
   baseUrl: string;
   proxyUrl: string;
   prefix: string;
@@ -51,10 +64,26 @@ export type Form = {
   headers: string;
   models: string;
   excluded: string;
-  websockets: boolean;
+  // 三态:空串表示不配置(继承全局)
+  disableCooling: "" | "true" | "false";
+  requestRetry: string;
 };
 
 export type Model = { name: string; alias?: string } & Json;
+
+// 按渠道可选的键级 cloak.mode,空串表示继承
+export const CLOAK_MODES = ["", "auto", "always", "never"] as const;
+
+export function newKeyRow(): KeyRow {
+  return {
+    id: Math.random().toString(36).slice(2),
+    "api-key": "",
+    weight: "",
+    "proxy-url": "",
+    websockets: false,
+    cloakMode: "",
+  };
+}
 
 export function str(value: unknown): string {
   return typeof value === "string" ? value : value === undefined || value === null ? "" : String(value);
@@ -219,9 +248,17 @@ export function groupTitle(item: Json): string {
 
 export function toForm(item: Json): Form {
   const keysList = list<ProviderKey>(item.keys);
+  const disableCooling = item["disable-cooling"];
   return {
     name: str(item.name),
-    keys: keysList.map((k) => str(k["api-key"])).join("\n"),
+    keys: keysList.map((k) => ({
+      id: Math.random().toString(36).slice(2),
+      "api-key": str(k["api-key"]),
+      weight: k.weight === undefined ? "" : str(k.weight),
+      "proxy-url": str(k["proxy-url"]),
+      websockets: k.websockets === true,
+      cloakMode: str(k.cloak?.mode),
+    })),
     baseUrl: str(item["base-url"]),
     proxyUrl: str(item["proxy-url"]),
     prefix: str(item.prefix),
@@ -233,8 +270,30 @@ export function toForm(item: Json): Form {
       .map((m) => (m.alias ? `${m.name} => ${m.alias}` : m.name))
       .join("\n"),
     excluded: list<string>(item["excluded-models"]).join("\n"),
-    websockets: keysList.some((k) => k.websockets === true),
+    disableCooling: disableCooling === true ? "true" : disableCooling === false ? "false" : "",
+    requestRetry: item["request-retry"] === undefined ? "" : str(item["request-retry"]),
   };
+}
+
+// 键级字段:空值表示删除该字段回退继承,其余按类型写入
+function applyKeyRow(kind: Kind, row: KeyRow, previous: Json | undefined): Json {
+  const entry: Json = { ...previous, "api-key": row["api-key"].trim() };
+  if (row.weight.trim()) entry.weight = Number(row.weight.trim());
+  else delete entry.weight;
+  if (row["proxy-url"].trim()) entry["proxy-url"] = row["proxy-url"].trim();
+  else delete entry["proxy-url"];
+  if (kind.websockets) {
+    if (row.websockets) entry.websockets = true;
+    else delete entry.websockets;
+  }
+  if (kind.cloak) {
+    const cloak: Json = { ...((entry.cloak as Json | undefined) ?? {}) };
+    if (row.cloakMode) cloak.mode = row.cloakMode;
+    else delete cloak.mode;
+    if (Object.keys(cloak).length) entry.cloak = cloak;
+    else delete entry.cloak;
+  }
+  return entry;
 }
 
 // 分组字段按 v8 校验:OpenAI 兼容没有分组级 proxy-url / excluded-models(代理在 keys[].proxy-url)
@@ -251,26 +310,20 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
   };
 
   set("name", form.name.trim() || undefined);
-  // 按 api-key 匹配保留每个 key 上的其它字段(weight、proxy-url 等)
-  const prevKeys = new Map(list<ProviderKey>(original.keys).map((k) => [str(k["api-key"]), k]));
-  // WebSocket 开关没动时不改已有 key 的设置,只给新 key 套用
-  const wsChanged = form.websockets !== toForm(original).websockets;
+  // 按 api-key 匹配保留每个 key 上的其它字段(alpha-search、fingerprint-profile 等)
+  const prevKeys = new Map(list<ProviderKey>(original.keys).map((k) => [str(k["api-key"]), k as Json]));
   set(
     "keys",
-    lines(form.keys).map((k) => {
-      const prev = prevKeys.get(k);
-      const entry: Json = { ...prev, "api-key": k };
-      if (kind.websockets && (!prev || wsChanged)) {
-        if (form.websockets) entry.websockets = true;
-        else delete entry.websockets;
-      }
-      return entry;
-    }),
+    form.keys
+      .filter((row) => row["api-key"].trim())
+      .map((row) => applyKeyRow(kind, row, prevKeys.get(row["api-key"].trim()))),
   );
   set("base-url", form.baseUrl.trim());
   if (!kind.openai) {
     set("proxy-url", form.proxyUrl.trim());
     set("excluded-models", lines(form.excluded, true));
+    set("disable-cooling", form.disableCooling ? form.disableCooling === "true" : undefined);
+    set("request-retry", form.requestRetry.trim() ? Number(form.requestRetry.trim()) : undefined);
   }
   set("prefix", form.prefix.trim());
   set("priority", form.priority.trim() ? Number(form.priority) : undefined);
@@ -298,9 +351,13 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
 
 export function validate(kind: Kind, form: Form): string | null {
   if (kind.openai && !form.name.trim()) return i18n.t("provider_form.name_required");
-  if (!form.keys.trim()) return i18n.t("provider_form.api_key_required");
+  if (!form.keys.some((row) => row["api-key"].trim())) return i18n.t("provider_form.api_key_required");
   if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) return i18n.t("provider_form.base_url_required");
   if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) return i18n.t("provider_form.priority_integer");
+  if (form.requestRetry.trim() && !/^-?\d+$/.test(form.requestRetry.trim()))
+    return i18n.t("provider_form.retry_integer");
+  if (form.keys.some((row) => row.weight.trim() && !/^-?\d+$/.test(row.weight.trim())))
+    return i18n.t("provider_form.weight_integer");
   if (lines(form.headers).some((l) => !l.includes(":"))) return i18n.t("provider_form.headers_format");
   // CPA 会丢弃没有别名的 Vertex 模型
   if (kind.endpoint === "vertex" && parseModelRows(form.models).some((r) => !r.alias))
@@ -320,7 +377,7 @@ export async function testProviderConnectivity(
     if (i > 0) customHeaders[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   }
 
-  const key = lines(form.keys)[0] ?? "";
+  const key = form.keys[0]?.["api-key"].trim() ?? "";
   const modelRows = parseModelRows(form.models);
   const testModel = modelRows[0]?.name || "";
 

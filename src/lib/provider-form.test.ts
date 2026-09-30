@@ -4,6 +4,7 @@ import {
   formatModelRows,
   fromForm,
   KINDS,
+  newKeyRow,
   parseModelRows,
   toForm,
   validate,
@@ -18,6 +19,17 @@ const claude = kindOf("claude");
 const openai = kindOf("openai-compatibility");
 const codex = kindOf("codex");
 const vertex = kindOf("vertex");
+
+// 表格行:只覆盖需要的列,其余保持默认
+const rows = (...items: { key: string; weight?: string; proxy?: string; ws?: boolean; cloak?: string }[]) =>
+  items.map((item) => ({
+    ...newKeyRow(),
+    "api-key": item.key,
+    weight: item.weight ?? "",
+    "proxy-url": item.proxy ?? "",
+    websockets: item.ws ?? false,
+    cloakMode: item.cloak ?? "",
+  }));
 
 test("编辑时保留表单不管的字段,清空的字段会删除", () => {
   const original = {
@@ -36,10 +48,23 @@ test("编辑时保留表单不管的字段,清空的字段会删除", () => {
 });
 
 test("非 OpenAI 分组可改 key、多 key,并按 api-key 保留每个 key 的字段", () => {
-  const original = { name: "c1", keys: [{ "api-key": "k1", weight: 3, "proxy-url": "http://p" }, { "api-key": "k2" }] };
-  const out = fromForm(claude, { ...toForm(original), keys: "k1\nk3" }, original);
-  expect(out.keys).toEqual([{ "api-key": "k1", weight: 3, "proxy-url": "http://p" }, { "api-key": "k3" }]);
+  const original = {
+    name: "c1",
+    keys: [{ "api-key": "k1", weight: 3, "proxy-url": "http://p", "alpha-search": true }, { "api-key": "k2" }],
+  };
+  const form = { ...toForm(original), keys: rows({ key: "k1", weight: "3", proxy: "http://p" }, { key: "k3" }) };
+  const out = fromForm(claude, form, original);
+  expect(out.keys).toEqual([
+    { "api-key": "k1", weight: 3, "proxy-url": "http://p", "alpha-search": true },
+    { "api-key": "k3" },
+  ]);
   expect(out.name).toBe("c1");
+});
+
+test("清空 weight / proxy-url 会删除该键字段,不写入空值", () => {
+  const original = { keys: [{ "api-key": "k1", weight: 5, "proxy-url": "http://p" }] };
+  const out = fromForm(claude, { ...toForm(original), keys: rows({ key: "k1" }) }, original);
+  expect(out.keys).toEqual([{ "api-key": "k1" }]);
 });
 
 test("OpenAI 兼容保留 key 的代理,不写分组级 proxy-url / excluded-models", () => {
@@ -49,29 +74,64 @@ test("OpenAI 兼容保留 key 的代理,不写分组级 proxy-url / excluded-mod
     disabled: true,
     keys: [{ "api-key": "k1", "proxy-url": "http://p" }],
   };
-  const out = fromForm(openai, { ...toForm(original), keys: "k1\nk2", proxyUrl: "http://g", excluded: "m" }, original);
+  const form = {
+    ...toForm(original),
+    keys: rows({ key: "k1", proxy: "http://p" }, { key: "k2" }),
+    proxyUrl: "http://g",
+    excluded: "m",
+  };
+  const out = fromForm(openai, form, original);
   expect(out.keys).toEqual([{ "api-key": "k1", "proxy-url": "http://p" }, { "api-key": "k2" }]);
   expect(out["proxy-url"]).toBeUndefined();
   expect(out["excluded-models"]).toBeUndefined();
+  expect(out["disable-cooling"]).toBeUndefined();
   expect(out.disabled).toBe(true);
 });
 
-test("WebSocket 开关:关闭时删除,未改动时不影响已有 key", () => {
+test("键级 WebSocket 与 cloak.mode 按行写入,未选择的渠道不写", () => {
   const original = { "base-url": "https://x", keys: [{ "api-key": "k1", websockets: true }, { "api-key": "k2" }] };
-  const unchanged = fromForm(codex, { ...toForm(original), keys: "k1\nk2\nk3" }, original);
-  expect(unchanged.keys).toEqual([
-    { "api-key": "k1", websockets: true },
-    { "api-key": "k2" },
-    { "api-key": "k3", websockets: true },
-  ]);
-  const off = fromForm(codex, { ...toForm(original), websockets: false }, original);
+  const unchanged = fromForm(
+    codex,
+    { ...toForm(original), keys: rows({ key: "k1", ws: true }, { key: "k2" }) },
+    original,
+  );
+  expect(unchanged.keys).toEqual([{ "api-key": "k1", websockets: true }, { "api-key": "k2" }]);
+
+  const off = fromForm(codex, { ...toForm(original), keys: rows({ key: "k1" }, { key: "k2" }) }, original);
   expect(off.keys).toEqual([{ "api-key": "k1" }, { "api-key": "k2" }]);
+
+  // claude 键上有其它 cloak 字段时只改 mode,保留 strict-mode
+  const claudeOriginal = { keys: [{ "api-key": "k1", cloak: { "strict-mode": true } }] };
+  const withCloak = fromForm(
+    claude,
+    { ...toForm(claudeOriginal), keys: rows({ key: "k1", cloak: "never" }) },
+    claudeOriginal,
+  );
+  expect(withCloak.keys).toEqual([{ "api-key": "k1", cloak: { "strict-mode": true, mode: "never" } }]);
+  const cleared = fromForm(claude, { ...toForm(claudeOriginal), keys: rows({ key: "k1" }) }, claudeOriginal);
+  expect(cleared.keys).toEqual([{ "api-key": "k1", cloak: { "strict-mode": true } }]);
+});
+
+test("分组级 disable-cooling 三态与 request-retry", () => {
+  const base = { keys: [{ "api-key": "k" }] };
+  expect(fromForm(claude, { ...toForm(base), disableCooling: "true", requestRetry: "2" }, base)).toMatchObject({
+    "disable-cooling": true,
+    "request-retry": 2,
+  });
+  const existing = { ...base, "disable-cooling": false, "request-retry": 3 };
+  const cleared = fromForm(claude, { ...toForm(existing), disableCooling: "", requestRetry: "" }, existing);
+  expect(cleared["disable-cooling"]).toBeUndefined();
+  expect(cleared["request-retry"]).toBeUndefined();
 });
 
 test("校验必填项", () => {
   expect(validate(claude, toForm({}))).toBe("请填写 API Key");
-  expect(validate(openai, { ...toForm({}), name: "or", keys: "sk-test" })).toBe("请填写 Base URL");
+  expect(validate(openai, { ...toForm({}), name: "or", keys: rows({ key: "sk-test" }) })).toBe("请填写 Base URL");
   expect(validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), priority: "1.5" })).toBe("优先级必须是整数");
+  expect(validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), requestRetry: "x" })).toBe("重试轮次必须是整数");
+  expect(validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), keys: rows({ key: "k", weight: "1.5" }) })).toBe(
+    "密钥权重必须是整数",
+  );
   const vertexForm = toForm({ keys: [{ "api-key": "k" }], models: [{ name: "gemini-pro", alias: "gemini-pro" }] });
   expect(validate(vertex, vertexForm)).toBeNull();
   expect(validate(vertex, { ...vertexForm, models: "gemini-pro" })).not.toBeNull();

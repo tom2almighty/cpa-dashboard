@@ -28,6 +28,7 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -37,6 +38,7 @@ import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, orNotFound } from "@/lib/api";
 import {
+  CLOAK_MODES,
   type Form,
   fetchProviderModels,
   formatModelRows,
@@ -44,10 +46,11 @@ import {
   groupTitle,
   identity,
   type Json,
+  type KeyRow,
   KINDS,
   type Kind,
-  lines,
   list,
+  newKeyRow,
   parseModelRows,
   str,
   testProviderConnectivity,
@@ -126,7 +129,7 @@ function ModelMappingEditor({
   const handleFetch = async () => {
     setIsFetching(true);
     try {
-      const key = lines(form.keys)[0] ?? "";
+      const key = form.keys[0]?.["api-key"].trim() ?? "";
       if ((kind.openai || kind.baseUrlRequired) && !form.baseUrl.trim()) {
         toast.error(t("providers.base_url_required"));
         return;
@@ -325,6 +328,110 @@ function ModelMappingEditor({
   );
 }
 
+// 键级编辑:api-key / weight / proxy-url 三个必填项,websockets 与 cloak.mode 只在该渠道支持时出现
+function KeyRowsEditor({ kind, form, update }: { kind: Kind; form: Form; update: (patch: Partial<Form>) => void }) {
+  const { t } = useI18n();
+  const setRow = (index: number, patch: Partial<KeyRow>) =>
+    update({ keys: form.keys.map((row, i) => (i === index ? { ...row, ...patch } : row)) });
+
+  return (
+    <div className="grid gap-2">
+      <Label>{t("providers.keys")}</Label>
+      {form.keys.map((row, index) => (
+        <div key={row.id} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[1fr_5rem_auto]">
+          <Input
+            value={row["api-key"]}
+            onChange={(e) => setRow(index, { "api-key": e.target.value })}
+            placeholder={t("providers.key_placeholder")}
+            aria-label={t("providers.key_named", { n: index + 1 })}
+            className="font-mono text-xs sm:col-span-1"
+          />
+          <Input
+            value={row.weight}
+            onChange={(e) => setRow(index, { weight: e.target.value })}
+            inputMode="numeric"
+            placeholder={t("providers.weight")}
+            aria-label={t("providers.weight_named", { n: index + 1 })}
+            className="font-mono text-xs"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="justify-self-end text-muted-foreground hover:text-destructive"
+            aria-label={t("providers.remove_key_named", { n: index + 1 })}
+            onClick={() => update({ keys: form.keys.filter((_, i) => i !== index) })}
+          >
+            <Trash2 />
+          </Button>
+          <Input
+            value={row["proxy-url"]}
+            onChange={(e) => setRow(index, { "proxy-url": e.target.value })}
+            placeholder={t("providers.key_proxy_placeholder")}
+            aria-label={t("providers.key_proxy_named", { n: index + 1 })}
+            className="font-mono text-xs sm:col-span-3"
+          />
+          {(kind.websockets || kind.cloak) && (
+            <div className="flex flex-wrap items-center gap-4 sm:col-span-3">
+              {kind.websockets && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Switch
+                    checked={row.websockets}
+                    onCheckedChange={(checked) => setRow(index, { websockets: checked })}
+                    aria-label={t("providers.websockets_named", { n: index + 1 })}
+                  />
+                  <span>{t("providers.websockets")}</span>
+                </div>
+              )}
+              {kind.cloak && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{t("providers.cloak_mode")}</span>
+                  <Select
+                    items={CLOAK_MODES.map((mode) => ({
+                      value: mode,
+                      label: mode ? t(`providers.cloak_${mode}`) : t("providers.cloak_inherit"),
+                    }))}
+                    value={row.cloakMode || null}
+                    onValueChange={(value) => setRow(index, { cloakMode: value ?? "" })}
+                  >
+                    <SelectTrigger
+                      className="h-7 w-28 text-xs"
+                      aria-label={t("providers.cloak_named", { n: index + 1 })}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">{t("providers.cloak_inherit")}</SelectItem>
+                      {CLOAK_MODES.filter(Boolean).map((mode) => (
+                        <SelectItem key={mode} value={mode}>
+                          {t(`providers.cloak_${mode}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="justify-self-start"
+        onClick={() => update({ keys: [...form.keys, newKeyRow()] })}
+      >
+        <Plus />
+        {t("providers.add_key")}
+      </Button>
+      <p className="text-xs text-muted-foreground">{t("providers.keys_hint")}</p>
+      {kind.websockets && <p className="text-xs text-muted-foreground">{t("providers.websockets_hint")}</p>}
+      {kind.cloak && <p className="text-xs text-muted-foreground">{t("providers.cloak_hint")}</p>}
+    </div>
+  );
+}
+
 function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="grid gap-1.5">
@@ -407,14 +514,7 @@ function EditDialog({
           >
             <Input id={`${p}-name`} value={form.name} onChange={(e) => update({ name: e.target.value })} />
           </Field>
-          <Field id={`${p}-keys`} label="API Key" hint={t("providers.keys_hint")}>
-            <Textarea
-              id={`${p}-keys`}
-              value={form.keys}
-              onChange={(e) => update({ keys: e.target.value })}
-              className="min-h-20 font-mono text-sm"
-            />
-          </Field>
+          <KeyRowsEditor kind={kind} form={form} update={update} />
           <Field
             id={`${p}-base`}
             label="Base URL"
@@ -445,13 +545,41 @@ function EditDialog({
               />
             </Field>
           </div>
-          {kind.websockets && (
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <Label htmlFor={`${p}-ws`}>{t("providers.websockets")}</Label>
-                <p className="text-xs text-muted-foreground">{t("providers.websockets_hint")}</p>
-              </div>
-              <Switch id={`${p}-ws`} checked={form.websockets} onCheckedChange={(v) => update({ websockets: v })} />
+          {!kind.openai && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                id={`${p}-cooling`}
+                label={t("providers.disable_cooling")}
+                hint={t("providers.disable_cooling_hint")}
+              >
+                <Select
+                  items={[
+                    { value: "", label: t("providers.inherit") },
+                    { value: "true", label: t("common.enabled") },
+                    { value: "false", label: t("providers.disabled") },
+                  ]}
+                  value={form.disableCooling || null}
+                  onValueChange={(value) => update({ disableCooling: (value ?? "") as Form["disableCooling"] })}
+                >
+                  <SelectTrigger id={`${p}-cooling`} className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t("providers.inherit")}</SelectItem>
+                    <SelectItem value="true">{t("common.enabled")}</SelectItem>
+                    <SelectItem value="false">{t("providers.disabled")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field id={`${p}-retry`} label={t("providers.request_retry")} hint={t("providers.request_retry_hint")}>
+                <Input
+                  id={`${p}-retry`}
+                  inputMode="numeric"
+                  value={form.requestRetry}
+                  placeholder={t("providers.inherit")}
+                  onChange={(e) => update({ requestRetry: e.target.value })}
+                />
+              </Field>
             </div>
           )}
           <ModelMappingEditor kind={kind} form={form} update={update} />
