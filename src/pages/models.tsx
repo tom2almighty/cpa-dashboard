@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, orNotFound } from "@/lib/api";
 
-// 静态模型目录支持的渠道(routing/model-definitions/:channel)
+// 静态模型目录支持的渠道(routing/model-definitions/:channel),别名 kimi.ai / x-ai 等由 CPA 内部归一
 const CHANNELS = [
   "codex",
   "claude",
@@ -34,8 +34,20 @@ const CHANNELS = [
   "devin",
   "meta",
 ];
-// OAuth 别名/排除按认证文件的 provider 分渠道,gemini 系列只走 API Key,不在其中
-const OAUTH_CHANNELS = CHANNELS.filter((c) => !c.startsWith("gemini"));
+// OAuth 别名/排除的渠道:与 CPA 的 OAuthModelAliasChannel 一致,gemini 系列只走 API Key,
+// kimi-ai 凭据的渠道是 kimi-ai 而不是 kimi;插件 OAuth 提供商用其 provider key,故允许自由输入
+const ALIAS_CHANNELS = [
+  "claude",
+  "codex",
+  "antigravity",
+  "vertex",
+  "aistudio",
+  "kimi",
+  "kimi-ai",
+  "xai",
+  "meta",
+  "devin",
+];
 type OAuthConfig = { "model-alias"?: Record<string, Alias[]>; "excluded-models"?: Record<string, string[]> };
 const oauthOf = (c: Record<string, unknown>) => (c.oauth ?? {}) as OAuthConfig;
 type Alias = { name: string; alias: string; fork?: boolean; "display-name"?: string; "force-mapping"?: boolean };
@@ -53,7 +65,17 @@ function useCatalog(channel: string) {
   });
 }
 
-function ChannelInput({ value, onChange, id }: { value: string; onChange: (v: string) => void; id: string }) {
+function ChannelInput({
+  value,
+  onChange,
+  id,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  id: string;
+  options: string[];
+}) {
   const { t } = useI18n();
   return (
     <>
@@ -65,7 +87,7 @@ function ChannelInput({ value, onChange, id }: { value: string; onChange: (v: st
         placeholder={t("models.channel_placeholder")}
       />
       <datalist id={`${id}-options`}>
-        {OAUTH_CHANNELS.map((c) => (
+        {options.map((c) => (
           <option key={c} value={c} />
         ))}
       </datalist>
@@ -138,7 +160,7 @@ function AliasDialog({
           {!initial && (
             <div className="grid max-w-xs gap-1.5">
               <Label htmlFor={`${uid}-channel`}>{t("models.channel")}</Label>
-              <ChannelInput id={`${uid}-channel`} value={channel} onChange={setChannel} />
+              <ChannelInput id={`${uid}-channel`} value={channel} onChange={setChannel} options={ALIAS_CHANNELS} />
             </div>
           )}
           <datalist id={`${uid}-models`}>
@@ -393,7 +415,7 @@ function ExcludedDialog({
           {!initial && (
             <div className="grid gap-1.5">
               <Label htmlFor={`${uid}-provider`}>{t("models.channel")}</Label>
-              <ChannelInput id={`${uid}-provider`} value={provider} onChange={setProvider} />
+              <ChannelInput id={`${uid}-provider`} value={provider} onChange={setProvider} options={ALIAS_CHANNELS} />
             </div>
           )}
 
