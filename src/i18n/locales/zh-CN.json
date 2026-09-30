@@ -540,14 +540,15 @@
   "config": {
     "title": "系统配置",
     "desc": "统一基于 config.yaml 原生配置读写，修改原子写入并由 CPA 自动重载生效。",
-    "tab_server": "服务器",
-    "tab_management": "管理",
-    "tab_routing": "路由",
-    "tab_requests": "请求",
-    "tab_oauth": "OAuth",
-    "tab_multimedia": "多媒体",
-    "tab_observability": "可观测",
-    "tab_plugins": "插件",
+    "tabs": {
+      "common": "常用",
+      "server": "服务器与网络",
+      "credentials": "凭据与路由",
+      "requests": "请求与多媒体",
+      "providers": "认证提供商",
+      "observability": "日志与用量",
+      "plugins": "插件"
+    },
     "tab_payload_rules": "Payload 规则",
     "tab_yaml_editor": "YAML 编辑器",
     "save_changes": "保存更改",
@@ -620,14 +621,51 @@
       "conflict": "配置文件已在别处被修改，未保存。请先复制你的改动，再点击“放弃修改”加载最新版本"
     },
     "groups": {
-      "server": "HTTP/HTTPS 监听地址、端口与通用服务行为",
-      "management": "管理接口权限与内置管理面板控制",
-      "routing": "负载均衡算法、会话粘性、轮次重试与冷却熔断机制",
-      "requests": "上游全局代理、响应头透传与长连接心跳保活",
-      "oauth": "认证文件目录、自动刷新并发及各大官方上游参数",
-      "multimedia": "图像与视频生成的重定向与缓存参数",
-      "observability": "调试日志、滚动文件日志、用量统计及性能分析",
-      "plugins": "动态二进制插件发现与受信任执行控制"
+      "server": "监听地址、TLS、局域网服务发现与管理接口权限",
+      "credentials": "凭据选择、会话粘性、轮次重试与冷却熔断",
+      "requests": "上游代理、流式保活与图像视频行为",
+      "providers": "OAuth 与文件凭据的提供商级参数：伪装、默认请求头、连接池与错误规则",
+      "observability": "日志、用量统计聚合与 pprof 性能分析",
+      "plugins": "动态二进制插件发现、商店源与商店认证"
+    },
+    "sections": {
+      "server": {
+        "listening": "监听地址",
+        "tls": "TLS",
+        "discovery": "局域网服务发现",
+        "management": "管理接口"
+      },
+      "credentials": {
+        "routing": "选择与粘性",
+        "retry": "重试",
+        "cooldown": "冷却",
+        "storage": "凭据存储与模型元数据"
+      },
+      "requests": {
+        "requests": "请求",
+        "streaming": "流式传输",
+        "multimedia": "图像与视频"
+      },
+      "providers": {
+        "errors": "请求级错误规则",
+        "aistudio": "AI Studio",
+        "codex": "Codex",
+        "claude": "Claude",
+        "antigravity": "Antigravity",
+        "xai": "xAI",
+        "devin": "Devin"
+      },
+      "observability": {
+        "logs": "日志",
+        "usage": "用量统计",
+        "pprof": "pprof"
+      },
+      "plugins": {
+        "plugins": "插件与商店"
+      }
+    },
+    "links": {
+      "api_keys": "客户端密钥（access.api-keys）在「客户端密钥」页面维护"
     },
     "fields": {
       "server/host": {
@@ -701,7 +739,7 @@
       },
       "routing/retry/request-retry": {
         "label": "故障重试轮次",
-        "hint": "首轮之后的额外凭据重试轮次，未设置时为 0"
+        "hint": "首轮之后的额外凭据重试轮次，默认 3；显式 0 表示只跑首轮"
       },
       "routing/retry/max-retry-credentials": {
         "label": "每轮最大重试凭据数",
@@ -754,10 +792,6 @@
       "oauth/providers/aistudio/ws-auth": {
         "label": "AI Studio /ws 路由鉴权",
         "hint": "为 /v1/ws 路由强制要求客户端携带有效密钥"
-      },
-      "oauth/providers/codex/identity-confuse": {
-        "label": "Codex 身份混淆映射",
-        "hint": "按选定凭据重映射 Codex 缓存 key 与安装标识"
       },
       "oauth/providers/claude/disable-claude-cloak-mode": {
         "label": "禁用 Claude 伪装",
@@ -912,6 +946,110 @@
       "plugins/store-sources": {
         "label": "插件商店源",
         "hint": "额外的插件商店注册表 URL，每行一个；官方注册表始终包含"
+      },
+      "server/discovery/service-name": {
+        "label": "服务名称前缀 (service-name)",
+        "hint": "可选名称前缀，广播名为 CPA-<ShortID> 或 <name>-<ShortID>，例如 office-8F3B"
+      },
+      "server/discovery/service-type": {
+        "label": "DNS-SD 服务类型 (service-type)",
+        "hint": "默认 _ai-gateway._tcp"
+      },
+      "server/discovery/subtypes": {
+        "label": "广播协议子类型 (subtypes)",
+        "hint": "每行一项并带前导下划线，例如 _responses；留空使用 CPA 默认的 chat、responses、messages、generate-content、interactions"
+      },
+      "server/discovery/interfaces/include": {
+        "label": "广播网卡白名单 (interfaces.include)",
+        "hint": "仅在这些网卡上广播，每行一项；留空自动探测物理网卡"
+      },
+      "server/discovery/interfaces/exclude": {
+        "label": "排除网卡 (interfaces.exclude)",
+        "hint": "额外排除的网卡匹配模式，每行一项"
+      },
+      "server/discovery/auth-required": {
+        "label": "广播要求认证 (auth-required)",
+        "hint": "在广播中声明客户端必须携带凭据，默认开启"
+      },
+      "server/discovery/advertise-management": {
+        "label": "广播管理接口 (advertise-management)",
+        "hint": "在广播中声明管理接口可用，默认关闭"
+      },
+      "management/base-url": {
+        "label": "TUI 管理基址 (base-url)",
+        "hint": "cliproxyapi --tui 远程连接的管理 API 基址；留空使用 http://127.0.0.1:<port>，命令行 --management-base-url 优先"
+      },
+      "oauth/settings": {
+        "label": "渠道模型元数据 (oauth.settings)",
+        "hint": "按渠道覆盖模型元数据（JSON 对象），例如 {\"codex\":[{\"name\":\"gpt-6-sol\",\"max-context-length\":524288}]}；保存时整体替换该节点"
+      },
+      "oauth/providers/codex/orphan-delegation-compatibility": {
+        "label": "孤立委托输出兼容",
+        "hint": "当 X-Openai-Subagent 为 collab_spawn 时，把 create_thread / send_message_to_thread 中缺少匹配 function_call 的孤立 function_call_output 转成用户消息"
+      },
+      "oauth/providers/codex/header-defaults/beta-features": {
+        "label": "Codex Beta 特性回退",
+        "hint": "仅 OAuth Codex 的 WebSocket 请求在客户端未提供时使用的 beta-features 回退值"
+      },
+      "oauth/providers/codex/live-media-relay/enabled": {
+        "label": "Codex Live 媒体中继",
+        "hint": "在本进程内中继 Codex Live 的 WebRTC 音频与 DataChannel，需要入站 UDP 可达；STUN/TURN 服务器（ice-servers）请在 YAML 编辑器配置"
+      },
+      "oauth/providers/codex/live-media-relay/max-sessions": {
+        "label": "媒体会话上限",
+        "hint": "最大并发媒体会话数，0 表示使用默认的 32"
+      },
+      "oauth/providers/codex/live-media-relay/disable-private-remote-ips": {
+        "label": "拒绝私有地址候选",
+        "hint": "拒绝指向私有、回环、链路本地或未指定地址的下游 SDP candidate；本地或可信网络保持关闭"
+      },
+      "oauth/providers/codex/live-media-relay/public-ip": {
+        "label": "对外通告公网地址",
+        "hint": "CPA 位于 1:1 NAT 之后时对外通告的 IPv4/IPv6 地址"
+      },
+      "oauth/providers/codex/live-media-relay/udp-port-min": {
+        "label": "UDP 端口范围下限",
+        "hint": "可选的 UDP 分配范围下限，必须与上限同时设置，且每个会话至少两个端口"
+      },
+      "oauth/providers/codex/live-media-relay/udp-port-max": {
+        "label": "UDP 端口范围上限",
+        "hint": "可选的 UDP 分配范围上限，必须与下限同时设置"
+      },
+      "oauth/providers/claude/header-defaults/package-version": {
+        "label": "包版本 (package-version)",
+        "hint": "Claude Code 基准包版本"
+      },
+      "oauth/providers/claude/header-defaults/runtime-version": {
+        "label": "运行时版本 (runtime-version)",
+        "hint": "Claude Code 基准运行时版本"
+      },
+      "oauth/providers/claude/header-defaults/os": {
+        "label": "操作系统 (os)",
+        "hint": "基准操作系统；启用设备配置稳定化后固定为该值，留空由运行时推导"
+      },
+      "oauth/providers/claude/header-defaults/arch": {
+        "label": "系统架构 (arch)",
+        "hint": "基准 CPU 架构；启用设备配置稳定化后固定为该值，留空由运行时推导"
+      },
+      "oauth/providers/claude/header-defaults/timeout": {
+        "label": "超时请求头 (timeout)",
+        "hint": "客户端未提供时的超时回退值，例如 600"
+      },
+      "oauth/providers/claude/header-defaults/timezone": {
+        "label": "时区 (timezone)",
+        "hint": "伪装 currentDate 使用的 IANA 时区回退值；凭据 JSON 中的 timezone 优先"
+      },
+      "oauth/providers/antigravity/sensitive-words": {
+        "label": "Antigravity 敏感词",
+        "hint": "在 system instructions 中用零宽字符混淆的词，每行一项；匹配不区分大小写，保存时移除空项"
+      },
+      "oauth/providers/devin/sensitive-words": {
+        "label": "Devin 系统提示词敏感词",
+        "hint": "在 Devin system instructions 与 prompt 中用零宽字符混淆的词，每行一项；命中会使整行被删除，谨慎配置"
+      },
+      "plugins/store-auth": {
+        "label": "插件商店认证规则 (store-auth)",
+        "hint": "JSON 数组，按 match 前缀匹配注册表与制品请求；token、用户名、密码只填环境变量名，不写明文"
       }
     }
   },

@@ -540,14 +540,15 @@
   "config": {
     "title": "System Configuration",
     "desc": "Unified configuration reading and atomic writing based on config.yaml, auto-reloaded by CPA.",
-    "tab_server": "Server",
-    "tab_management": "Management",
-    "tab_routing": "Routing",
-    "tab_requests": "Requests",
-    "tab_oauth": "OAuth",
-    "tab_multimedia": "Multimedia",
-    "tab_observability": "Observability",
-    "tab_plugins": "Plugins",
+    "tabs": {
+      "common": "Common",
+      "server": "Server & Network",
+      "credentials": "Credentials & Routing",
+      "requests": "Requests & Media",
+      "providers": "Auth Providers",
+      "observability": "Logs & Usage",
+      "plugins": "Plugins"
+    },
     "tab_payload_rules": "Payload Rules",
     "tab_yaml_editor": "YAML Editor",
     "save_changes": "Save Changes",
@@ -620,14 +621,51 @@
       "conflict": "The config file was changed elsewhere, nothing was saved. Copy your edits, then click \"Discard\" to load the latest version"
     },
     "groups": {
-      "server": "HTTP/HTTPS listen address, port and general server behavior",
-      "management": "Management API access and the built-in control panel",
-      "routing": "Load balancing strategy, session affinity, retry rounds and cooldown",
-      "requests": "Global upstream proxy, response header passthrough and keepalive for long connections",
-      "oauth": "Auth file directory, auto-refresh concurrency and official upstream options",
-      "multimedia": "Redirect and cache options for image and video generation",
-      "observability": "Debug logs, rotating log files, usage statistics and profiling",
-      "plugins": "Dynamic binary plugin discovery and trusted execution"
+      "server": "Listener, TLS, LAN service discovery, and management access",
+      "credentials": "Credential selection, session affinity, retry rounds, and cooldown",
+      "requests": "Upstream proxy, streaming keep-alives, and image/video behavior",
+      "providers": "Provider-level OAuth and file-credential behavior: cloaking, headers, connection pools, and error rules",
+      "observability": "Logs, usage aggregation, and pprof profiling",
+      "plugins": "Dynamic plugin discovery, store sources, and store authentication"
+    },
+    "sections": {
+      "server": {
+        "listening": "Listener",
+        "tls": "TLS",
+        "discovery": "LAN Service Discovery",
+        "management": "Management"
+      },
+      "credentials": {
+        "routing": "Selection & Affinity",
+        "retry": "Retry",
+        "cooldown": "Cooldown",
+        "storage": "Credential Store & Model Metadata"
+      },
+      "requests": {
+        "requests": "Requests",
+        "streaming": "Streaming",
+        "multimedia": "Images & Video"
+      },
+      "providers": {
+        "errors": "Request-scoped Error Rules",
+        "aistudio": "AI Studio",
+        "codex": "Codex",
+        "claude": "Claude",
+        "antigravity": "Antigravity",
+        "xai": "xAI",
+        "devin": "Devin"
+      },
+      "observability": {
+        "logs": "Logs",
+        "usage": "Usage",
+        "pprof": "pprof"
+      },
+      "plugins": {
+        "plugins": "Plugins & Store"
+      }
+    },
+    "links": {
+      "api_keys": "Client keys (access.api-keys) are managed on the API Keys page"
     },
     "fields": {
       "server/host": {
@@ -701,7 +739,7 @@
       },
       "routing/retry/request-retry": {
         "label": "Request Retry",
-        "hint": "Extra credential retry rounds after the first one; 0 when unset"
+        "hint": "Additional credential retry rounds after the initial round, 3 by default; 0 admits only round 0"
       },
       "routing/retry/max-retry-credentials": {
         "label": "Max Retry Credentials",
@@ -754,10 +792,6 @@
       "oauth/providers/aistudio/ws-auth": {
         "label": "AI Studio /ws Auth",
         "hint": "Require clients to send a valid key on the /v1/ws route"
-      },
-      "oauth/providers/codex/identity-confuse": {
-        "label": "Codex Identity Confuse",
-        "hint": "Remap Codex cache keys and installation IDs per selected credential"
       },
       "oauth/providers/claude/disable-claude-cloak-mode": {
         "label": "Disable Claude Cloak Mode",
@@ -912,6 +946,110 @@
       "plugins/store-sources": {
         "label": "Plugin Store Sources",
         "hint": "Extra plugin store registry URLs, one per line; the official registry is always included"
+      },
+      "server/discovery/service-name": {
+        "label": "Service Name Prefix",
+        "hint": "Optional name prefix. Advertised as CPA-<ShortID> or <name>-<ShortID>, for example office-8F3B"
+      },
+      "server/discovery/service-type": {
+        "label": "DNS-SD Service Type",
+        "hint": "Defaults to _ai-gateway._tcp"
+      },
+      "server/discovery/subtypes": {
+        "label": "Advertised Subtypes",
+        "hint": "One API protocol subtype per line with a leading underscore, for example _responses. Empty uses CPA defaults: chat, responses, messages, generate-content, interactions"
+      },
+      "server/discovery/interfaces/include": {
+        "label": "Interface Allow-list",
+        "hint": "Advertise on these interfaces only, one pattern per line. Empty auto-detects physical interfaces"
+      },
+      "server/discovery/interfaces/exclude": {
+        "label": "Interface Exclusions",
+        "hint": "Additional interface patterns to exclude, one per line"
+      },
+      "server/discovery/auth-required": {
+        "label": "Advertise Credentials Required",
+        "hint": "Announce that clients must authenticate, enabled by default"
+      },
+      "server/discovery/advertise-management": {
+        "label": "Advertise Management Availability",
+        "hint": "Announce that the management API is reachable, disabled by default"
+      },
+      "management/base-url": {
+        "label": "TUI Management Base URL",
+        "hint": "Remote management base URL for cliproxyapi --tui. Empty means http://127.0.0.1:<port>; --management-base-url wins"
+      },
+      "oauth/settings": {
+        "label": "Channel Model Metadata",
+        "hint": "Per-channel model metadata overrides (JSON object), for example {\"codex\":[{\"name\":\"gpt-6-sol\",\"max-context-length\":524288}]}. The node is replaced as a whole on save"
+      },
+      "oauth/providers/codex/orphan-delegation-compatibility": {
+        "label": "Orphan Delegation Compatibility",
+        "hint": "When X-Openai-Subagent is collab_spawn, convert orphan function_call_output items from create_thread / send_message_to_thread into user messages"
+      },
+      "oauth/providers/codex/header-defaults/beta-features": {
+        "label": "Codex Beta Features Fallback",
+        "hint": "beta-features fallback for OAuth Codex WebSocket requests when the client omits it"
+      },
+      "oauth/providers/codex/live-media-relay/enabled": {
+        "label": "Codex Live Media Relay",
+        "hint": "Relay Codex Live WebRTC audio and DataChannel traffic in this process; requires inbound UDP. Configure STUN/TURN servers (ice-servers) in the YAML editor"
+      },
+      "oauth/providers/codex/live-media-relay/max-sessions": {
+        "label": "Media Session Limit",
+        "hint": "Maximum concurrent media sessions. 0 uses the default of 32"
+      },
+      "oauth/providers/codex/live-media-relay/disable-private-remote-ips": {
+        "label": "Reject Private Candidates",
+        "hint": "Reject downstream SDP candidates that target private, loopback, link-local, or unspecified IPs. Keep off for local or trusted networks"
+      },
+      "oauth/providers/codex/live-media-relay/public-ip": {
+        "label": "Advertised Public Address",
+        "hint": "Public IPv4/IPv6 address advertised when CPA sits behind 1:1 NAT"
+      },
+      "oauth/providers/codex/live-media-relay/udp-port-min": {
+        "label": "UDP Port Range Start",
+        "hint": "Optional lower bound. Set together with the upper bound, with at least two ports per session"
+      },
+      "oauth/providers/codex/live-media-relay/udp-port-max": {
+        "label": "UDP Port Range End",
+        "hint": "Optional upper bound. Set together with the lower bound"
+      },
+      "oauth/providers/claude/header-defaults/package-version": {
+        "label": "Package Version",
+        "hint": "Claude Code baseline package version"
+      },
+      "oauth/providers/claude/header-defaults/runtime-version": {
+        "label": "Runtime Version",
+        "hint": "Claude Code baseline runtime version"
+      },
+      "oauth/providers/claude/header-defaults/os": {
+        "label": "Operating System",
+        "hint": "Baseline OS. Pinned to this value when device profile stabilization is on; empty derives it from the runtime"
+      },
+      "oauth/providers/claude/header-defaults/arch": {
+        "label": "Architecture",
+        "hint": "Baseline CPU architecture. Pinned when device profile stabilization is on; empty derives it from the runtime"
+      },
+      "oauth/providers/claude/header-defaults/timeout": {
+        "label": "Timeout Header",
+        "hint": "Fallback timeout header value when the client omits it, for example 600"
+      },
+      "oauth/providers/claude/header-defaults/timezone": {
+        "label": "Timezone",
+        "hint": "IANA timezone fallback for the cloaked currentDate. A credential JSON timezone takes priority"
+      },
+      "oauth/providers/antigravity/sensitive-words": {
+        "label": "Antigravity Sensitive Words",
+        "hint": "Words obfuscated with zero-width characters in system instructions, one per line. Matching is case-insensitive; empty entries are removed on save"
+      },
+      "oauth/providers/devin/sensitive-words": {
+        "label": "Devin System Prompt Sensitive Words",
+        "hint": "Words obfuscated with zero-width characters in Devin system instructions and prompts, one per line. A match removes the whole line, so configure carefully"
+      },
+      "plugins/store-auth": {
+        "label": "Plugin Store Auth Rules",
+        "hint": "JSON array matching registry and artifact requests by URL prefix. Put token, username, and password environment variable names here, never plaintext values"
       }
     }
   },

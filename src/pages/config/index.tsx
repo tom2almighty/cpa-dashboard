@@ -7,7 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/context";
 import { PayloadRules } from "./payload-rules";
-import { ConfigSettingsProvider, GROUPS, SettingsGroup, useConfigSettings } from "./settings";
+import { ConfigSettingsProvider, GROUPS, SettingsCommon, SettingsGroup, useConfigSettings } from "./settings";
 import { YamlEditor } from "./yaml-editor";
 
 function ConfigHeaderActions() {
@@ -34,18 +34,7 @@ function ConfigHeaderActions() {
 
 function ConfigPageInner() {
   const { t } = useI18n();
-  const [tab, setTab] = useState(GROUPS[0].id);
-
-  const tabTitles: Record<string, string> = {
-    server: t("config.tab_server"),
-    management: t("config.tab_management"),
-    routing: t("config.tab_routing"),
-    requests: t("config.tab_requests"),
-    oauth: t("config.tab_oauth"),
-    multimedia: t("config.tab_multimedia"),
-    observability: t("config.tab_observability"),
-    plugins: t("config.tab_plugins"),
-  };
+  const [tab, setTab] = useState("common");
 
   return (
     <>
@@ -54,9 +43,12 @@ function ConfigPageInner() {
       <Tabs value={tab} onValueChange={(v) => v && setTab(v)}>
         <div className="mb-6 -mx-4 px-4 overflow-x-auto no-scrollbar">
           <TabsList className="h-9 gap-1">
+            <TabsTrigger value="common" className="px-2.5 py-1 text-xs sm:text-sm">
+              {t("config.tabs.common")}
+            </TabsTrigger>
             {GROUPS.map((g) => (
               <TabsTrigger key={g.id} value={g.id} className="px-2.5 py-1 text-xs sm:text-sm">
-                {tabTitles[g.id]}
+                {t(`config.tabs.${g.id}`)}
               </TabsTrigger>
             ))}
             <div className="h-4 w-px bg-border my-auto mx-1 shrink-0" aria-hidden />
@@ -68,6 +60,10 @@ function ConfigPageInner() {
             </TabsTrigger>
           </TabsList>
         </div>
+
+        <TabsContent value="common">
+          <SettingsCommon />
+        </TabsContent>
 
         {GROUPS.map((g) => (
           <TabsContent key={g.id} value={g.id}>

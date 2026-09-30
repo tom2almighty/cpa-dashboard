@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Eye, EyeOff } from "lucide-react";
 import type React from "react";
 import { createContext, useCallback, useContext, useId, useState } from "react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,136 +26,291 @@ export type Setting = {
   fallback?: string | boolean;
 };
 
-export type ConfigGroup = {
+export type ConfigSection = {
   id: string;
   items: Setting[];
 };
 
+export type ConfigGroup = {
+  id: string;
+  /** 组内小节的顺序就是渲染顺序 */
+  sections: ConfigSection[];
+  /** 相关页面跳转(如 access.api-keys 在客户端密钥页编辑) */
+  link?: { to: string; labelKey: string };
+};
+
 /**
- * 严格参照 CPA 8.0 官方文档 (configuration/options) 与 internal/config 结构体构建的分组结构
+ * 对照 CPA v8 路径表(internal/config/config_v8.go 的 buildV8Paths)、config.example.yaml 与官方文档
+ * configuration/options 构建。字段以 v8 根节点归属分组,组内再按用途分小节。
+ * 不暴露 Home 管理契约(credentials.concurrency/in-flight、plugins.auth-revision)与无 v8 对应的旧字段
+ * (quota-exceeded.switch-project/switch-preview-model)。
  */
 export const GROUPS: ConfigGroup[] = [
   {
     id: "server",
-    items: [
-      { endpoint: "server/host", type: "text", fallback: "" },
-      { endpoint: "server/port", type: "int", fallback: "8317" },
-      { endpoint: "server/trusted-proxies", type: "list" },
-      { endpoint: "server/commercial-mode", type: "bool" },
-      { endpoint: "server/discovery/enabled", type: "bool" },
-      { endpoint: "server/tls/enable", type: "bool" },
-      { endpoint: "server/tls/cert", type: "text" },
-      { endpoint: "server/tls/key", type: "text" },
-    ],
-  },
-  {
-    id: "management",
-    items: [
-      { endpoint: "management/allow-remote", type: "bool" },
-      { endpoint: "management/secret-key", type: "password" },
-      { endpoint: "management/disable-control-panel", type: "bool" },
-      { endpoint: "management/disable-auto-update-panel", type: "bool" },
-      { endpoint: "management/panel-github-repository", type: "text" },
-    ],
-  },
-  {
-    id: "routing",
-    items: [
+    link: { to: "/api-keys", labelKey: "config.links.api_keys" },
+    sections: [
       {
-        endpoint: "routing/strategy",
-        type: "select",
-        options: ["round-robin", "weighted-round-robin", "fill-first"],
-        fallback: "round-robin",
+        id: "listening",
+        items: [
+          { endpoint: "server/host", type: "text", fallback: "" },
+          { endpoint: "server/port", type: "int", fallback: "8317" },
+          { endpoint: "server/trusted-proxies", type: "list" },
+        ],
       },
-      { endpoint: "routing/session-affinity", type: "bool" },
-      { endpoint: "routing/session-affinity-subagents", type: "bool", fallback: true },
-      { endpoint: "routing/session-affinity-ttl", type: "text", fallback: "1h" },
-      { endpoint: "routing/force-model-prefix", type: "bool" },
-      { endpoint: "routing/retry/request-retry", type: "int" },
-      { endpoint: "routing/retry/max-retry-credentials", type: "int" },
-      { endpoint: "routing/retry/max-retry-interval", type: "int" },
-      { endpoint: "routing/cooldown/disable-cooling", type: "bool" },
-      { endpoint: "routing/cooldown/save-cooldown-status", type: "bool" },
-      { endpoint: "routing/cooldown/transient-error-cooldown-seconds", type: "int" },
+      {
+        id: "tls",
+        items: [
+          { endpoint: "server/tls/enable", type: "bool" },
+          { endpoint: "server/tls/cert", type: "text" },
+          { endpoint: "server/tls/key", type: "text" },
+        ],
+      },
+      {
+        id: "discovery",
+        items: [
+          { endpoint: "server/discovery/enabled", type: "bool" },
+          { endpoint: "server/discovery/service-name", type: "text" },
+          { endpoint: "server/discovery/service-type", type: "text", fallback: "_ai-gateway._tcp" },
+          { endpoint: "server/discovery/subtypes", type: "list" },
+          { endpoint: "server/discovery/interfaces/include", type: "list" },
+          { endpoint: "server/discovery/interfaces/exclude", type: "list" },
+          { endpoint: "server/discovery/auth-required", type: "bool", fallback: true },
+          { endpoint: "server/discovery/advertise-management", type: "bool" },
+        ],
+      },
+      {
+        id: "management",
+        items: [
+          { endpoint: "management/allow-remote", type: "bool" },
+          { endpoint: "management/secret-key", type: "password" },
+          { endpoint: "management/disable-control-panel", type: "bool" },
+          { endpoint: "management/disable-auto-update-panel", type: "bool" },
+          { endpoint: "management/base-url", type: "text" },
+          { endpoint: "management/panel-github-repository", type: "text" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "credentials",
+    sections: [
+      {
+        id: "routing",
+        items: [
+          {
+            endpoint: "routing/strategy",
+            type: "select",
+            options: ["round-robin", "weighted-round-robin", "fill-first"],
+            fallback: "round-robin",
+          },
+          { endpoint: "routing/session-affinity", type: "bool" },
+          { endpoint: "routing/session-affinity-subagents", type: "bool", fallback: true },
+          { endpoint: "routing/session-affinity-ttl", type: "text", fallback: "1h" },
+          { endpoint: "routing/force-model-prefix", type: "bool" },
+        ],
+      },
+      {
+        id: "retry",
+        items: [
+          { endpoint: "routing/retry/request-retry", type: "int" },
+          { endpoint: "routing/retry/max-retry-credentials", type: "int" },
+          { endpoint: "routing/retry/max-retry-interval", type: "int" },
+        ],
+      },
+      {
+        id: "cooldown",
+        items: [
+          { endpoint: "routing/cooldown/disable-cooling", type: "bool" },
+          { endpoint: "routing/cooldown/save-cooldown-status", type: "bool" },
+          { endpoint: "routing/cooldown/transient-error-cooldown-seconds", type: "int" },
+        ],
+      },
+      {
+        id: "storage",
+        items: [
+          { endpoint: "oauth/auth-dir", type: "text", fallback: "~/.cli-proxy-api" },
+          { endpoint: "oauth/auth-auto-refresh-workers", type: "int", fallback: "16" },
+          { endpoint: "oauth/settings", type: "json" },
+        ],
+      },
     ],
   },
   {
     id: "requests",
-    items: [
-      { endpoint: "requests/proxy-url", type: "text" },
-      { endpoint: "requests/passthrough-headers", type: "bool" },
-      { endpoint: "requests/streaming/keepalive-seconds", type: "int" },
-      { endpoint: "requests/streaming/bootstrap-retries", type: "int" },
-      { endpoint: "requests/nonstream-keepalive-interval", type: "int" },
-    ],
-  },
-  {
-    id: "oauth",
-    items: [
-      { endpoint: "oauth/auth-dir", type: "text", fallback: "~/.cli-proxy-api" },
-      { endpoint: "oauth/auth-auto-refresh-workers", type: "int", fallback: "16" },
-      { endpoint: "oauth/request-scoped-errors", type: "json" },
-      { endpoint: "oauth/providers/aistudio/ws-auth", type: "bool", fallback: true },
-      { endpoint: "oauth/providers/codex/identity-confuse", type: "bool" },
-      { endpoint: "oauth/providers/codex/disable-codex-cloaking", type: "bool" },
-      { endpoint: "oauth/providers/codex/model-level-cooling", type: "bool" },
-      { endpoint: "oauth/providers/codex/stream-bootstrap-buffering", type: "bool" },
-      { endpoint: "oauth/providers/codex/stream-bootstrap-timeout", type: "text", fallback: "0" },
-      { endpoint: "oauth/providers/codex/response-steering", type: "bool" },
-      { endpoint: "oauth/providers/codex/optimize-multi-agent-v2", type: "bool" },
-      { endpoint: "oauth/providers/codex/header-defaults/user-agent", type: "text" },
-      { endpoint: "oauth/providers/claude/disable-claude-cloak-mode", type: "bool" },
-      { endpoint: "oauth/providers/claude/model-level-cooling", type: "bool" },
-      { endpoint: "oauth/providers/claude/claude-code/disable-cloaking-model-list", type: "bool" },
-      { endpoint: "oauth/providers/claude/header-defaults/stabilize-device-profile", type: "bool" },
-      { endpoint: "oauth/providers/claude/header-defaults/user-agent", type: "text" },
-      { endpoint: "oauth/providers/xai/inject-x-search", type: "bool" },
-      { endpoint: "oauth/providers/antigravity/antigravity-credits", type: "bool" },
-      { endpoint: "oauth/providers/antigravity/signature-cache-enabled", type: "bool", fallback: true },
-      { endpoint: "oauth/providers/antigravity/signature-bypass-strict", type: "bool" },
-      { endpoint: "oauth/providers/antigravity/connection-pool/enabled", type: "bool" },
-      { endpoint: "oauth/providers/antigravity/connection-pool/idle-conn-timeout", type: "text", fallback: "30s" },
-      { endpoint: "oauth/providers/antigravity/connection-pool/max-idle-conns-per-host", type: "int", fallback: "2" },
-    ],
-  },
-  {
-    id: "multimedia",
-    items: [
+    sections: [
       {
-        endpoint: "multimedia/disable-image-generation",
-        type: "select",
-        options: ["false", "true", "chat", "passthrough"],
-        fallback: "false",
+        id: "requests",
+        items: [
+          { endpoint: "requests/proxy-url", type: "text" },
+          { endpoint: "requests/passthrough-headers", type: "bool" },
+          { endpoint: "requests/nonstream-keepalive-interval", type: "int" },
+        ],
       },
-      { endpoint: "multimedia/gpt-image-2-base-model", type: "text", fallback: "gpt-5.4-mini" },
-      { endpoint: "multimedia/video-result-auth-cache-ttl", type: "text", fallback: "3h" },
+      {
+        id: "streaming",
+        items: [
+          { endpoint: "requests/streaming/keepalive-seconds", type: "int" },
+          { endpoint: "requests/streaming/bootstrap-retries", type: "int" },
+        ],
+      },
+      {
+        id: "multimedia",
+        items: [
+          {
+            endpoint: "multimedia/disable-image-generation",
+            type: "select",
+            options: ["false", "true", "chat", "passthrough"],
+            fallback: "false",
+          },
+          { endpoint: "multimedia/gpt-image-2-base-model", type: "text", fallback: "gpt-5.4-mini" },
+          { endpoint: "multimedia/video-result-auth-cache-ttl", type: "text", fallback: "3h" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "providers",
+    sections: [
+      {
+        id: "errors",
+        items: [{ endpoint: "oauth/request-scoped-errors", type: "json" }],
+      },
+      {
+        id: "aistudio",
+        items: [{ endpoint: "oauth/providers/aistudio/ws-auth", type: "bool", fallback: true }],
+      },
+      {
+        id: "codex",
+        items: [
+          { endpoint: "oauth/providers/codex/disable-codex-cloaking", type: "bool" },
+          { endpoint: "oauth/providers/codex/header-defaults/user-agent", type: "text" },
+          { endpoint: "oauth/providers/codex/header-defaults/beta-features", type: "text" },
+          { endpoint: "oauth/providers/codex/model-level-cooling", type: "bool" },
+          { endpoint: "oauth/providers/codex/response-steering", type: "bool" },
+          { endpoint: "oauth/providers/codex/optimize-multi-agent-v2", type: "bool" },
+          { endpoint: "oauth/providers/codex/orphan-delegation-compatibility", type: "bool" },
+          { endpoint: "oauth/providers/codex/stream-bootstrap-buffering", type: "bool" },
+          { endpoint: "oauth/providers/codex/stream-bootstrap-timeout", type: "text", fallback: "0" },
+          { endpoint: "oauth/providers/codex/live-media-relay/enabled", type: "bool" },
+          { endpoint: "oauth/providers/codex/live-media-relay/max-sessions", type: "int", fallback: "32" },
+          { endpoint: "oauth/providers/codex/live-media-relay/disable-private-remote-ips", type: "bool" },
+          { endpoint: "oauth/providers/codex/live-media-relay/public-ip", type: "text" },
+          { endpoint: "oauth/providers/codex/live-media-relay/udp-port-min", type: "int" },
+          { endpoint: "oauth/providers/codex/live-media-relay/udp-port-max", type: "int" },
+        ],
+      },
+      {
+        id: "claude",
+        items: [
+          { endpoint: "oauth/providers/claude/disable-claude-cloak-mode", type: "bool" },
+          { endpoint: "oauth/providers/claude/model-level-cooling", type: "bool" },
+          { endpoint: "oauth/providers/claude/claude-code/disable-cloaking-model-list", type: "bool" },
+          { endpoint: "oauth/providers/claude/header-defaults/user-agent", type: "text" },
+          { endpoint: "oauth/providers/claude/header-defaults/package-version", type: "text" },
+          { endpoint: "oauth/providers/claude/header-defaults/runtime-version", type: "text" },
+          { endpoint: "oauth/providers/claude/header-defaults/os", type: "text" },
+          { endpoint: "oauth/providers/claude/header-defaults/arch", type: "text" },
+          { endpoint: "oauth/providers/claude/header-defaults/timeout", type: "text" },
+          { endpoint: "oauth/providers/claude/header-defaults/timezone", type: "text" },
+          { endpoint: "oauth/providers/claude/header-defaults/stabilize-device-profile", type: "bool" },
+        ],
+      },
+      {
+        id: "antigravity",
+        items: [
+          { endpoint: "oauth/providers/antigravity/antigravity-credits", type: "bool", fallback: true },
+          { endpoint: "oauth/providers/antigravity/signature-cache-enabled", type: "bool", fallback: true },
+          { endpoint: "oauth/providers/antigravity/signature-bypass-strict", type: "bool" },
+          { endpoint: "oauth/providers/antigravity/sensitive-words", type: "list" },
+          { endpoint: "oauth/providers/antigravity/connection-pool/enabled", type: "bool" },
+          { endpoint: "oauth/providers/antigravity/connection-pool/idle-conn-timeout", type: "text", fallback: "30s" },
+          {
+            endpoint: "oauth/providers/antigravity/connection-pool/max-idle-conns-per-host",
+            type: "int",
+            fallback: "2",
+          },
+        ],
+      },
+      {
+        id: "xai",
+        items: [{ endpoint: "oauth/providers/xai/inject-x-search", type: "bool" }],
+      },
+      {
+        id: "devin",
+        items: [{ endpoint: "oauth/providers/devin/sensitive-words", type: "list" }],
+      },
     ],
   },
   {
     id: "observability",
-    items: [
-      { endpoint: "observability/logs/debug", type: "bool" },
-      { endpoint: "observability/logs/logging-to-file", type: "bool" },
-      { endpoint: "observability/logs/request-log", type: "bool" },
-      { endpoint: "observability/logs/logs-max-total-size-mb", type: "int" },
-      { endpoint: "observability/logs/error-logs-max-files", type: "int", fallback: "10" },
-      { endpoint: "observability/usage/usage-statistics-enabled", type: "bool" },
-      { endpoint: "observability/usage/redis-usage-queue-retention-seconds", type: "int", fallback: "60" },
-      { endpoint: "observability/pprof/enable", type: "bool" },
-      { endpoint: "observability/pprof/addr", type: "text", fallback: "127.0.0.1:8316" },
+    sections: [
+      {
+        id: "logs",
+        items: [
+          { endpoint: "observability/logs/debug", type: "bool" },
+          { endpoint: "observability/logs/logging-to-file", type: "bool" },
+          { endpoint: "observability/logs/request-log", type: "bool" },
+          { endpoint: "observability/logs/logs-max-total-size-mb", type: "int" },
+          { endpoint: "observability/logs/error-logs-max-files", type: "int", fallback: "10" },
+          { endpoint: "server/commercial-mode", type: "bool" },
+        ],
+      },
+      {
+        id: "usage",
+        items: [
+          { endpoint: "observability/usage/usage-statistics-enabled", type: "bool" },
+          { endpoint: "observability/usage/redis-usage-queue-retention-seconds", type: "int", fallback: "60" },
+        ],
+      },
+      {
+        id: "pprof",
+        items: [
+          { endpoint: "observability/pprof/enable", type: "bool" },
+          { endpoint: "observability/pprof/addr", type: "text", fallback: "127.0.0.1:8316" },
+        ],
+      },
     ],
   },
   {
     id: "plugins",
-    items: [
-      { endpoint: "plugins/enabled", type: "bool" },
-      { endpoint: "plugins/dir", type: "text", fallback: "plugins" },
-      { endpoint: "plugins/store-sources", type: "list" },
+    sections: [
+      {
+        id: "plugins",
+        items: [
+          { endpoint: "plugins/enabled", type: "bool" },
+          { endpoint: "plugins/dir", type: "text", fallback: "plugins" },
+          { endpoint: "plugins/store-sources", type: "list" },
+          { endpoint: "plugins/store-auth", type: "json" },
+        ],
+      },
     ],
   },
 ];
 
-const SETTINGS = GROUPS.flatMap((g) => g.items);
+const SETTINGS = GROUPS.flatMap((g) => g.sections.flatMap((s) => s.items));
+const SETTING_BY_ENDPOINT: Record<string, Setting> = Object.fromEntries(
+  SETTINGS.map((setting) => [setting.endpoint, setting]),
+);
+
+/** 常用 tab:只引用 GROUPS 里已有的字段,不重复定义 */
+const COMMON_ENDPOINTS = [
+  "server/port",
+  "management/secret-key",
+  "oauth/auth-dir",
+  "routing/strategy",
+  "routing/session-affinity",
+  "routing/retry/request-retry",
+  "requests/proxy-url",
+  "multimedia/disable-image-generation",
+  "observability/logs/debug",
+];
+
+export const COMMON: Setting[] = COMMON_ENDPOINTS.map((endpoint) => {
+  const setting = SETTING_BY_ENDPOINT[endpoint];
+  if (!setting) throw new Error(`config.common 引用了不存在的配置项: ${endpoint}`);
+  return setting;
+});
 
 function readPath(config: Json | undefined, endpoint: string): unknown {
   let node: unknown = config;
@@ -163,7 +319,7 @@ function readPath(config: Json | undefined, endpoint: string): unknown {
 }
 
 // 输入框里的文本转成写入值,非法返回 undefined
-function parseValue(type: Setting["type"], text: string): unknown {
+export function parseValue(type: Setting["type"], text: string): unknown {
   if (type === "int") return /^-?\d+$/.test(text.trim()) ? Number(text) : undefined;
   if (type === "list")
     return text
@@ -173,7 +329,8 @@ function parseValue(type: Setting["type"], text: string): unknown {
   if (type === "json") {
     try {
       const value: unknown = JSON.parse(text);
-      return value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
+      // json 字段既可存对象(如 oauth/settings),也可存数组(如 plugins/store-auth)
+      return value !== null && typeof value === "object" ? value : undefined;
     } catch {
       return undefined;
     }
@@ -470,27 +627,61 @@ export function SettingField({ setting }: { setting: Setting }) {
     </div>
   );
 }
-export function SettingsGroup({ groupId }: { groupId: string }) {
+function SettingsState({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
   const { isPending, error } = useConfigSettings();
+
+  if (error)
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        {t("config.yaml.load_failed", { message: error.message })}
+      </p>
+    );
+  if (isPending) return <Skeleton className="h-64 w-full" />;
+  return <>{children}</>;
+}
+
+function SettingList({ items }: { items: Setting[] }) {
+  return (
+    <div className="divide-y border-y">
+      {items.map((setting) => (
+        <SettingField key={setting.endpoint} setting={setting} />
+      ))}
+    </div>
+  );
+}
+
+export function SettingsCommon() {
+  return (
+    <SettingsState>
+      <SettingList items={COMMON} />
+    </SettingsState>
+  );
+}
+
+export function SettingsGroup({ groupId }: { groupId: string }) {
+  const { t } = useI18n();
   const group = GROUPS.find((g) => g.id === groupId);
   if (!group) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <p className="text-sm text-muted-foreground">{t(`config.groups.${group.id}`)}</p>
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {t("config.yaml.load_failed", { message: error.message })}
-        </p>
-      ) : isPending ? (
-        <Skeleton className="h-64 w-full" />
-      ) : (
-        <div className="divide-y border-y">
-          {group.items.map((setting) => (
-            <SettingField key={setting.endpoint} setting={setting} />
-          ))}
-        </div>
+      <SettingsState>
+        {group.sections.map((section) => (
+          <section key={section.id} className="space-y-2">
+            <h3 className="text-sm font-medium">{t(`config.sections.${group.id}.${section.id}`)}</h3>
+            <SettingList items={section.items} />
+          </section>
+        ))}
+      </SettingsState>
+      {group.link && (
+        <Link
+          to={group.link.to}
+          className="inline-block text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+        >
+          {t(group.link.labelKey)}
+        </Link>
       )}
     </div>
   );
