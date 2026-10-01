@@ -94,14 +94,24 @@ function Message({ text }: { text: string }) {
 
 function LogRow({ entry }: { entry: LogEntry }) {
   const { t } = useI18n();
+  // 多行条目(堆栈等)保留换行;单行条目截断成一行,长路径折行不再撑高行高、打乱实时滚动的节奏
+  const multiline = entry.message.includes("\n");
   return (
     <div
       className={`flex gap-3 px-3 py-0.5 hover:bg-muted/60 ${ROW_TINT[entry.level]}`}
       style={{ contentVisibility: "auto", containIntrinsicSize: "auto 1.25rem" }}
     >
-      <span className="w-18 shrink-0 text-muted-foreground tabular-nums">{entry.time.slice(11) || "—"}</span>
-      <span className={`w-10 shrink-0 ${LEVEL_TEXT[entry.level]}`}>{entry.level}</span>
-      <span className="min-w-0 flex-1 wrap-break-word whitespace-pre-wrap">
+      <span className="w-18 shrink-0 text-muted-foreground tabular-nums" title={entry.time || undefined}>
+        {entry.time.slice(11) || "—"}
+      </span>
+      <span className={`w-11 shrink-0 ${LEVEL_TEXT[entry.level]}`}>{entry.level}</span>
+      {/* 单行用 whitespace-pre 而不是 nowrap:访问日志靠源头的空格对齐,nowrap 会把连续空格压掉 */}
+      <span
+        className={`min-w-0 flex-1 ${
+          multiline ? "whitespace-pre-wrap wrap-break-word" : "overflow-hidden whitespace-pre text-ellipsis"
+        }`}
+        title={multiline ? undefined : entry.message}
+      >
         {entry.requestId && (
           <Tooltip>
             <TooltipTrigger
