@@ -1,10 +1,14 @@
 import { expect, test } from "bun:test";
 import {
   fetchProviderModels,
+  formatHeaderRows,
   formatModelRows,
   fromForm,
+  headersFromText,
   KINDS,
+  newHeaderRow,
   newKeyRow,
+  parseHeaderRows,
   parseModelRows,
   toForm,
   validate,
@@ -233,3 +237,27 @@ test("fetchProviderModels 上游全返回 HTML 时给出可读错误", () =>
       /不是 JSON.*HTTP 200/,
     );
   }));
+
+test("请求头键值对与文本格式双向转换,空名称被丢弃", () => {
+  const rows = parseHeaderRows("X-Team: a\nX-Trace: b");
+  expect(rows.map((r) => [r.key, r.value])).toEqual([
+    ["X-Team", "a"],
+    ["X-Trace", "b"],
+  ]);
+  expect(formatHeaderRows(rows)).toBe("X-Team: a\nX-Trace: b");
+
+  // 可视化模式里留空的名称不写入配置
+  const withBlank = [...rows, { ...newHeaderRow(), key: "   ", value: "ignored" }];
+  expect(formatHeaderRows(withBlank)).toBe("X-Team: a\nX-Trace: b");
+
+  // 值以 $ 开头是 CPA 的动态头语法,必须原样保留
+  expect(headersFromText("X-Claude-Code-Session-Id: $ABC")).toEqual({ "X-Claude-Code-Session-Id": "$ABC" });
+  // 值可以为空
+  expect(headersFromText("X-Empty:")).toEqual({ "X-Empty": "" });
+  expect(headersFromText("")).toEqual({});
+});
+
+test("无名称的请求头不通过校验", () => {
+  const form = { ...toForm({ keys: [{ "api-key": "k" }] }), headers: ": value" };
+  expect(validate(claude, form)).toMatch(/名称/);
+});

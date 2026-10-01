@@ -348,7 +348,7 @@
     "excluded_models": "排除的模型",
     "excluded_hint": "每行或逗号分隔一个，支持 * 通配",
     "extra_headers": "额外请求头",
-    "headers_hint": "每行一个，格式为 名称: 值",
+    "headers_hint": "支持逐行可视化添加，或切到文本模式批量粘贴；值以 $ 开头时会复制下游请求的同名头。",
     "th_group": "分组名称 / 密钥",
     "th_key_count": "密钥数",
     "th_model_count": "模型",
@@ -366,7 +366,16 @@
     "delete_desc": "{{name}} 会从 CPA 配置中移除。",
     "load_failed": "读取失败：{{message}}",
     "group_name_hint": "可选，用于区分分组",
-    "cloak_named": "第 {{n}} 个密钥的伪装模式"
+    "cloak_named": "第 {{n}} 个密钥的伪装模式",
+    "proxy_key_only_hint": "该提供商只支持「密钥级」代理：请在下方每个密钥的代理栏填写；分组级代理会被 CPA 忽略。",
+    "header_name": "请求头名称",
+    "header_value": "值",
+    "header_name_placeholder": "X-Custom-Header",
+    "header_value_placeholder": "custom-value 或 $Client-Header",
+    "header_name_named": "第 {{n}} 个请求头的名称",
+    "header_value_named": "第 {{n}} 个请求头的值",
+    "remove_header_named": "删除第 {{n}} 个请求头",
+    "add_header": "添加请求头"
   },
   "api_keys": {
     "title": "客户端 API Key",
@@ -595,12 +604,15 @@
     "desc": "统一基于 config.yaml 原生配置读写，修改原子写入并由 CPA 自动重载生效。",
     "tabs": {
       "common": "常用",
-      "server": "服务器与网络",
-      "credentials": "凭据与路由",
-      "requests": "请求与多媒体",
-      "providers": "认证提供商",
-      "observability": "日志与用量",
-      "plugins": "插件"
+      "plugins": "插件",
+      "server": "服务器",
+      "management": "管理 API",
+      "access": "访问控制",
+      "routing": "路由",
+      "requests": "请求",
+      "oauth": "OAuth 与凭据",
+      "multimedia": "多媒体",
+      "observability": "可观测性"
     },
     "tab_payload_rules": "Payload 规则",
     "tab_yaml_editor": "YAML 编辑器",
@@ -674,33 +686,42 @@
       "conflict": "配置文件已在别处被修改，未保存。请先复制你的改动，再点击“放弃修改”加载最新版本"
     },
     "groups": {
-      "server": "监听地址、TLS、局域网服务发现与管理接口权限",
-      "credentials": "凭据选择、会话粘性、轮次重试与冷却熔断",
-      "requests": "上游代理、流式保活与图像视频行为",
-      "providers": "OAuth 与文件凭据的提供商级参数：伪装、默认请求头、连接池与错误规则",
-      "observability": "日志、用量统计聚合与 pprof 性能分析",
-      "plugins": "动态二进制插件发现、商店源与商店认证"
+      "plugins": "动态二进制插件发现、商店源与商店认证（对应 plugins 节）",
+      "server": "监听地址、TLS 与局域网服务发现（对应 config.yaml 的 server 节）",
+      "management": "管理接口权限与内置管理面板（对应 management 节）",
+      "access": "客户端调用 /v1 接口所需的密钥（对应 access 节）",
+      "routing": "凭据选择策略、会话粘性、轮次重试与冷却（对应 routing 节）",
+      "requests": "上游代理、响应头透传、流式保活与多媒体行为（对应 requests 节）",
+      "oauth": "凭据目录、刷新线程，以及 OAuth / 文件凭据的提供商级参数（对应 oauth 节）",
+      "multimedia": "图像与视频请求的行为（对应 multimedia 节）",
+      "observability": "日志、用量统计聚合与 pprof 性能分析（对应 observability 节）"
     },
     "sections": {
+      "plugins": {
+        "plugins": "插件与商店"
+      },
       "server": {
         "listening": "监听地址",
         "tls": "TLS",
-        "discovery": "局域网服务发现",
+        "discovery": "局域网服务发现"
+      },
+      "management": {
         "management": "管理接口"
       },
-      "credentials": {
+      "access": {
+        "access": "客户端密钥"
+      },
+      "routing": {
         "routing": "选择与粘性",
         "retry": "重试",
-        "cooldown": "冷却",
-        "storage": "凭据存储与模型元数据"
+        "cooldown": "冷却"
       },
       "requests": {
         "requests": "请求",
-        "streaming": "流式传输",
-        "multimedia": "图像与视频"
+        "streaming": "流式传输"
       },
-      "providers": {
-        "errors": "请求级错误规则",
+      "oauth": {
+        "oauth": "凭据存储与错误规则",
         "aistudio": "AI Studio",
         "codex": "Codex",
         "claude": "Claude",
@@ -708,16 +729,17 @@
         "xai": "xAI",
         "devin": "Devin"
       },
+      "multimedia": {
+        "multimedia": "图像与视频"
+      },
       "observability": {
         "logs": "日志",
         "usage": "用量统计",
         "pprof": "pprof"
-      },
-      "plugins": {
-        "plugins": "插件与商店"
       }
     },
     "links": {
+      "plugins": "插件安装、配置与商店在「插件」页面维护",
       "api_keys": "客户端密钥（access.api-keys）在「客户端密钥」页面维护"
     },
     "fields": {
@@ -1103,6 +1125,10 @@
       "plugins/store-auth": {
         "label": "插件商店认证规则 (store-auth)",
         "hint": "JSON 数组，按 match 前缀匹配注册表与制品请求；token、用户名、密码只填环境变量名，不写明文"
+      },
+      "access/api-keys": {
+        "label": "客户端 API 密钥",
+        "hint": "客户端调用 /v1 接口时使用的密钥。留空表示不校验客户端密钥；也可在「客户端密钥」页面按条管理。"
       }
     }
   },

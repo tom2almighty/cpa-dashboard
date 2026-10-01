@@ -11,6 +11,11 @@ export type Kind = {
   websockets?: boolean;
   /** 键级支持 cloak.mode(仅官方 Claude API key) */
   cloak?: boolean;
+  /**
+   * 只有键级 proxy-url,没有分组级。
+   * openai-compatibility 的 Go 结构体没有分组代理字段,分组级写进去会被静默丢弃。
+   */
+  perKeyProxyOnly?: boolean;
 };
 
 export const KINDS: Kind[] = [
@@ -23,6 +28,7 @@ export const KINDS: Kind[] = [
       return i18n.t("provider_form.openai_compat");
     },
     openai: true,
+    perKeyProxyOnly: true,
   },
   { endpoint: "vertex", label: "Vertex" },
   { endpoint: "xai", label: "xAI", baseUrlRequired: true, websockets: true },
@@ -121,6 +127,40 @@ export function formatModelRows(rows: ModelRow[]): string {
       return alias ? `${name} => ${alias}` : name;
     })
     .join("\n");
+}
+
+/** 额外请求头的键值对;value 以 $ 开头时 CPA 会从下游请求复制同名头 */
+export type HeaderRow = { id: string; key: string; value: string };
+
+export function newHeaderRow(key = "", value = ""): HeaderRow {
+  return { id: Math.random().toString(36).slice(2), key, value };
+}
+
+export function parseHeaderRows(text: string): HeaderRow[] {
+  return lines(text)
+    .map((line) => {
+      const i = line.indexOf(":");
+      return i > 0 ? newHeaderRow(line.slice(0, i).trim(), line.slice(i + 1).trim()) : null;
+    })
+    .filter((r): r is HeaderRow => r !== null);
+}
+
+/** 空的 key 会被丢弃;value 允许为空(与 CPA 的 map 语义一致) */
+export function formatHeaderRows(rows: HeaderRow[]): string {
+  return rows
+    .filter((r) => r.key.trim())
+    .map((r) => `${r.key.trim()}: ${r.value.trim()}`)
+    .join("\n");
+}
+
+/** 解析成写入配置的 headers map;无有效项时返回空对象(调用方据此删除该字段) */
+export function headersFromText(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of lines(text)) {
+    const i = line.indexOf(":");
+    if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return out;
 }
 
 const KIND_CHANNEL_MAP: Record<string, string[]> = {
@@ -327,15 +367,7 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
   }
   set("prefix", form.prefix.trim());
   set("priority", form.priority.trim() ? Number(form.priority) : undefined);
-  set(
-    "headers",
-    Object.fromEntries(
-      lines(form.headers).map((line) => {
-        const i = line.indexOf(":");
-        return [line.slice(0, i).trim(), line.slice(i + 1).trim()];
-      }),
-    ),
-  );
+  set("headers", headersFromText(form.headers));
   const models = new Map(list<Model>(original.models).map((m) => [m.name, m]));
   set(
     "models",
@@ -358,7 +390,9 @@ export function validate(kind: Kind, form: Form): string | null {
     return i18n.t("provider_form.retry_integer");
   if (form.keys.some((row) => row.weight.trim() && !/^-?\d+$/.test(row.weight.trim())))
     return i18n.t("provider_form.weight_integer");
-  if (lines(form.headers).some((l) => !l.includes(":"))) return i18n.t("provider_form.headers_format");
+  // 请求头必须写成 "名称: 值",名称不能为空(值可以为空)
+  if (lines(form.headers).some((l) => !l.includes(":") || !l.slice(0, l.indexOf(":")).trim()))
+    return i18n.t("provider_form.headers_format");
   // CPA 会丢弃没有别名的 Vertex 模型
   if (kind.endpoint === "vertex" && parseModelRows(form.models).some((r) => !r.alias))
     return i18n.t("provider_form.vertex_alias_required");
@@ -371,11 +405,7 @@ export async function testProviderConnectivity(
 ): Promise<{ ok: boolean; latencyMs: number; message: string }> {
   const start = Date.now();
   const cleanBase = form.baseUrl.trim().replace(/\/+$/, "");
-  const customHeaders: Record<string, string> = {};
-  for (const line of lines(form.headers)) {
-    const i = line.indexOf(":");
-    if (i > 0) customHeaders[line.slice(0, i).trim()] = line.slice(i + 1).trim();
-  }
+  const customHeaders: Record<string, string> = headersFromText(form.headers);
 
   const key = form.keys[0]?.["api-key"].trim() ?? "";
   const modelRows = parseModelRows(form.models);

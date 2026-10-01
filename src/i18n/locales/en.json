@@ -348,7 +348,7 @@
     "excluded_models": "Excluded Models",
     "excluded_hint": "One per line or comma-separated; supports * wildcards",
     "extra_headers": "Extra Headers",
-    "headers_hint": "One per line, in the form Name: Value",
+    "headers_hint": "Add rows visually, or switch to text mode to paste in bulk. A value starting with $ copies the same header from the downstream request.",
     "th_group": "Name / Key",
     "th_key_count": "Keys",
     "th_model_count": "Models",
@@ -366,7 +366,16 @@
     "delete_desc": "{{name}} will be removed from the CPA config.",
     "load_failed": "Failed to load: {{message}}",
     "group_name_hint": "Optional, identifies this group",
-    "cloak_named": "Cloak mode for key {{n}}"
+    "cloak_named": "Cloak mode for key {{n}}",
+    "proxy_key_only_hint": "This provider only supports per-key proxies: set them in each key proxy field below. A group-level proxy is ignored by CPA.",
+    "header_name": "Header name",
+    "header_value": "Value",
+    "header_name_placeholder": "X-Custom-Header",
+    "header_value_placeholder": "custom-value or $Client-Header",
+    "header_name_named": "Name of header {{n}}",
+    "header_value_named": "Value of header {{n}}",
+    "remove_header_named": "Remove header {{n}}",
+    "add_header": "Add header"
   },
   "api_keys": {
     "title": "Client API Keys",
@@ -595,12 +604,15 @@
     "desc": "Unified configuration reading and atomic writing based on config.yaml, auto-reloaded by CPA.",
     "tabs": {
       "common": "Common",
-      "server": "Server & Network",
-      "credentials": "Credentials & Routing",
-      "requests": "Requests & Media",
-      "providers": "Auth Providers",
-      "observability": "Logs & Usage",
-      "plugins": "Plugins"
+      "plugins": "Plugins",
+      "server": "Server",
+      "management": "Management API",
+      "access": "Access Control",
+      "routing": "Routing",
+      "requests": "Requests",
+      "oauth": "OAuth & Credentials",
+      "multimedia": "Multimedia",
+      "observability": "Observability"
     },
     "tab_payload_rules": "Payload Rules",
     "tab_yaml_editor": "YAML Editor",
@@ -674,33 +686,42 @@
       "conflict": "The config file was changed elsewhere, nothing was saved. Copy your edits, then click \"Discard\" to load the latest version"
     },
     "groups": {
-      "server": "Listener, TLS, LAN service discovery, and management access",
-      "credentials": "Credential selection, session affinity, retry rounds, and cooldown",
-      "requests": "Upstream proxy, streaming keep-alives, and image/video behavior",
-      "providers": "Provider-level OAuth and file-credential behavior: cloaking, headers, connection pools, and error rules",
-      "observability": "Logs, usage aggregation, and pprof profiling",
-      "plugins": "Dynamic plugin discovery, store sources, and store authentication"
+      "plugins": "Dynamic binary plugin discovery, store sources and store auth (the plugins section)",
+      "server": "Listener, TLS and LAN service discovery (the server section)",
+      "management": "Management access and the bundled control panel (the management section)",
+      "access": "Keys clients use to call the /v1 endpoints (the access section)",
+      "routing": "Credential selection, session affinity, retry rounds and cooldown (the routing section)",
+      "requests": "Upstream proxy, header passthrough, stream keep-alives and multimedia (the requests section)",
+      "oauth": "Credential directory, refresh workers and provider-level OAuth/file credential settings (the oauth section)",
+      "multimedia": "Image and video request behavior (the multimedia section)",
+      "observability": "Logs, usage aggregation and pprof profiling (the observability section)"
     },
     "sections": {
+      "plugins": {
+        "plugins": "Plugins & store"
+      },
       "server": {
         "listening": "Listener",
         "tls": "TLS",
-        "discovery": "LAN Service Discovery",
-        "management": "Management"
+        "discovery": "LAN service discovery"
       },
-      "credentials": {
-        "routing": "Selection & Affinity",
+      "management": {
+        "management": "Management API"
+      },
+      "access": {
+        "access": "Client keys"
+      },
+      "routing": {
+        "routing": "Selection & affinity",
         "retry": "Retry",
-        "cooldown": "Cooldown",
-        "storage": "Credential Store & Model Metadata"
+        "cooldown": "Cooldown"
       },
       "requests": {
         "requests": "Requests",
-        "streaming": "Streaming",
-        "multimedia": "Images & Video"
+        "streaming": "Streaming"
       },
-      "providers": {
-        "errors": "Request-scoped Error Rules",
+      "oauth": {
+        "oauth": "Credential store & error rules",
         "aistudio": "AI Studio",
         "codex": "Codex",
         "claude": "Claude",
@@ -708,16 +729,17 @@
         "xai": "xAI",
         "devin": "Devin"
       },
+      "multimedia": {
+        "multimedia": "Image & video"
+      },
       "observability": {
         "logs": "Logs",
-        "usage": "Usage",
+        "usage": "Usage statistics",
         "pprof": "pprof"
-      },
-      "plugins": {
-        "plugins": "Plugins & Store"
       }
     },
     "links": {
+      "plugins": "Plugin installation, config and store live on the Plugins page",
       "api_keys": "Client keys (access.api-keys) are managed on the API Keys page"
     },
     "fields": {
@@ -1103,6 +1125,10 @@
       "plugins/store-auth": {
         "label": "Plugin Store Auth Rules",
         "hint": "JSON array matching registry and artifact requests by URL prefix. Put token, username, and password environment variable names here, never plaintext values"
+      },
+      "access/api-keys": {
+        "label": "Client API keys",
+        "hint": "Keys clients use to call the /v1 endpoints. Empty means client keys are not required. Also manageable per-entry on the API Keys page."
       }
     }
   },

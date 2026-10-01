@@ -41,14 +41,14 @@ export type ConfigGroup = {
 
 /**
  * 对照 CPA v8 路径表(internal/config/config_v8.go 的 buildV8Paths)、config.example.yaml 与官方文档
- * configuration/options 构建。字段以 v8 根节点归属分组,组内再按用途分小节。
+ * configuration/options 构建。分组与 config.example.yaml 的根节点一一对应，组内再按用途分小节；
+ * 官方文档的「管理 API」「访问控制」是 management / access 两个根节点，因此独立成组而不是并入服务器。
  * 不暴露 Home 管理契约(credentials.concurrency/in-flight、plugins.auth-revision)与无 v8 对应的旧字段
  * (quota-exceeded.switch-project/switch-preview-model)。
  */
 export const GROUPS: ConfigGroup[] = [
   {
     id: "server",
-    link: { to: "/api-keys", labelKey: "config.links.api_keys" },
     sections: [
       {
         id: "listening",
@@ -56,6 +56,7 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "server/host", type: "text", fallback: "" },
           { endpoint: "server/port", type: "int", fallback: "8317" },
           { endpoint: "server/trusted-proxies", type: "list" },
+          { endpoint: "server/commercial-mode", type: "bool" },
         ],
       },
       {
@@ -79,6 +80,11 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "server/discovery/advertise-management", type: "bool" },
         ],
       },
+    ],
+  },
+  {
+    id: "management",
+    sections: [
       {
         id: "management",
         items: [
@@ -93,7 +99,17 @@ export const GROUPS: ConfigGroup[] = [
     ],
   },
   {
-    id: "credentials",
+    id: "access",
+    link: { to: "/api-keys", labelKey: "config.links.api_keys" },
+    sections: [
+      {
+        id: "access",
+        items: [{ endpoint: "access/api-keys", type: "list" }],
+      },
+    ],
+  },
+  {
+    id: "routing",
     sections: [
       {
         id: "routing",
@@ -126,14 +142,6 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "routing/cooldown/transient-error-cooldown-seconds", type: "int" },
         ],
       },
-      {
-        id: "storage",
-        items: [
-          { endpoint: "oauth/auth-dir", type: "text", fallback: "~/.cli-proxy-api" },
-          { endpoint: "oauth/auth-auto-refresh-workers", type: "int", fallback: "16" },
-          { endpoint: "oauth/settings", type: "json" },
-        ],
-      },
     ],
   },
   {
@@ -154,27 +162,19 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "requests/streaming/bootstrap-retries", type: "int" },
         ],
       },
-      {
-        id: "multimedia",
-        items: [
-          {
-            endpoint: "multimedia/disable-image-generation",
-            type: "select",
-            options: ["false", "true", "chat", "passthrough"],
-            fallback: "false",
-          },
-          { endpoint: "multimedia/gpt-image-2-base-model", type: "text", fallback: "gpt-5.4-mini" },
-          { endpoint: "multimedia/video-result-auth-cache-ttl", type: "text", fallback: "3h" },
-        ],
-      },
     ],
   },
   {
-    id: "providers",
+    id: "oauth",
     sections: [
       {
-        id: "errors",
-        items: [{ endpoint: "oauth/request-scoped-errors", type: "json" }],
+        id: "oauth",
+        items: [
+          { endpoint: "oauth/auth-dir", type: "text", fallback: "~/.cli-proxy-api" },
+          { endpoint: "oauth/auth-auto-refresh-workers", type: "int", fallback: "16" },
+          { endpoint: "oauth/settings", type: "json" },
+          { endpoint: "oauth/request-scoped-errors", type: "json" },
+        ],
       },
       {
         id: "aistudio",
@@ -243,6 +243,24 @@ export const GROUPS: ConfigGroup[] = [
     ],
   },
   {
+    id: "multimedia",
+    sections: [
+      {
+        id: "multimedia",
+        items: [
+          {
+            endpoint: "multimedia/disable-image-generation",
+            type: "select",
+            options: ["false", "true", "chat", "passthrough"],
+            fallback: "false",
+          },
+          { endpoint: "multimedia/gpt-image-2-base-model", type: "text", fallback: "gpt-5.4-mini" },
+          { endpoint: "multimedia/video-result-auth-cache-ttl", type: "text", fallback: "3h" },
+        ],
+      },
+    ],
+  },
+  {
     id: "observability",
     sections: [
       {
@@ -253,7 +271,6 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "observability/logs/request-log", type: "bool" },
           { endpoint: "observability/logs/logs-max-total-size-mb", type: "int" },
           { endpoint: "observability/logs/error-logs-max-files", type: "int", fallback: "10" },
-          { endpoint: "server/commercial-mode", type: "bool" },
         ],
       },
       {
@@ -274,6 +291,7 @@ export const GROUPS: ConfigGroup[] = [
   },
   {
     id: "plugins",
+    link: { to: "/plugins", labelKey: "config.links.plugins" },
     sections: [
       {
         id: "plugins",

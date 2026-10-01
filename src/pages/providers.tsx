@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { HeadersEditor } from "@/components/headers-editor";
 import { PageHeader } from "@/components/page-header";
 import { RequestSparkline } from "@/components/sparkline";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
@@ -522,16 +523,19 @@ function EditDialog({
           >
             <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
           </Field>
-          {!kind.openai && (
-            <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
-              <Input
-                id={`${p}-proxy`}
-                value={form.proxyUrl}
-                onChange={(e) => update({ proxyUrl: e.target.value })}
-                placeholder="socks5://127.0.0.1:1080"
-              />
-            </Field>
-          )}
+          <Field
+            id={`${p}-proxy`}
+            label={t("providers.proxy")}
+            hint={kind.perKeyProxyOnly ? t("providers.proxy_key_only_hint") : t("providers.proxy_hint")}
+          >
+            <Input
+              id={`${p}-proxy`}
+              value={form.proxyUrl}
+              onChange={(e) => update({ proxyUrl: e.target.value })}
+              placeholder="socks5://127.0.0.1:1080"
+              disabled={kind.perKeyProxyOnly}
+            />
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id={`${p}-prefix`} label={t("providers.prefix")} hint={t("providers.prefix_hint")}>
               <Input id={`${p}-prefix`} value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
@@ -593,14 +597,13 @@ function EditDialog({
               />
             </Field>
           )}
-          <Field id={`${p}-headers`} label={t("providers.extra_headers")} hint={t("providers.headers_hint")}>
-            <Textarea
-              id={`${p}-headers`}
-              value={form.headers}
-              onChange={(e) => update({ headers: e.target.value })}
-              className="min-h-16 font-mono text-sm"
-            />
-          </Field>
+          <HeadersEditor
+            id={`${p}-headers`}
+            value={form.headers}
+            onChange={(text) => update({ headers: text })}
+            label={t("providers.extra_headers")}
+            hint={t("providers.headers_hint")}
+          />
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}
