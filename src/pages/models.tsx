@@ -3,6 +3,7 @@ import { Check, Copy, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-
 import { type FormEvent, useId, useMemo, useState } from "react";
 import { Trans } from "react-i18next";
 import { toast } from "sonner";
+import { ModeTabs } from "@/components/dual-mode-field";
 import { PageHeader } from "@/components/page-header";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import { Badge } from "@/components/ui/badge";
@@ -438,15 +439,7 @@ function ExcludedDialog({
                   ? t("models.upstream_count", { count: upstreamModels.length })
                   : t("models.fetch_models")}
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground"
-                onClick={() => setTextMode((prev) => !prev)}
-              >
-                {textMode ? t("models.visual_mode") : t("models.text_mode")}
-              </Button>
+              <ModeTabs mode={textMode ? "text" : "visual"} onChange={(mode) => setTextMode(mode === "text")} />
             </div>
           </div>
 

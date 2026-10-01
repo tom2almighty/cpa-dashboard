@@ -1,29 +1,33 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Eye, EyeOff } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import type React from "react";
-import { createContext, useCallback, useContext, useId, useState } from "react";
+import { createContext, useCallback, useContext, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { DualModeField } from "@/components/dual-mode-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound, replaceKey } from "@/lib/api";
 
 export type Json = Record<string, unknown>;
 
 // 文案取自 i18n：config.fields.<endpoint>.{label,hint,options.<value>}，config.groups.<id>
-// list 为每行一项的字符串数组，json 为 JSON 对象
+// list 为每行一项的字符串数组，auth-rules 为插件商店认证规则数组，
+// channel-entries 为「渠道 -> 条目数组」对象（如 oauth.settings）
 export type Setting = {
   endpoint: string;
-  type: "bool" | "int" | "text" | "password" | "select" | "list" | "json";
+  type: "bool" | "int" | "text" | "password" | "select" | "list" | "auth-rules" | "channel-entries";
   options?: string[];
   fallback?: string | boolean;
+  /** channel-entries 可视化编辑时每个条目的字段 */
+  entryFields?: EntryFieldSpec[];
 };
 
 export type ConfigSection = {
@@ -39,10 +43,38 @@ export type ConfigGroup = {
   link?: { to: string; labelKey: string };
 };
 
+/** 一条插件商店认证规则,键名沿用 CPA 的 json tag(snake_case) */
+export type AuthRule = Record<string, unknown>;
+
+/** channel-entries 里单个条目的字段编辑方式,key 用 CPA 的 json tag */
+export type EntryFieldSpec = {
+  key: string;
+  kind: "text" | "int" | "list" | "select";
+  options?: string[];
+};
+
+/** 「渠道 -> 条目数组」配置,如 oauth.settings、oauth.request-scoped-errors */
+export type ChannelEntries = Record<string, AuthRule[]>;
+
+/** apply-to 取值,对应 CPA pluginstore.RequestKind* */
+export const AUTH_APPLY_TO = ["registry", "metadata", "artifact"] as const;
+
+/** 认证类型,对应 CPA pluginstore.AuthType*;none 表示不认证 */
+export const AUTH_TYPES = ["none", "bearer", "github-token", "basic", "header"] as const;
+
+/** 各认证类型需要的环境变量字段,只写变量名不写明文 */
+export const AUTH_TYPE_FIELDS: Record<string, string[]> = {
+  none: [],
+  bearer: ["token_env"],
+  "github-token": ["token_env"],
+  basic: ["username_env", "password_env"],
+  header: ["header_name", "header_value_env"],
+};
+
 /**
  * 对照 CPA v8 路径表(internal/config/config_v8.go 的 buildV8Paths)、config.example.yaml 与官方文档
- * configuration/options 构建。分组与 config.example.yaml 的根节点一一对应，组内再按用途分小节；
- * 官方文档的「管理 API」「访问控制」是 management / access 两个根节点，因此独立成组而不是并入服务器。
+ * configuration/options 构建。分组与 config.example.yaml 的根节点一一对应，组内再按用途分小节。
+ * access.api-keys 由「客户端密钥」页面维护，这里不再单列分组。
  * 不暴露 Home 管理契约(credentials.concurrency/in-flight、plugins.auth-revision)与无 v8 对应的旧字段
  * (quota-exceeded.switch-project/switch-preview-model)。
  */
@@ -95,16 +127,6 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "management/base-url", type: "text" },
           { endpoint: "management/panel-github-repository", type: "text" },
         ],
-      },
-    ],
-  },
-  {
-    id: "access",
-    link: { to: "/api-keys", labelKey: "config.links.api_keys" },
-    sections: [
-      {
-        id: "access",
-        items: [{ endpoint: "access/api-keys", type: "list" }],
       },
     ],
   },
@@ -172,8 +194,29 @@ export const GROUPS: ConfigGroup[] = [
         items: [
           { endpoint: "oauth/auth-dir", type: "text", fallback: "~/.cli-proxy-api" },
           { endpoint: "oauth/auth-auto-refresh-workers", type: "int", fallback: "16" },
-          { endpoint: "oauth/settings", type: "json" },
-          { endpoint: "oauth/request-scoped-errors", type: "json" },
+          {
+            endpoint: "oauth/settings",
+            type: "channel-entries",
+            entryFields: [
+              { key: "name", kind: "text" },
+              { key: "alias", kind: "text" },
+              { key: "max-context-length", kind: "int" },
+            ],
+          },
+          {
+            endpoint: "oauth/request-scoped-errors",
+            type: "channel-entries",
+            entryFields: [
+              { key: "status", kind: "int" },
+              { key: "match", kind: "list" },
+              { key: "match-regexr", kind: "list" },
+              {
+                key: "action",
+                kind: "select",
+                options: ["stop", "stop-and-cooldown", "continue", "continue-and-cooldown"],
+              },
+            ],
+          },
         ],
       },
       {
@@ -299,7 +342,7 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "plugins/enabled", type: "bool" },
           { endpoint: "plugins/dir", type: "text", fallback: "plugins" },
           { endpoint: "plugins/store-sources", type: "list" },
-          { endpoint: "plugins/store-auth", type: "json" },
+          { endpoint: "plugins/store-auth", type: "auth-rules" },
         ],
       },
     ],
@@ -307,28 +350,6 @@ export const GROUPS: ConfigGroup[] = [
 ];
 
 const SETTINGS = GROUPS.flatMap((g) => g.sections.flatMap((s) => s.items));
-const SETTING_BY_ENDPOINT: Record<string, Setting> = Object.fromEntries(
-  SETTINGS.map((setting) => [setting.endpoint, setting]),
-);
-
-/** 常用 tab:只引用 GROUPS 里已有的字段,不重复定义 */
-const COMMON_ENDPOINTS = [
-  "server/port",
-  "management/secret-key",
-  "oauth/auth-dir",
-  "routing/strategy",
-  "routing/session-affinity",
-  "routing/retry/request-retry",
-  "requests/proxy-url",
-  "multimedia/disable-image-generation",
-  "observability/logs/debug",
-];
-
-export const COMMON: Setting[] = COMMON_ENDPOINTS.map((endpoint) => {
-  const setting = SETTING_BY_ENDPOINT[endpoint];
-  if (!setting) throw new Error(`config.common 引用了不存在的配置项: ${endpoint}`);
-  return setting;
-});
 
 function readPath(config: Json | undefined, endpoint: string): unknown {
   let node: unknown = config;
@@ -344,16 +365,27 @@ export function parseValue(type: Setting["type"], text: string): unknown {
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
-  if (type === "json") {
+  if (type === "auth-rules" || type === "channel-entries") {
     try {
       const value: unknown = JSON.parse(text);
-      // json 字段既可存对象(如 oauth/settings),也可存数组(如 plugins/store-auth)
-      return value !== null && typeof value === "object" ? value : undefined;
+      // 认证规则是数组,数组里每项是一个规则对象
+      if (type === "auth-rules") return Array.isArray(value) && value.every(isRule) ? value : undefined;
+      return isChannelEntries(value) ? value : undefined;
     } catch {
       return undefined;
     }
   }
   return text;
+}
+
+/** 认证规则:非空对象,且不是数组(数组会被当成列表值) */
+function isRule(value: unknown): value is AuthRule {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** 「渠道 -> 条目数组」:每个值都必须是非空对象的数组 */
+function isChannelEntries(value: unknown): value is ChannelEntries {
+  return isRule(value) && Object.values(value).every((entries) => Array.isArray(entries) && entries.every(isRule));
 }
 
 // patch 里存界面上的原始输入(开关为布尔,其余为文本),保存时再转换;空文本表示删除该项
@@ -394,7 +426,7 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
       if (setting.type === "bool") return typeof value === "boolean" ? value : setting.fallback === true;
       if (value === undefined) return String(setting.fallback ?? "");
       if (setting.type === "list" && Array.isArray(value)) return value.join("\n");
-      if (setting.type === "json") return JSON.stringify(value, null, 2);
+      if (setting.type === "auth-rules" || setting.type === "channel-entries") return JSON.stringify(value, null, 2);
       return String(value);
     },
     [config],
@@ -437,7 +469,7 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
         }
         if (setting.type === "password") newKey = String(raw);
         // map 类型 PATCH 会深度合并、删不掉已有键,整体 PUT 替换
-        if (setting.type === "json") {
+        if (setting.type === "auth-rules" || setting.type === "channel-entries") {
           replaced.push([setting.endpoint, value]);
           continue;
         }
@@ -579,15 +611,33 @@ export function SettingField({ setting }: { setting: Setting }) {
         )}
       </div>
     );
-  } else if (setting.type === "list" || setting.type === "json") {
+  } else if (setting.type === "list") {
     control = (
-      <Textarea
-        id={id}
-        aria-labelledby={labelId}
+      <ListField id={id} labelId={labelId} text={text} invalid={invalid} onChange={(next) => setValue(setting, next)} />
+    );
+  } else if (setting.type === "auth-rules") {
+    control = (
+      <DualModeField
+        ariaLabelledBy={labelId}
         value={text}
-        onChange={(e) => setValue(setting, e.target.value)}
-        aria-invalid={invalid}
-        className="w-full sm:w-80 max-h-64 font-mono text-xs md:text-xs"
+        onChange={(next) => setValue(setting, next)}
+        parse={parseAuthRules}
+        format={(rules) => JSON.stringify(rules, null, 2)}
+        render={(rules, write) => <AuthRuleList rules={rules} write={write} />}
+        invalidHint={t("config.settings.auth_invalid_json")}
+      />
+    );
+  } else if (setting.type === "channel-entries") {
+    const fields = setting.entryFields ?? [];
+    control = (
+      <DualModeField
+        ariaLabelledBy={labelId}
+        value={text}
+        onChange={(next) => setValue(setting, next)}
+        parse={parseChannelEntries}
+        format={(entries) => JSON.stringify(entries, null, 2)}
+        render={(entries, write) => <ChannelEntriesField value={entries} write={write} fields={fields} />}
+        invalidHint={t("config.settings.channel_invalid_json")}
       />
     );
   } else {
@@ -620,13 +670,16 @@ export function SettingField({ setting }: { setting: Setting }) {
     );
   }
 
+  // list / 双模式编辑器需要整行宽度,其余保持左右分栏
+  const wide = setting.type === "list" || setting.type === "auth-rules" || setting.type === "channel-entries";
+
   return (
     <div
-      className={`flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between transition-colors ${
-        isModified ? "bg-primary/5 rounded-lg px-3 -mx-3" : ""
-      }`}
+      className={`flex flex-col gap-3 py-4 transition-colors ${
+        wide ? "" : "sm:flex-row sm:items-center sm:justify-between"
+      } ${isModified ? "bg-primary/5 rounded-lg px-3 -mx-3" : ""}`}
     >
-      <div className="min-w-0 pr-4">
+      <div className={`min-w-0 ${wide ? "" : "pr-4"}`}>
         <div className="flex items-center gap-2">
           <Label id={labelId} className="font-medium text-sm">
             {t(`config.fields.${setting.endpoint}.label`)}
@@ -641,10 +694,554 @@ export function SettingField({ setting }: { setting: Setting }) {
           {t(`config.fields.${setting.endpoint}.hint`)}
         </p>
       </div>
-      <div className="shrink-0">{control}</div>
+      <div className={wide ? "w-full" : "shrink-0"}>{control}</div>
     </div>
   );
 }
+
+/** 字符串列表:逐行编辑,可增删行;空行由 parseValue 在保存时过滤 */
+function ListField({
+  id,
+  labelId,
+  text,
+  invalid,
+  onChange,
+}: {
+  id: string;
+  labelId: string;
+  text: string;
+  invalid: boolean;
+  onChange: (text: string) => void;
+}) {
+  const { t } = useI18n();
+  // 空行是合法中间态(点了「添加一行」还没填),不能从 text 反推,否则新增的空行会被 join 掉
+  const [rows, setRows] = useState<string[]>(() => (text === "" ? [] : text.split("\n")));
+  const emitted = useRef(text);
+  if (text !== emitted.current) {
+    emitted.current = text;
+    setRows(text === "" ? [] : text.split("\n"));
+  }
+  // 行没有天然标识,这里按行分配稳定 key,只在增删行时变动
+  const rowKeys = useRef<string[]>([]);
+  const keySeq = useRef(0);
+  while (rowKeys.current.length < rows.length) rowKeys.current.push(`row-${keySeq.current++}`);
+  if (rowKeys.current.length > rows.length) rowKeys.current.length = rows.length;
+  const write = (next: string[]) => {
+    setRows(next);
+    emitted.current = next.join("\n");
+    onChange(emitted.current);
+  };
+
+  return (
+    <div className="grid gap-2">
+      {rows.map((row, index) => (
+        <div key={rowKeys.current[index]} className="flex items-center gap-2">
+          <Input
+            id={index === 0 ? id : undefined}
+            aria-labelledby={labelId}
+            aria-invalid={invalid}
+            value={row}
+            onChange={(e) => write(rows.map((item, i) => (i === index ? e.target.value : item)))}
+            className="flex-1 font-mono text-xs"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+            title={t("config.settings.list_remove")}
+            aria-label={t("config.settings.list_remove")}
+            onClick={() => {
+              rowKeys.current.splice(index, 1);
+              write(rows.filter((_, i) => i !== index));
+            }}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 w-fit gap-1 text-xs"
+        onClick={() => write([...rows, ""])}
+      >
+        <Plus className="size-3.5" />
+        {t("config.settings.list_add")}
+      </Button>
+    </div>
+  );
+}
+
+/** 文本 → 认证规则数组;空文本视为空数组 */
+export function parseAuthRules(text: string): AuthRule[] | null {
+  if (text.trim() === "") return [];
+  try {
+    const value: unknown = JSON.parse(text);
+    return Array.isArray(value) && value.every(isRule) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 文本 → 「渠道 -> 条目数组」;空文本视为空对象 */
+export function parseChannelEntries(text: string): ChannelEntries | null {
+  if (text.trim() === "") return {};
+  try {
+    const value: unknown = JSON.parse(text);
+    return isChannelEntries(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 认证规则列表;规则来自 JSON、自身没有 id,这里按行分配稳定 key,只在增删行时变动 */
+function AuthRuleList({ rules, write }: { rules: AuthRule[]; write: (next: AuthRule[]) => void }) {
+  const { t } = useI18n();
+  const ruleKeys = useRef<string[]>([]);
+  const keySeq = useRef(0);
+  while (ruleKeys.current.length < rules.length) ruleKeys.current.push(`rule-${keySeq.current++}`);
+  if (ruleKeys.current.length > rules.length) ruleKeys.current.length = rules.length;
+
+  const update = (index: number, patch: AuthRule) =>
+    write(
+      rules.map((rule, i) => {
+        if (i !== index) return rule;
+        const next = { ...rule, ...patch };
+        // 空串与关闭的开关不落进 JSON,避免堆无意义字段
+        for (const [key, value] of Object.entries(patch)) if (value === "" || value === false) delete next[key];
+        return next;
+      }),
+    );
+
+  const setType = (index: number, type: string) =>
+    write(
+      rules.map((rule, i) => {
+        if (i !== index) return rule;
+        const keep = ["match", "apply_to", "allow_insecure", ...(AUTH_TYPE_FIELDS[type] ?? [])];
+        const next: AuthRule = {};
+        for (const key of Object.keys(rule)) if (keep.includes(key)) next[key] = rule[key];
+        if (type !== "none") next.type = type;
+        return next;
+      }),
+    );
+
+  const toggleApply = (index: number, kind: string, checked: boolean) =>
+    write(
+      rules.map((rule, i) => {
+        if (i !== index) return rule;
+        const current = Array.isArray(rule.apply_to)
+          ? rule.apply_to.filter((value): value is string => typeof value === "string")
+          : [];
+        const picked = checked ? [...current, kind] : current.filter((value) => value !== kind);
+        const next = { ...rule };
+        // 一项都不选等于对所有请求生效,直接省略该字段
+        const ordered = AUTH_APPLY_TO.filter((value) => picked.includes(value));
+        if (ordered.length === 0) delete next.apply_to;
+        else next.apply_to = ordered;
+        return next;
+      }),
+    );
+
+  return (
+    <div className="grid gap-2">
+      {rules.length === 0 && <p className="text-xs text-muted-foreground">{t("config.settings.auth_empty")}</p>}
+      {rules.map((rule, index) => (
+        <AuthRuleCard
+          key={ruleKeys.current[index]}
+          index={index}
+          rule={rule}
+          onRemove={() => {
+            ruleKeys.current.splice(index, 1);
+            write(rules.filter((_, i) => i !== index));
+          }}
+          onUpdate={(patch) => update(index, patch)}
+          onTypeChange={(type) => setType(index, type)}
+          onToggleApply={(kind, checked) => toggleApply(index, kind, checked)}
+        />
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 w-fit gap-1 text-xs"
+        onClick={() => write([...rules, {}])}
+      >
+        <Plus className="size-3.5" />
+        {t("config.settings.auth_add_rule")}
+      </Button>
+    </div>
+  );
+}
+
+/** 单条认证规则的编辑卡片 */
+function AuthRuleCard({
+  index,
+  rule,
+  onUpdate,
+  onTypeChange,
+  onToggleApply,
+  onRemove,
+}: {
+  index: number;
+  rule: AuthRule;
+  onRemove: () => void;
+  onUpdate: (patch: AuthRule) => void;
+  onTypeChange: (type: string) => void;
+  onToggleApply: (kind: string, checked: boolean) => void;
+}) {
+  const { t } = useI18n();
+  const uid = useId();
+  const type = typeof rule.type === "string" && rule.type !== "" ? rule.type : "none";
+  const applies = Array.isArray(rule.apply_to)
+    ? rule.apply_to.filter((value): value is string => typeof value === "string")
+    : [];
+  const textField = (key: string) => (typeof rule[key] === "string" ? (rule[key] as string) : "");
+
+  return (
+    <div className="grid gap-3 rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">
+          {t("config.settings.auth_rule", { index: index + 1 })}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-destructive"
+          title={t("config.settings.list_remove")}
+          aria-label={t("config.settings.list_remove")}
+          onClick={onRemove}
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${uid}-match`}>{t("config.settings.auth_match")}</Label>
+        <Input
+          id={`${uid}-match`}
+          value={textField("match")}
+          onChange={(e) => onUpdate({ match: e.target.value })}
+          placeholder="https://plugins.example.com/"
+          className="font-mono text-xs"
+        />
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label>{t("config.settings.auth_apply_to")}</Label>
+        <div className="flex flex-wrap items-center gap-4">
+          {AUTH_APPLY_TO.map((kind) => (
+            <label key={kind} htmlFor={`${uid}-apply-${kind}`} className="flex items-center gap-2 text-xs">
+              <Checkbox
+                id={`${uid}-apply-${kind}`}
+                checked={applies.includes(kind)}
+                onCheckedChange={(checked) => onToggleApply(kind, checked === true)}
+              />
+              {t(`config.settings.auth_apply_${kind}`)}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">{t("config.settings.auth_apply_hint")}</p>
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${uid}-type`}>{t("config.settings.auth_type")}</Label>
+        <Select
+          items={AUTH_TYPES.map((value) => ({ value, label: t(`config.settings.auth_type_${value}`) }))}
+          value={type}
+          onValueChange={(value) => value && onTypeChange(value)}
+        >
+          <SelectTrigger id={`${uid}-type`} className="w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AUTH_TYPES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`config.settings.auth_type_${value}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {(AUTH_TYPE_FIELDS[type] ?? []).map((key) => (
+        <div key={key} className="grid gap-1.5">
+          <Label htmlFor={`${uid}-${key}`}>{t(`config.settings.auth_field_${key}`)}</Label>
+          <Input
+            id={`${uid}-${key}`}
+            value={textField(key)}
+            onChange={(e) => onUpdate({ [key]: e.target.value })}
+            className="font-mono text-xs"
+          />
+        </div>
+      ))}
+
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={`${uid}-insecure`}>{t("config.settings.auth_allow_insecure")}</Label>
+        <Switch
+          id={`${uid}-insecure`}
+          checked={rule.allow_insecure === true}
+          onCheckedChange={(checked) => onUpdate({ allow_insecure: checked })}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** 「渠道 -> 条目数组」可视化编辑,如 oauth.settings、oauth.request-scoped-errors */
+function ChannelEntriesField({
+  value,
+  write,
+  fields,
+}: {
+  value: ChannelEntries;
+  write: (next: ChannelEntries) => void;
+  fields: EntryFieldSpec[];
+}) {
+  const { t } = useI18n();
+  const channels = Object.entries(value);
+  // 渠道名是对象的键、没有天然 id,按行分配稳定 key,只在增删渠道时变动
+  const channelKeys = useRef<string[]>([]);
+  const keySeq = useRef(0);
+  while (channelKeys.current.length < channels.length) channelKeys.current.push(`channel-${keySeq.current++}`);
+  if (channelKeys.current.length > channels.length) channelKeys.current.length = channels.length;
+
+  const replace = (index: number, name: string, entries: AuthRule[]) => {
+    const next: ChannelEntries = {};
+    channels.forEach(([key, current], i) => {
+      next[i === index ? name : key] = i === index ? entries : current;
+    });
+    write(next);
+  };
+
+  const addChannel = () => {
+    let i = 1;
+    while (`channel-${i}` in value) i++;
+    write({ ...value, [`channel-${i}`]: [] });
+  };
+
+  return (
+    <div className="grid gap-2">
+      {channels.length === 0 && <p className="text-xs text-muted-foreground">{t("config.settings.channel_empty")}</p>}
+      {channels.map(([channel, entries], index) => (
+        <div key={channelKeys.current[index]} className="grid gap-3 rounded-lg border p-3">
+          <div className="flex items-center gap-2">
+            <Input
+              value={channel}
+              aria-label={t("config.settings.channel_name")}
+              placeholder="codex"
+              onChange={(e) => replace(index, e.target.value, entries)}
+              className="h-7 flex-1 font-mono text-xs"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+              title={t("config.settings.channel_remove")}
+              aria-label={t("config.settings.channel_remove")}
+              onClick={() => {
+                channelKeys.current.splice(index, 1);
+                const next: ChannelEntries = {};
+                channels.forEach(([key, current], i) => {
+                  if (i !== index) next[key] = current;
+                });
+                write(next);
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+          <EntryList entries={entries} fields={fields} onChange={(next) => replace(index, channel, next)} />
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" className="h-7 w-fit gap-1 text-xs" onClick={addChannel}>
+        <Plus className="size-3.5" />
+        {t("config.settings.channel_add")}
+      </Button>
+    </div>
+  );
+}
+
+/** 某个渠道下的条目列表 */
+function EntryList({
+  entries,
+  fields,
+  onChange,
+}: {
+  entries: AuthRule[];
+  fields: EntryFieldSpec[];
+  onChange: (next: AuthRule[]) => void;
+}) {
+  const { t } = useI18n();
+  const entryKeys = useRef<string[]>([]);
+  const keySeq = useRef(0);
+  while (entryKeys.current.length < entries.length) entryKeys.current.push(`entry-${keySeq.current++}`);
+  if (entryKeys.current.length > entries.length) entryKeys.current.length = entries.length;
+
+  const update = (index: number, key: string, raw: unknown) =>
+    onChange(
+      entries.map((entry, i) => {
+        if (i !== index) return entry;
+        const next = { ...entry };
+        // 空值不落进 JSON,避免堆无意义字段
+        if (raw === "" || raw === undefined || (Array.isArray(raw) && raw.length === 0)) delete next[key];
+        else next[key] = raw;
+        return next;
+      }),
+    );
+
+  return (
+    <div className="grid gap-2">
+      {entries.map((entry, index) => (
+        <div key={entryKeys.current[index]} className="grid gap-3 rounded-lg border border-dashed p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t("config.settings.channel_entry", { index: index + 1 })}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-destructive"
+              title={t("config.settings.list_remove")}
+              aria-label={t("config.settings.list_remove")}
+              onClick={() => {
+                entryKeys.current.splice(index, 1);
+                onChange(entries.filter((_, i) => i !== index));
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+          {fields.map((field) => (
+            <EntryField
+              key={field.key}
+              field={field}
+              value={entry[field.key]}
+              onChange={(raw) => update(index, field.key, raw)}
+            />
+          ))}
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 w-fit gap-1 text-xs"
+        onClick={() => onChange([...entries, {}])}
+      >
+        <Plus className="size-3.5" />
+        {t("config.settings.channel_entry_add")}
+      </Button>
+    </div>
+  );
+}
+
+/** 单个条目字段;数字输入保留中间态,避免打到一半就被规范化 */
+function EntryField({
+  field,
+  value,
+  onChange,
+}: {
+  field: EntryFieldSpec;
+  value: unknown;
+  onChange: (raw: unknown) => void;
+}) {
+  const { t } = useI18n();
+  const id = useId();
+  const external = value === undefined || value === null ? "" : String(value);
+  const [text, setText] = useState(external);
+  const emitted = useRef(external);
+  if (external !== emitted.current) {
+    emitted.current = external;
+    setText(external);
+  }
+
+  const label = t(`config.settings.entry_${field.key}`);
+
+  if (field.kind === "list") {
+    const lines = Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string").join("\n")
+      : "";
+    return (
+      <div className="grid gap-1.5">
+        <Label htmlFor={id}>{label}</Label>
+        <ListField
+          id={id}
+          labelId={id}
+          text={lines}
+          invalid={false}
+          onChange={(next) =>
+            onChange(
+              next
+                .split("\n")
+                .map((line) => line.trim())
+                .filter(Boolean),
+            )
+          }
+        />
+      </div>
+    );
+  }
+
+  if (field.kind === "select") {
+    const options = field.options ?? [];
+    return (
+      <div className="grid gap-1.5">
+        <Label htmlFor={id}>{label}</Label>
+        <Select
+          items={options.map((option) => ({ value: option, label: option }))}
+          value={external || null}
+          onValueChange={(next) => next && onChange(next)}
+        >
+          <SelectTrigger id={id} className="w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+
+  const numeric = field.kind === "int";
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        inputMode={numeric ? "numeric" : undefined}
+        value={numeric ? text : external}
+        onChange={(e) => {
+          if (!numeric) {
+            onChange(e.target.value);
+            return;
+          }
+          setText(e.target.value);
+          const raw = e.target.value.trim();
+          if (raw === "") {
+            emitted.current = "";
+            onChange("");
+          } else if (/^-?\d+$/.test(raw)) {
+            emitted.current = String(Number(raw));
+            onChange(Number(raw));
+          }
+          // 非法中间态只留在输入框,不写进 JSON
+        }}
+        className={numeric ? "font-mono text-xs" : "text-xs"}
+      />
+    </div>
+  );
+}
+
 function SettingsState({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
   const { isPending, error } = useConfigSettings();
@@ -666,14 +1263,6 @@ function SettingList({ items }: { items: Setting[] }) {
         <SettingField key={setting.endpoint} setting={setting} />
       ))}
     </div>
-  );
-}
-
-export function SettingsCommon() {
-  return (
-    <SettingsState>
-      <SettingList items={COMMON} />
-    </SettingsState>
   );
 }
 

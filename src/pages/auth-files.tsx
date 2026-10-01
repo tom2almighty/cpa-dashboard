@@ -212,101 +212,103 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[85svh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("auth_files.save_properties", { name: accountName(target) })}</DialogTitle>
         </DialogHeader>
-        {source.isError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {t("overview.load_failed", { message: errorText(source.error) })}
-          </p>
-        ) : !form ? (
-          <Skeleton className="h-72" />
-        ) : (
-          <form id="fields-form" onSubmit={submit} className="grid gap-4">
-            <div className="grid gap-1.5">
-              <Label htmlFor="f-note">{t("auth_files.field_note")}</Label>
-              <Input id="f-note" value={form.note} onChange={(e) => update({ note: e.target.value })} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="f-prefix">{t("auth_files.field_prefix")}</Label>
-              <Input id="f-prefix" value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {NUMBER_FIELDS.map(([key, label]) => (
-                <div key={key} className="grid gap-1.5">
-                  <Label htmlFor={`f-${key}`}>{t(label)}</Label>
-                  <Input
-                    id={`f-${key}`}
-                    inputMode="numeric"
-                    value={form[key]}
-                    placeholder={t("auth_files.inherit_placeholder")}
-                    onChange={(e) => update({ [key]: e.target.value })}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="f-proxy">{t("auth_files.field_proxy")}</Label>
-              <Input
-                id="f-proxy"
-                value={form.proxy_url}
-                placeholder={t("auth_files.proxy_placeholder")}
-                onChange={(e) => update({ proxy_url: e.target.value })}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="f-websockets">{t("auth_files.field_websockets")}</Label>
-              <Switch
-                id="f-websockets"
-                checked={form.websockets}
-                onCheckedChange={(checked) => update({ websockets: checked })}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="f-headers">{t("auth_files.extra_headers")}</Label>
-              <Textarea
-                id="f-headers"
-                value={form.headers}
-                onChange={(e) => update({ headers: e.target.value })}
-                className="min-h-20 font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">{t("auth_files.headers_hint")}</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="f-timezone">{t("auth_files.field_timezone")}</Label>
-              <Input
-                id="f-timezone"
-                value={form.timezone}
-                placeholder={t("auth_files.timezone_placeholder")}
-                onChange={(e) => update({ timezone: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">{t("auth_files.timezone_hint")}</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="f-aliases">{t("auth_files.field_model_aliases")}</Label>
-              <Textarea
-                id="f-aliases"
-                value={form.model_aliases}
-                placeholder={t("auth_files.model_aliases_placeholder")}
-                onChange={(e) => update({ model_aliases: e.target.value })}
-                className="min-h-20 font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">{t("auth_files.model_aliases_hint")}</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="f-excluded">{t("auth_files.field_excluded_models")}</Label>
-              <Textarea
-                id="f-excluded"
-                value={form.excluded_models}
-                placeholder={t("auth_files.excluded_models_placeholder")}
-                onChange={(e) => update({ excluded_models: e.target.value })}
-                className="min-h-20 font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">{t("auth_files.excluded_models_hint")}</p>
-            </div>
-          </form>
-        )}
+        <div className="min-h-0 overflow-y-auto pr-1">
+          {source.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {t("overview.load_failed", { message: errorText(source.error) })}
+            </p>
+          ) : !form ? (
+            <Skeleton className="h-72" />
+          ) : (
+            <form id="fields-form" onSubmit={submit} className="grid gap-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="f-note">{t("auth_files.field_note")}</Label>
+                <Input id="f-note" value={form.note} onChange={(e) => update({ note: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="f-prefix">{t("auth_files.field_prefix")}</Label>
+                <Input id="f-prefix" value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {NUMBER_FIELDS.map(([key, label]) => (
+                  <div key={key} className="grid gap-1.5">
+                    <Label htmlFor={`f-${key}`}>{t(label)}</Label>
+                    <Input
+                      id={`f-${key}`}
+                      inputMode="numeric"
+                      value={form[key]}
+                      placeholder={t("auth_files.inherit_placeholder")}
+                      onChange={(e) => update({ [key]: e.target.value })}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="f-proxy">{t("auth_files.field_proxy")}</Label>
+                <Input
+                  id="f-proxy"
+                  value={form.proxy_url}
+                  placeholder={t("auth_files.proxy_placeholder")}
+                  onChange={(e) => update({ proxy_url: e.target.value })}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="f-websockets">{t("auth_files.field_websockets")}</Label>
+                <Switch
+                  id="f-websockets"
+                  checked={form.websockets}
+                  onCheckedChange={(checked) => update({ websockets: checked })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="f-headers">{t("auth_files.extra_headers")}</Label>
+                <Textarea
+                  id="f-headers"
+                  value={form.headers}
+                  onChange={(e) => update({ headers: e.target.value })}
+                  className="min-h-20 font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">{t("auth_files.headers_hint")}</p>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="f-timezone">{t("auth_files.field_timezone")}</Label>
+                <Input
+                  id="f-timezone"
+                  value={form.timezone}
+                  placeholder={t("auth_files.timezone_placeholder")}
+                  onChange={(e) => update({ timezone: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">{t("auth_files.timezone_hint")}</p>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="f-aliases">{t("auth_files.field_model_aliases")}</Label>
+                <Textarea
+                  id="f-aliases"
+                  value={form.model_aliases}
+                  placeholder={t("auth_files.model_aliases_placeholder")}
+                  onChange={(e) => update({ model_aliases: e.target.value })}
+                  className="min-h-20 font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">{t("auth_files.model_aliases_hint")}</p>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="f-excluded">{t("auth_files.field_excluded_models")}</Label>
+                <Textarea
+                  id="f-excluded"
+                  value={form.excluded_models}
+                  placeholder={t("auth_files.excluded_models_placeholder")}
+                  onChange={(e) => update({ excluded_models: e.target.value })}
+                  className="min-h-20 font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">{t("auth_files.excluded_models_hint")}</p>
+              </div>
+            </form>
+          )}
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t("common.cancel")}

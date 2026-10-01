@@ -1,7 +1,15 @@
 import { expect, test } from "bun:test";
 import en from "@/i18n/locales/en.json";
 import zhCN from "@/i18n/locales/zh-CN.json";
-import { COMMON, GROUPS, parseValue } from "./settings";
+import {
+  AUTH_APPLY_TO,
+  AUTH_TYPE_FIELDS,
+  AUTH_TYPES,
+  GROUPS,
+  parseAuthRules,
+  parseChannelEntries,
+  parseValue,
+} from "./settings";
 
 // 词条以 endpoint 为键平铺在 config.fields 下,这里按字符串索引读取,失败信息里带上具体项
 type ConfigLocale = {
@@ -9,7 +17,47 @@ type ConfigLocale = {
   groups: Record<string, string | undefined>;
   sections: Record<string, Record<string, string | undefined> | undefined>;
   fields: Record<string, { label: string; hint: string } | undefined>;
+  settings: Record<string, string | undefined>;
 };
+
+/** 配置页编辑器实际用到的 config.settings.* 词条 */
+const SETTINGS_KEYS = [
+  "copied_value",
+  "copy_value",
+  "secret_key_set",
+  "secret_key_unset",
+  "show_secret",
+  "modified",
+  "invalid_value",
+  "list_add",
+  "list_remove",
+  "auth_add_rule",
+  "auth_rule",
+  "auth_empty",
+  "auth_invalid_json",
+  "auth_match",
+  "auth_apply_to",
+  "auth_apply_hint",
+  "auth_type",
+  "auth_allow_insecure",
+  "channel_add",
+  "channel_name",
+  "channel_remove",
+  "channel_entry",
+  "channel_entry_add",
+  "channel_empty",
+  "channel_invalid_json",
+  ...AUTH_TYPES.map((type) => `auth_type_${type}`),
+  ...AUTH_APPLY_TO.map((kind) => `auth_apply_${kind}`),
+  ...Object.values(AUTH_TYPE_FIELDS)
+    .flat()
+    .map((field) => `auth_field_${field}`),
+  ...new Set(
+    GROUPS.flatMap((group) =>
+      group.sections.flatMap((section) => section.items.flatMap((item) => item.entryFields ?? [])),
+    ).map((field) => `entry_${field.key}`),
+  ),
+];
 
 const locales: Record<string, ConfigLocale> = {
   "zh-CN": zhCN.config as unknown as ConfigLocale,
@@ -19,12 +67,8 @@ const endpoints = GROUPS.flatMap((group) =>
   group.sections.flatMap((section) => section.items.map((item) => item.endpoint)),
 );
 
-test("配置项 endpoint 不重复,常用项只引用已定义的字段", () => {
+test("配置项 endpoint 不重复", () => {
   expect(new Set(endpoints).size).toBe(endpoints.length);
-  expect(COMMON.length).toBeGreaterThan(0);
-
-  const defined = new Set(endpoints);
-  expect(COMMON.filter((setting) => !defined.has(setting.endpoint)).map((s) => s.endpoint)).toEqual([]);
 });
 
 test("每个配置项的中英文 label 与 hint 齐全,且没有界面已移除的多余词条", () => {
@@ -50,7 +94,7 @@ test("tab 名称、分组说明与小节标题中英文齐全", () => {
   const missing: string[] = [];
 
   for (const [lang, locale] of Object.entries(locales)) {
-    for (const id of ["common", ...GROUPS.map((group) => group.id)]) {
+    for (const id of GROUPS.map((group) => group.id)) {
       if (!locale.tabs[id]) missing.push(`${lang} tabs.${id}`);
     }
     for (const group of GROUPS) {
@@ -64,14 +108,69 @@ test("tab 名称、分组说明与小节标题中英文齐全", () => {
   expect(missing).toEqual([]);
 });
 
-test("json 类型字段接受对象与数组,拒绝标量", () => {
-  expect(parseValue("json", '{"codex":[{"name":"gpt-6-sol","max-context-length":524288}]}')).toEqual({
+test("auth-rules 只接受规则对象数组", () => {
+  expect(parseValue("auth-rules", '[{"match":"https://x/","type":"bearer","token_env":"TOKEN"}]')).toEqual([
+    { match: "https://x/", type: "bearer", token_env: "TOKEN" },
+  ]);
+  expect(parseValue("auth-rules", "[]")).toEqual([]);
+  // 顶层不是数组、或数组里混入非对象,都视为非法
+  expect(parseValue("auth-rules", '{"match":"https://x/"}')).toBeUndefined();
+  expect(parseValue("auth-rules", '["https://x/"]')).toBeUndefined();
+  expect(parseValue("auth-rules", "[[1]]")).toBeUndefined();
+  expect(parseValue("auth-rules", "null")).toBeUndefined();
+});
+
+test("parseAuthRules 把空文本当作空数组,非法结构返回 null", () => {
+  expect(parseAuthRules("")).toEqual([]);
+  expect(parseAuthRules("   ")).toEqual([]);
+  expect(parseAuthRules('[{"match":"https://x/"}]')).toEqual([{ match: "https://x/" }]);
+  // 顶层不是数组、或数组里混入非对象,可视化编辑无从下手
+  expect(parseAuthRules('{"match":"https://x/"}')).toBeNull();
+  expect(parseAuthRules('["https://x/"]')).toBeNull();
+  expect(parseAuthRules("{")).toBeNull();
+});
+
+test("parseChannelEntries 只接受「渠道 -> 条目数组」", () => {
+  expect(parseChannelEntries('{"codex":[{"name":"gpt-6-sol","max-context-length":524288}]}')).toEqual({
     codex: [{ name: "gpt-6-sol", "max-context-length": 524288 }],
   });
-  expect(parseValue("json", '[{"match":"https://x/","type":"bearer","token-env":"TOKEN"}]')).toEqual([
-    { match: "https://x/", type: "bearer", "token-env": "TOKEN" },
-  ]);
-  expect(parseValue("json", "true")).toBeUndefined();
-  expect(parseValue("json", "null")).toBeUndefined();
-  expect(parseValue("json", "{")).toBeUndefined();
+  expect(parseChannelEntries("{}")).toEqual({});
+  expect(parseChannelEntries("")).toEqual({});
+  expect(parseChannelEntries('[{"codex":[]}]')).toBeNull();
+  expect(parseChannelEntries('{"codex":{}}')).toBeNull();
+  expect(parseChannelEntries('{"codex":["x"]}')).toBeNull();
+  expect(parseChannelEntries("{")).toBeNull();
+});
+
+test("parseValue 与可视化解析对同一份文本判断一致", () => {
+  const text = '{"codex":[{"name":"gpt-6-sol"}]}';
+  expect(parseValue("channel-entries", text)).toEqual(parseChannelEntries(text));
+  expect(parseValue("channel-entries", '{"codex":{}}')).toBeUndefined();
+  // 空文本在保存流程里表示「删除该项」,与可视化侧的「空对象」等价
+  expect(parseValue("channel-entries", "")).toBeUndefined();
+});
+
+test("channel-entries 配置项都声明了 entryFields", () => {
+  const items = GROUPS.flatMap((group) => group.sections.flatMap((section) => section.items)).filter(
+    (item) => item.type === "channel-entries",
+  );
+  expect(items.length).toBeGreaterThan(0);
+  expect(items.filter((item) => !item.entryFields?.length).map((item) => item.endpoint)).toEqual([]);
+});
+
+test("配置页编辑器用到的 config.settings 词条中英文齐全,且没有多余词条", () => {
+  const missing: string[] = [];
+  const stale: string[] = [];
+
+  for (const [lang, locale] of Object.entries(locales)) {
+    for (const key of SETTINGS_KEYS) {
+      if (!locale.settings[key]?.trim()) missing.push(`${lang} settings.${key}`);
+    }
+    for (const key of Object.keys(locale.settings)) {
+      if (!SETTINGS_KEYS.includes(key)) stale.push(`${lang} settings.${key}`);
+    }
+  }
+
+  expect(missing).toEqual([]);
+  expect(stale).toEqual([]);
 });

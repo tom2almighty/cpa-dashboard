@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { type EditorMode, ModeTabs } from "@/components/dual-mode-field";
 import { HeadersEditor } from "@/components/headers-editor";
 import { PageHeader } from "@/components/page-header";
 import { RequestSparkline } from "@/components/sparkline";
@@ -175,9 +176,12 @@ function ModelMappingEditor({
     syncToForm(rows.filter((r) => r.id !== id));
   };
 
-  const handleToggleMode = () => {
-    if (textMode) setRows(parseModelRows(form.models).map((r) => newRow(r.name, r.alias)));
-    setTextMode(!textMode);
+  // 切回列表模式时用文本重新解析,文本模式下改过的内容不会丢
+  const setMode = (mode: EditorMode) => {
+    const nextText = mode === "text";
+    if (nextText === textMode) return;
+    if (!nextText) setRows(parseModelRows(form.models).map((r) => newRow(r.name, r.alias)));
+    setTextMode(nextText);
   };
 
   const p = kind.endpoint;
@@ -203,15 +207,7 @@ function ModelMappingEditor({
               ? t("providers.refetch_models", { count: fetchedModels.length })
               : t("providers.fetch_models_short")}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleMode}
-            className="h-7 text-xs text-muted-foreground"
-          >
-            {textMode ? t("providers.list_mode") : t("providers.text_mode")}
-          </Button>
+          <ModeTabs mode={textMode ? "text" : "visual"} onChange={setMode} />
         </div>
       </div>
 

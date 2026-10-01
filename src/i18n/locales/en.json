@@ -18,7 +18,9 @@
     "name": "Name",
     "download": "Download",
     "loading_progress": "Loaded {{loaded}} / {{total}}",
-    "request_failed_status": "Request failed ({{status}})"
+    "request_failed_status": "Request failed ({{status}})",
+    "visual_mode": "Visual edit",
+    "text_mode": "Text edit"
   },
   "theme": {
     "title": "Theme",
@@ -293,8 +295,6 @@
     "mapping_hint": "Leave empty to use all default models. Requests using an alias are forwarded to the upstream model.",
     "refetch_models": "Refetch ({{count}})",
     "fetch_models_short": "Fetch Models",
-    "list_mode": "List Edit",
-    "text_mode": "Text Edit",
     "mapping_text_hint": "One per line. To set an alias, write upstream-model => alias",
     "search_fetched": "Search {{count}} model(s) or enter a model name",
     "enter_model": "Enter a model name to add",
@@ -452,8 +452,6 @@
     "rules_hint": "Select upstream models or enter * wildcards (e.g. gpt-5-*, *-mini)",
     "upstream_count": "Upstream Models ({{count}})",
     "fetch_models": "Fetch Models",
-    "visual_mode": "Visual Select",
-    "text_mode": "Text Edit",
     "rules_text_hint": "One per line or comma-separated; supports * wildcards. Save with an empty list to delete all rules for this channel.",
     "rules_count": "Excluded Rules ({{count}})",
     "clear_all": "Clear All",
@@ -603,11 +601,9 @@
     "title": "System Configuration",
     "desc": "Unified configuration reading and atomic writing based on config.yaml, auto-reloaded by CPA.",
     "tabs": {
-      "common": "Common",
       "plugins": "Plugins",
       "server": "Server",
       "management": "Management API",
-      "access": "Access Control",
       "routing": "Routing",
       "requests": "Requests",
       "oauth": "OAuth & Credentials",
@@ -628,7 +624,45 @@
       "secret_key_unset": "No secret key set (enter one to configure)",
       "show_secret": "Show secret in plain text",
       "modified": "Modified",
-      "invalid_value": "{{field}}: invalid format"
+      "invalid_value": "{{field}}: invalid format",
+      "list_add": "Add row",
+      "list_remove": "Remove this item",
+      "auth_add_rule": "Add rule",
+      "auth_rule": "Rule {{index}}",
+      "auth_empty": "No auth rules yet",
+      "auth_invalid_json": "Invalid JSON. Fix it before switching back to the visual editor.",
+      "auth_match": "Match prefix (match)",
+      "auth_apply_to": "Applies to (apply-to)",
+      "auth_apply_registry": "Registry",
+      "auth_apply_metadata": "Metadata",
+      "auth_apply_artifact": "Artifact",
+      "auth_apply_hint": "Selecting nothing applies the rule to every request",
+      "auth_type": "Auth type (type)",
+      "auth_type_none": "None",
+      "auth_type_bearer": "Bearer token",
+      "auth_type_github-token": "GitHub token",
+      "auth_type_basic": "Basic auth",
+      "auth_type_header": "Custom header",
+      "auth_field_token_env": "Token env var (token-env)",
+      "auth_field_username_env": "Username env var (username-env)",
+      "auth_field_password_env": "Password env var (password-env)",
+      "auth_field_header_name": "Header name (header-name)",
+      "auth_field_header_value_env": "Header value env var (header-value-env)",
+      "auth_allow_insecure": "Allow non-HTTPS (allow-insecure)",
+      "channel_add": "Add channel",
+      "channel_name": "Channel",
+      "channel_remove": "Remove this channel",
+      "channel_entry": "Entry {{index}}",
+      "channel_entry_add": "Add entry",
+      "channel_empty": "No channel config yet",
+      "channel_invalid_json": "Invalid JSON: expected an object mapping a channel to an array of entries",
+      "entry_name": "Model name (name)",
+      "entry_alias": "Alias (alias)",
+      "entry_max-context-length": "Context length (max-context-length)",
+      "entry_status": "Status code (status)",
+      "entry_match": "Match substrings (match)",
+      "entry_match-regexr": "Match regex (match-regexr)",
+      "entry_action": "Action (action)"
     },
     "payload": {
       "title": "Request Payload Rules",
@@ -689,8 +723,7 @@
       "plugins": "Dynamic binary plugin discovery, store sources and store auth (the plugins section)",
       "server": "Listener, TLS and LAN service discovery (the server section)",
       "management": "Management access and the bundled control panel (the management section)",
-      "access": "Keys clients use to call the /v1 endpoints (the access section)",
-      "routing": "Credential selection, session affinity, retry rounds and cooldown (the routing section)",
+      "routing": "Credential selection strategy, session affinity, retries and cooldown (the routing section)",
       "requests": "Upstream proxy, header passthrough, stream keep-alives and multimedia (the requests section)",
       "oauth": "Credential directory, refresh workers and provider-level OAuth/file credential settings (the oauth section)",
       "multimedia": "Image and video request behavior (the multimedia section)",
@@ -706,10 +739,7 @@
         "discovery": "LAN service discovery"
       },
       "management": {
-        "management": "Management API"
-      },
-      "access": {
-        "access": "Client keys"
+        "management": "Management"
       },
       "routing": {
         "routing": "Selection & affinity",
@@ -739,8 +769,7 @@
       }
     },
     "links": {
-      "plugins": "Plugin installation, config and store live on the Plugins page",
-      "api_keys": "Client keys (access.api-keys) are managed on the API Keys page"
+      "plugins": "Plugin installation, config and store live on the Plugins page"
     },
     "fields": {
       "server/host": {
@@ -1124,11 +1153,7 @@
       },
       "plugins/store-auth": {
         "label": "Plugin Store Auth Rules",
-        "hint": "JSON array matching registry and artifact requests by URL prefix. Put token, username, and password environment variable names here, never plaintext values"
-      },
-      "access/api-keys": {
-        "label": "Client API keys",
-        "hint": "Keys clients use to call the /v1 endpoints. Empty means client keys are not required. Also manageable per-entry on the API Keys page."
+        "hint": "Rules matching registry and artifact requests by URL prefix. Put token, username, and password environment variable names here, never plaintext values"
       }
     }
   },

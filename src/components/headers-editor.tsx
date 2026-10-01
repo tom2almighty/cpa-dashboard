@@ -1,9 +1,9 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { type EditorMode, ModeTabs } from "@/components/dual-mode-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
 import { formatHeaderRows, type HeaderRow, newHeaderRow, parseHeaderRows } from "@/lib/provider-form";
@@ -35,12 +35,15 @@ export function HeadersEditor({ id, value, onChange, label, hint }: HeadersEdito
     onChange(formatHeaderRows(list));
   };
 
-  const toggleMode = () => {
-    if (textMode) {
+  // 切回列表模式时用文本重新解析,文本模式下改过的内容不会丢
+  const setMode = (mode: EditorMode) => {
+    const nextText = mode === "text";
+    if (nextText === textMode) return;
+    if (!nextText) {
       const parsed = parseHeaderRows(value);
       setRows(parsed.length > 0 ? parsed : [newHeaderRow()]);
     }
-    setTextMode(!textMode);
+    setTextMode(nextText);
   };
 
   const visible = rows;
@@ -53,23 +56,7 @@ export function HeadersEditor({ id, value, onChange, label, hint }: HeadersEdito
       </div>
 
       {/* 与页面其它位置一致的 tabs 切换：可视化逐行编辑 / 文本批量编辑 */}
-      <Tabs
-        value={textMode ? "text" : "list"}
-        onValueChange={(v) => {
-          const next = v === "text";
-          if (next === textMode) return;
-          toggleMode();
-        }}
-      >
-        <TabsList className="h-7 p-0.5">
-          <TabsTrigger value="list" className="px-2 text-xs">
-            {t("providers.list_mode")}
-          </TabsTrigger>
-          <TabsTrigger value="text" className="px-2 text-xs">
-            {t("providers.text_mode")}
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <ModeTabs mode={textMode ? "text" : "visual"} onChange={setMode} />
 
       {textMode ? (
         <Textarea
