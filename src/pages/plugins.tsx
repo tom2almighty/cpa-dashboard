@@ -821,7 +821,7 @@ function Store() {
                           {!isOfficial && p.repository && (
                             <Badge
                               variant="outline"
-                              className="text-[10px] px-1.5 py-0 h-4 text-amber-600 border-amber-500/40 dark:text-amber-400"
+                              className="text-[10px] px-1.5 py-0 h-4 text-warning border-warning/40"
                             >
                               {t("plugins.badge_third_party")}
                             </Badge>
@@ -995,7 +995,7 @@ function Store() {
               </p>
               {(installingTarget?.install_source_status === "different" ||
                 installingTarget?.install_source_status === "unknown") && (
-                <p role="alert" className="text-amber-600 dark:text-amber-400">
+                <p role="alert" className="text-warning">
                   {installingTarget.install_source_status === "different"
                     ? t("plugins.warn_source_different", { source: sourceName(installingTarget.installed_source_id) })
                     : t("plugins.warn_source_unknown")}

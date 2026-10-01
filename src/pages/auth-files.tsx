@@ -129,7 +129,7 @@ function StatusCell({ file: f }: { file: AuthFile }) {
   }
   return (
     <span className="inline-flex items-center gap-1.5 text-sm">
-      <span aria-hidden className="size-2 rounded-full bg-emerald-500" />
+      <span aria-hidden className="size-2 rounded-full bg-success" />
       {t("auth_files.status_normal")}
     </span>
   );
@@ -441,8 +441,8 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
           </div>
 
           {target.cooldowns && target.cooldowns.length > 0 && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-              <span className="font-medium text-amber-600 dark:text-amber-400">
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+              <span className="font-medium text-warning">
                 {t("auth_files.cooldown_limit_title", { count: target.cooldowns.length })}
               </span>
               <div className="mt-2 grid gap-1.5">

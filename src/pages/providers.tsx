@@ -621,7 +621,7 @@ function EditDialog({
             </Button>
             {testResult && (
               <span
-                className={`max-w-44 truncate text-[11px] ${testResult.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}
+                className={`max-w-44 truncate text-[11px] ${testResult.ok ? "text-success" : "text-destructive"}`}
                 title={testResult.message}
               >
                 {testResult.message}

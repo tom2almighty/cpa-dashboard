@@ -49,14 +49,14 @@ const LEVELS: { value: Level | "all"; labelKey: string }[] = [
 
 const LEVEL_TEXT: Record<Level, string> = {
   error: "text-destructive",
-  warn: "text-amber-600 dark:text-amber-400",
-  info: "text-muted-foreground",
+  warn: "text-warning",
+  info: "text-info",
   debug: "text-muted-foreground/60",
 };
 
 const ROW_TINT: Record<Level, string> = {
   error: "bg-destructive/5",
-  warn: "bg-amber-500/10",
+  warn: "bg-warning/10",
   info: "",
   debug: "",
 };
@@ -78,12 +78,7 @@ function Message({ text }: { text: string }) {
   const m = /^(\d{3})(\s+\|.*)$/s.exec(text);
   if (!m) return <>{text}</>;
   const code = Number(m[1]);
-  const color =
-    code >= 500
-      ? "text-destructive"
-      : code >= 400
-        ? "text-amber-600 dark:text-amber-400"
-        : "text-emerald-600 dark:text-emerald-400";
+  const color = code >= 500 ? "text-destructive" : code >= 400 ? "text-warning" : "text-success";
   return (
     <>
       <span className={`font-medium ${color}`}>{m[1]}</span>
@@ -291,7 +286,7 @@ function LiveLogs() {
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <span
               aria-hidden
-              className={`size-2 rounded-full ${live ? "bg-emerald-500 motion-safe:animate-pulse" : "bg-muted-foreground/40"}`}
+              className={`size-2 rounded-full ${live ? "bg-success motion-safe:animate-pulse" : "bg-muted-foreground/40"}`}
             />
             {live ? t("logs.live") : t("logs.paused")}
           </span>

@@ -34,12 +34,21 @@ const CHANNEL_LABELS: Record<string, string> = {
 // 剩余不超过该百分比视为紧张,卡片、统计与"仅看告警"共用
 const WARN_REMAINING = 20;
 
-function level(remaining: number | null): "ok" | "warn" | "danger" {
+type QuotaLevel = "ok" | "warn" | "danger";
+
+function level(remaining: number | null): QuotaLevel {
   if (remaining === null) return "ok";
   if (remaining <= 0) return "danger";
   if (remaining <= WARN_REMAINING) return "warn";
   return "ok";
 }
+
+// 进度条按状态取语义色，和卡片上的文字/图标保持一致
+const BAR_FILL: Record<QuotaLevel, string> = {
+  ok: "bg-success",
+  warn: "bg-warning",
+  danger: "bg-destructive",
+};
 
 export function MeterRow({ window: w }: { window: QuotaWindow }) {
   const { t } = useI18n();
@@ -54,15 +63,9 @@ export function MeterRow({ window: w }: { window: QuotaWindow }) {
         </span>
         <span className="flex shrink-0 items-center gap-1.5 tabular-nums text-xs">
           {state === "danger" && <OctagonAlert className="size-3.5 text-destructive" aria-hidden />}
-          {state === "warn" && <AlertTriangle className="size-3.5 text-amber-500" aria-hidden />}
+          {state === "warn" && <AlertTriangle className="size-3.5 text-warning" aria-hidden />}
           <span
-            className={
-              state === "danger"
-                ? "font-semibold text-destructive"
-                : state === "warn"
-                  ? "text-amber-600 dark:text-amber-400"
-                  : ""
-            }
+            className={state === "danger" ? "font-semibold text-destructive" : state === "warn" ? "text-warning" : ""}
           >
             {remaining === null ? "—" : t("quota.remaining_percent", { n: remaining })}
           </span>
@@ -74,10 +77,10 @@ export function MeterRow({ window: w }: { window: QuotaWindow }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={remaining ?? undefined}
-        className="relative h-2 w-full min-w-0 overflow-hidden rounded-full bg-primary/20"
+        className="relative h-2 w-full min-w-0 overflow-hidden rounded-full bg-muted"
       >
         <div
-          className={`h-full rounded-full transition-all duration-300 ${state === "danger" ? "bg-destructive" : "bg-primary"}`}
+          className={`h-full rounded-full transition-all duration-300 ${BAR_FILL[state]}`}
           style={{ width: `${remaining ?? 0}%` }}
         />
       </div>
@@ -274,13 +277,13 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
             {t("quota.total_prefix")} <strong className="font-semibold text-foreground">{metrics.total}</strong>{" "}
             {t("quota.total_suffix")}
           </span>
-          <span className="flex items-center gap-1 text-primary font-medium">
-            <span className="size-1.5 rounded-full bg-primary" />
+          <span className="flex items-center gap-1 text-success font-medium">
+            <span className="size-1.5 rounded-full bg-success" />
             {metrics.healthy} {t("quota.healthy")}
           </span>
           {metrics.warning > 0 && (
-            <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
-              <span className="size-1.5 rounded-full bg-amber-500" />
+            <span className="flex items-center gap-1 text-warning font-medium">
+              <span className="size-1.5 rounded-full bg-warning" />
               {metrics.warning} {t("quota.tight")}
             </span>
           )}
@@ -327,7 +330,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                   <span className="text-muted-foreground"> · {r.label}</span>
                 </span>
                 <span className="shrink-0 tabular-nums" title={formatDateTime(r.resetAt)}>
-                  <span className={r.remaining === 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"}>
+                  <span className={r.remaining === 0 ? "text-destructive" : "text-warning"}>
                     {t("quota.remaining_percent", { n: r.remaining })}
                   </span>
                   <span className="text-muted-foreground"> · {formatCountdown(r.resetAt)}</span>
