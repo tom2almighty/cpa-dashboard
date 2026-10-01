@@ -681,7 +681,8 @@ export function SettingField({ setting }: { setting: Setting }) {
     >
       <div className={`min-w-0 ${wide ? "" : "pr-4"}`}>
         <div className="flex items-center gap-2">
-          <Label id={labelId} className="font-medium text-sm">
+          {/* 这里刻意不用 htmlFor（点标题不该改值），所以也放开文本选中：Label 基础样式带 select-none */}
+          <Label id={labelId} className="font-medium text-sm select-text">
             {t(`config.fields.${setting.endpoint}.label`)}
           </Label>
           {isModified && (

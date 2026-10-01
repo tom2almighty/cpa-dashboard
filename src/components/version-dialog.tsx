@@ -151,7 +151,7 @@ function VersionCardContent() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {/* 前端面板版本 */}
-        <Card className="flex flex-col justify-between">
+        <Card>
           <CardHeader className="pb-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -184,7 +184,7 @@ function VersionCardContent() {
             </div>
             <CardDescription className="text-xs">{t("version.standalone")}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-xs">
+          <CardContent className="flex flex-1 flex-col gap-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">{t("version.running_version")}</span>
               <span className="font-mono font-medium">{currentVersion || t("version.unknown")}</span>
@@ -198,7 +198,7 @@ function VersionCardContent() {
             {panelError && <p className="wrap-break-word text-destructive">{panelError}</p>}
 
             {panelHasUpdate && (
-              <div className="mt-3 rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
+              <div className="mt-auto rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
                 <p className="font-medium text-foreground">
                   {t("version.found_new_version")} {panelLatest}！
                 </p>
@@ -235,7 +235,7 @@ function VersionCardContent() {
         </Card>
 
         {/* 后端 CPA 版本 */}
-        <Card className="flex flex-col justify-between">
+        <Card>
           <CardHeader className="pb-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -268,7 +268,7 @@ function VersionCardContent() {
             </div>
             <CardDescription className="text-xs">{t("version.cpa_desc")}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-xs">
+          <CardContent className="flex flex-1 flex-col gap-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">{t("version.running_version")}</span>
               <span className="font-mono font-medium">{cpaCurrent || t("version.unknown")}</span>
@@ -282,7 +282,7 @@ function VersionCardContent() {
             {cpaError && <p className="wrap-break-word text-destructive">{cpaError}</p>}
 
             {cpaHasUpdate && (
-              <div className="mt-3 rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
+              <div className="mt-auto rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
                 <p className="font-medium text-foreground">{t("version.cpa_upgrade_to", { version: cpaLatest })}</p>
                 <Button
                   variant="outline"
