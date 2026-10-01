@@ -902,7 +902,7 @@ function Store() {
                   </CardHeader>
 
                   <CardContent className="flex-1 space-y-2.5 pb-3 text-sm text-muted-foreground">
-                    <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap break-words text-xs sm:text-sm">
+                    <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap wrap-break-word text-xs sm:text-sm">
                       {p.description || t("plugins.no_description")}
                     </p>
 
@@ -947,7 +947,7 @@ function Store() {
 
                   <CardFooter className="flex items-center justify-between border-t bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
                     <div className="flex flex-col gap-0.5">
-                      <span className="truncate max-w-[120px]" title={p.source_name || p.source_id}>
+                      <span className="truncate max-w-30" title={p.source_name || p.source_id}>
                         {p.source_name || p.source_id}
                       </span>
                       <span className="font-mono text-[11px]">

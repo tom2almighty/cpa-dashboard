@@ -99,9 +99,9 @@ function LogRow({ entry }: { entry: LogEntry }) {
       className={`flex gap-3 px-3 py-0.5 hover:bg-muted/60 ${ROW_TINT[entry.level]}`}
       style={{ contentVisibility: "auto", containIntrinsicSize: "auto 1.25rem" }}
     >
-      <span className="w-[4.5rem] shrink-0 text-muted-foreground tabular-nums">{entry.time.slice(11) || "—"}</span>
+      <span className="w-18 shrink-0 text-muted-foreground tabular-nums">{entry.time.slice(11) || "—"}</span>
       <span className={`w-10 shrink-0 ${LEVEL_TEXT[entry.level]}`}>{entry.level}</span>
-      <span className="min-w-0 flex-1 break-words whitespace-pre-wrap">
+      <span className="min-w-0 flex-1 wrap-break-word whitespace-pre-wrap">
         {entry.requestId && (
           <Tooltip>
             <TooltipTrigger

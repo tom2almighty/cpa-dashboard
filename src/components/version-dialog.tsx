@@ -195,7 +195,7 @@ function VersionCardContent() {
                 {panelLatest || (panelError ? t("version.check_failed") : t("version.checking"))}
               </span>
             </div>
-            {panelError && <p className="break-words text-destructive">{panelError}</p>}
+            {panelError && <p className="wrap-break-word text-destructive">{panelError}</p>}
 
             {panelHasUpdate && (
               <div className="mt-3 rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
@@ -279,7 +279,7 @@ function VersionCardContent() {
                 {cpaLatest || (cpaError ? t("version.check_failed") : t("version.checking"))}
               </span>
             </div>
-            {cpaError && <p className="break-words text-destructive">{cpaError}</p>}
+            {cpaError && <p className="wrap-break-word text-destructive">{cpaError}</p>}
 
             {cpaHasUpdate && (
               <div className="mt-3 rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">

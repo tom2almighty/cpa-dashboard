@@ -109,7 +109,7 @@ export function PluginQuotaContent({ pluginId, provider }: { pluginId: string; p
                 ) : q?.isError ? (
                   <div className="rounded-md bg-destructive/10 p-3 text-xs text-destructive">
                     <p className="font-medium">{t("quota.query_failed")}</p>
-                    <p className="mt-1 break-words opacity-90">{errorText(q.error)}</p>
+                    <p className="mt-1 wrap-break-word opacity-90">{errorText(q.error)}</p>
                     <Button
                       variant="outline"
                       size="sm"
