@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Suspense, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
+import { BackToTop } from "@/components/back-to-top";
 import { LanguageToggle } from "@/components/language-toggle";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -187,6 +188,7 @@ export function Layout() {
         </main>
       </SidebarInset>
       <VersionDialog open={openVersion} onOpenChange={setOpenVersion} />
+      <BackToTop />
     </SidebarProvider>
   );
 }

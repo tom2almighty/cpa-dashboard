@@ -20,7 +20,8 @@
     "loading_progress": "已加载 {{loaded}} / {{total}}",
     "request_failed_status": "请求失败（{{status}}）",
     "visual_mode": "可视化编辑",
-    "text_mode": "文本编辑"
+    "text_mode": "文本编辑",
+    "back_to_top": "返回顶部"
   },
   "theme": {
     "title": "主题",
@@ -541,7 +542,6 @@
     "store_no_match": "未找到符合搜索条件的插件",
     "store_empty": "商店里没有插件",
     "label_value": "{{label}}：{{value}}",
-    "back_to_top": "返回顶部",
     "install_confirm_title": "插件安装安全风险确认",
     "install_confirm_target": "您准备安装/更新插件：「{{name}}」（版本：{{version}}，来源：{{source}}）。",
     "version_unknown": "未知",

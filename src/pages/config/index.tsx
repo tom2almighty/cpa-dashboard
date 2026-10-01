@@ -41,7 +41,8 @@ function ConfigPageInner() {
       <PageHeader title={t("config.title")} description={t("config.desc")} actions={<ConfigHeaderActions />} />
 
       <Tabs value={tab} onValueChange={(v) => v && setTab(v)}>
-        <div className="mb-6 -mx-4 px-4 overflow-x-auto no-scrollbar">
+        {/* 配置项多,tab 栏吸顶;移动端让开顶部 48px 的 sticky 头部 */}
+        <div className="sticky top-12 z-10 -mx-4 mb-4 overflow-x-auto bg-background px-4 py-2 no-scrollbar md:top-0 md:-mx-8 md:px-8">
           <TabsList className="h-9 gap-1">
             {GROUPS.map((g) => (
               <TabsTrigger key={g.id} value={g.id} className="px-2.5 py-1 text-xs sm:text-sm">

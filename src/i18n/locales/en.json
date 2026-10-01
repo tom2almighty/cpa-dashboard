@@ -20,7 +20,8 @@
     "loading_progress": "Loaded {{loaded}} / {{total}}",
     "request_failed_status": "Request failed ({{status}})",
     "visual_mode": "Visual edit",
-    "text_mode": "Text edit"
+    "text_mode": "Text edit",
+    "back_to_top": "Back to top"
   },
   "theme": {
     "title": "Theme",
@@ -541,7 +542,6 @@
     "store_no_match": "No plugins match your search",
     "store_empty": "No plugins in the store",
     "label_value": "{{label}}: {{value}}",
-    "back_to_top": "Back to top",
     "install_confirm_title": "Confirm Plugin Installation Risk",
     "install_confirm_target": "You are about to install/update the plugin \"{{name}}\" (version: {{version}}, source: {{source}}).",
     "version_unknown": "unknown",

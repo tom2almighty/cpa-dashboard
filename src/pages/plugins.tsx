@@ -1,17 +1,6 @@
 import { SiGithub } from "@icons-pack/react-simple-icons";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowUp,
-  Download,
-  ExternalLink,
-  Gauge,
-  Globe,
-  Puzzle,
-  RefreshCw,
-  Settings2,
-  ShieldAlert,
-  Trash2,
-} from "lucide-react";
+import { Download, ExternalLink, Gauge, Globe, Puzzle, RefreshCw, Settings2, ShieldAlert, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/code-editor";
@@ -719,15 +708,6 @@ function Store() {
   const [installingTarget, setInstallingTarget] = useState<StorePlugin | null>(null);
   const [customVersion, setCustomVersion] = useState("");
   const [page, setPage] = useState(1);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => {
-      setShowScrollTop(window.scrollY > 300);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: STORE_KEY,
@@ -996,18 +976,6 @@ function Store() {
             }}
           />
         </>
-      )}
-
-      {showScrollTop && (
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label={t("plugins.back_to_top")}
-          className="fixed bottom-6 right-6 z-40 rounded-full shadow-md bg-background/80 backdrop-blur transition-all"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        >
-          <ArrowUp className="size-4" />
-        </Button>
       )}
 
       <AlertDialog open={installingTarget !== null} onOpenChange={(open) => !open && setInstallingTarget(null)}>
