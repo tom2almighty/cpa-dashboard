@@ -91,6 +91,19 @@ export function ApiKeysPage() {
   });
   const keys = data ?? [];
 
+  // 生成与手动输入都走这里:点一次就写入列表,不用再点一次「添加密钥」
+  const addKey = (candidate: string) => {
+    const key = candidate.trim();
+    if (!key || keys.includes(key)) return;
+    save.mutate([...keys, key]);
+    const note = addingNote.trim();
+    if (!note) return;
+    const next = { ...notes, [key]: note };
+    setNotes(next);
+    saveNotes(next);
+    setAddingNote("");
+  };
+
   const copy = (text: string, message: string) => {
     navigator.clipboard.writeText(text).then(
       () => {
@@ -257,16 +270,7 @@ export function ApiKeysPage() {
           className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap"
           onSubmit={(e) => {
             e.preventDefault();
-            const key = adding.trim();
-            if (key && !keys.includes(key)) {
-              save.mutate([...keys, key]);
-              if (addingNote.trim()) {
-                const next = { ...notes, [key]: addingNote.trim() };
-                setNotes(next);
-                saveNotes(next);
-                setAddingNote("");
-              }
-            }
+            addKey(adding);
           }}
         >
           <Input
@@ -288,7 +292,13 @@ export function ApiKeysPage() {
               type="button"
               variant="outline"
               className="flex-1 sm:flex-none"
-              onClick={() => setAdding(randomKey())}
+              disabled={!data || save.isPending}
+              onClick={() => {
+                const key = randomKey();
+                // 失败时把生成的 key 留在输入框,可以直接重试「添加密钥」
+                setAdding(key);
+                addKey(key);
+              }}
             >
               {t("api_keys.generate_and_add")}
             </Button>
