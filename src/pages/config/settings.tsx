@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound, replaceKey } from "@/lib/api";
 
@@ -1278,21 +1279,53 @@ function SettingList({ items }: { items: Setting[] }) {
   );
 }
 
+/**
+ * 单个小节的标题 + 设置列表。设置项多的大组（如 oauth 的 7 个提供商小节）
+ * 会把这部分挂到二级 tab 下，所以单独抽出来。
+ */
+function SettingsSection({ groupId, section }: { groupId: string; section: ConfigSection }) {
+  const { t } = useI18n();
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium">{t(`config.sections.${groupId}.${section.id}`)}</h3>
+      <SettingList items={section.items} />
+    </section>
+  );
+}
+
 export function SettingsGroup({ groupId }: { groupId: string }) {
   const { t } = useI18n();
   const group = GROUPS.find((g) => g.id === groupId);
   if (!group) return null;
 
+  const { sections } = group;
+  // 小节只有一两个时摊开更省事；多到需要滚动才值得再切一层
+  const nested = sections.length > 2;
+
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">{t(`config.groups.${group.id}`)}</p>
       <SettingsState>
-        {group.sections.map((section) => (
-          <section key={section.id} className="space-y-2">
-            <h3 className="text-sm font-medium">{t(`config.sections.${group.id}.${section.id}`)}</h3>
-            <SettingList items={section.items} />
-          </section>
-        ))}
+        {nested ? (
+          <Tabs defaultValue={sections[0].id}>
+            {/* 窄屏小节名会换行，h-auto 覆盖列表基类的固定 h-8，并给触发器确定高度
+                （基类的 h-[calc(100%-1px)] 依赖父级高度，这里父级是 auto） */}
+            <TabsList variant="line" className="h-auto flex-wrap">
+              {sections.map((section) => (
+                <TabsTrigger key={section.id} value={section.id} className="h-7 px-2.5 text-xs sm:text-sm">
+                  {t(`config.sections.${group.id}.${section.id}`)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {sections.map((section) => (
+              <TabsContent key={section.id} value={section.id} className="pt-2">
+                <SettingsSection groupId={group.id} section={section} />
+              </TabsContent>
+            ))}
+          </Tabs>
+        ) : (
+          sections.map((section) => <SettingsSection key={section.id} groupId={group.id} section={section} />)
+        )}
       </SettingsState>
       {group.link && (
         <Link
