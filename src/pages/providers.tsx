@@ -34,7 +34,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
@@ -643,21 +642,31 @@ function EditDialog({
   );
 }
 
-function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; isPending: boolean }) {
+/** 一行 = 某个类型下的一个提供商分组；类型跟着行走，所以列表可以混合展示 */
+interface ProviderRow {
+  kind: Kind;
+  item: Json;
+}
+
+function rowKey(row: ProviderRow): string {
+  return `${row.kind.endpoint}:${identity(row.item)}`;
+}
+
+function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: boolean }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const usage = useKeyUsage();
-  const [editing, setEditing] = useState<Json | null | undefined>(undefined);
-  const [deleting, setDeleting] = useState<Json | null>(null);
+  const [editing, setEditing] = useState<ProviderRow | null>(null);
+  const [deleting, setDeleting] = useState<ProviderRow | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
 
-  const handleTestItem = async (item: Json) => {
-    const id = identity(item);
+  const handleTestItem = async (row: ProviderRow) => {
+    const id = rowKey(row);
     setTestingId(id);
     try {
-      const f = toForm(item);
-      const res = await testProviderConnectivity(kind, f);
+      const f = toForm(row.item);
+      const res = await testProviderConnectivity(row.kind, f);
       if (res.ok) toast.success(t("providers.test_ok", { message: res.message }));
       else toast.error(t("providers.test_failed_msg", { message: res.message }));
     } catch (e: unknown) {
@@ -667,9 +676,9 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
     }
   };
   const remove = useMutation({
-    mutationFn: (target: Json) =>
-      mutateList(kind, (all) => {
-        const i = findIndex(all, target);
+    mutationFn: (row: ProviderRow) =>
+      mutateList(row.kind, (all) => {
+        const i = findIndex(all, row.item);
         return all.filter((_, j) => j !== i);
       }),
     onSuccess: () => {
@@ -681,9 +690,9 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
 
   // 只有 OpenAI 兼容分组支持 disabled
   const toggle = useMutation({
-    mutationFn: (target: Json) =>
-      mutateList(kind, (all) => {
-        const i = findIndex(all, target);
+    mutationFn: (row: ProviderRow) =>
+      mutateList(row.kind, (all) => {
+        const i = findIndex(all, row.item);
         const next = { ...all[i] };
         if (next.disabled) delete next.disabled;
         else next.disabled = true;
@@ -693,26 +702,19 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
     onSuccess: refresh,
   });
 
-  // OpenAI 兼容显示启用开关,其它类型显示分组代理,列数相同
-  const columns = 7;
+  const columns = 8;
   return (
     <>
-      <div className="mb-3 flex justify-end">
-        <Button onClick={() => setEditing(null)}>
-          <Plus />
-          {t("providers.add")} {kind.label}
-        </Button>
-      </div>
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-24">{t("providers.th_kind")}</TableHead>
             <TableHead>{t("providers.th_group")}</TableHead>
             <TableHead>Base URL</TableHead>
             <TableHead className="text-right">{t("providers.th_key_count")}</TableHead>
             <TableHead className="text-right">{t("providers.th_model_count")}</TableHead>
-            {!kind.openai && <TableHead>{t("providers.proxy")}</TableHead>}
+            <TableHead>{t("providers.th_proxy_or_enabled")}</TableHead>
             <TableHead>{t("providers.th_recent")}</TableHead>
-            {kind.openai && <TableHead className="w-16">{t("common.enabled")}</TableHead>}
             <TableHead className="w-28">
               <span className="sr-only">{t("common.actions")}</span>
             </TableHead>
@@ -721,13 +723,19 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
         <TableBody>
           {isPending ? (
             <SkeletonRows columns={columns} />
-          ) : items.length === 0 ? (
-            <EmptyRow columns={columns}>{t("providers.empty", { kind: kind.label })}</EmptyRow>
+          ) : rows.length === 0 ? (
+            <EmptyRow columns={columns}>{t("providers.empty_all")}</EmptyRow>
           ) : (
-            items.map((item) => {
+            rows.map((row) => {
+              const item = row.item;
               const title = groupTitle(item) || t("providers.unnamed_group");
               return (
-                <TableRow key={identity(item)} className={item.disabled ? "text-muted-foreground" : undefined}>
+                <TableRow key={rowKey(row)} className={item.disabled ? "text-muted-foreground" : undefined}>
+                  <TableCell>
+                    <Badge variant="outline" className="font-sans">
+                      {row.kind.label}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="font-medium">
                     {title}
                     {str(item.prefix) && (
@@ -748,46 +756,42 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                       </span>
                     )}
                   </TableCell>
-                  {!kind.openai && (
-                    <TableCell className="max-w-48 truncate text-muted-foreground">
-                      {str(item["proxy-url"]) || "—"}
-                    </TableCell>
-                  )}
-                  <TableCell>
-                    <RequestSparkline buckets={usageOf(kind, item, usage.data)} label={title} />
-                  </TableCell>
-                  {kind.openai && (
-                    <TableCell>
+                  {/* 分组代理只对非 OpenAI 兼容有意义，启用开关只对 OpenAI 兼容有意义，两列合成一列 */}
+                  <TableCell className="max-w-48 text-muted-foreground">
+                    {row.kind.openai ? (
                       <Switch
                         checked={!item.disabled}
                         disabled={toggle.isPending}
-                        onCheckedChange={() => toggle.mutate(item)}
+                        onCheckedChange={() => toggle.mutate(row)}
                         aria-label={t(item.disabled ? "providers.enable_aria" : "providers.disable_aria", {
                           name: title,
                         })}
                       />
-                    </TableCell>
-                  )}
+                    ) : (
+                      <span className="block truncate" title={str(item["proxy-url"])}>
+                        {str(item["proxy-url"]) || "—"}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <RequestSparkline buckets={usageOf(row.kind, item, usage.data)} label={title} />
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       aria-label={t("providers.test_aria", { name: title })}
                       title={t("providers.test_connectivity")}
-                      disabled={testingId === identity(item)}
-                      onClick={() => handleTestItem(item)}
+                      disabled={testingId === rowKey(row)}
+                      onClick={() => handleTestItem(row)}
                     >
-                      {testingId === identity(item) ? (
-                        <Spinner className="size-3.5" />
-                      ) : (
-                        <Activity className="size-3.5" />
-                      )}
+                      {testingId === rowKey(row) ? <Spinner className="size-3.5" /> : <Activity className="size-3.5" />}
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       aria-label={t("providers.edit_aria", { name: title })}
-                      onClick={() => setEditing(item)}
+                      onClick={() => setEditing(row)}
                     >
                       <Pencil />
                     </Button>
@@ -796,7 +800,7 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
                       size="icon-sm"
                       aria-label={t("providers.delete_aria", { name: title })}
                       className="text-muted-foreground hover:text-destructive"
-                      onClick={() => setDeleting(item)}
+                      onClick={() => setDeleting(row)}
                     >
                       <Trash2 />
                     </Button>
@@ -808,16 +812,16 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
         </TableBody>
       </Table>
 
-      {editing !== undefined && <EditDialog kind={kind} target={editing} onClose={() => setEditing(undefined)} />}
+      {editing && <EditDialog kind={editing.kind} target={editing.item} onClose={() => setEditing(null)} />}
 
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("providers.delete_title", { kind: kind.label })}</AlertDialogTitle>
+            <AlertDialogTitle>{t("providers.delete_title", { kind: deleting?.kind.label ?? "" })}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting &&
                 t("providers.delete_desc", {
-                  name: groupTitle(deleting),
+                  name: groupTitle(deleting.item),
                 })}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -838,39 +842,96 @@ function ProviderTable({ kind, items, isPending }: { kind: Kind; items: Json[]; 
   );
 }
 
+/**
+ * 新增提供商第一步：先选类型。各类型的表单字段差异很大（OpenAI 兼容要名称、
+ * Vertex 要别名、Codex 要 WebSocket），所以把类型选择独立成一步，
+ * 顶部的「添加提供商」按钮文案也就不再随当前标签变化。
+ */
+function KindPickerDialog({
+  counts,
+  onPick,
+  onClose,
+}: {
+  counts: Record<string, number>;
+  onPick: (kind: Kind) => void;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("providers.pick_kind_title")}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-2 py-2 sm:grid-cols-2">
+          {KINDS.map((kind) => (
+            <Button
+              key={kind.endpoint}
+              variant="outline"
+              className="h-auto justify-between gap-2 py-2.5"
+              onClick={() => onPick(kind)}
+            >
+              <span className="font-medium">{kind.label}</span>
+              {counts[kind.endpoint] > 0 && (
+                <span className="text-xs text-muted-foreground tabular-nums">{counts[kind.endpoint]}</span>
+              )}
+            </Button>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ProvidersPage() {
   const { t } = useI18n();
   const { data, isPending, isError, error } = useQuery({
     ...configQuery,
     select: (c) => (c["api-keys"] ?? {}) as Record<string, unknown>,
   });
+  const [picking, setPicking] = useState(false);
+  const [adding, setAdding] = useState<Kind | null>(null);
+
+  // 按 KINDS 的顺序展开，同类型的行自然相邻，类型徽标之外也能一眼看出分组
+  const rows: ProviderRow[] = KINDS.flatMap((kind) => list(data?.[kind.endpoint]).map((item) => ({ kind, item })));
+  const counts = Object.fromEntries(KINDS.map((kind) => [kind.endpoint, list(data?.[kind.endpoint]).length]));
 
   return (
     <>
-      <PageHeader title={t("providers.title")} description={t("providers.desc")} />
+      <PageHeader
+        title={t("providers.title")}
+        description={t("providers.desc")}
+        actions={
+          <Button onClick={() => setPicking(true)} disabled={isPending}>
+            <Plus />
+            {t("providers.add")}
+          </Button>
+        }
+      />
       {isError ? (
         <p role="alert" className="text-sm text-destructive">
           {t("providers.load_failed", { message: errorText(error) })}
         </p>
       ) : (
-        <Tabs defaultValue={KINDS[0].endpoint}>
-          <TabsList className="mb-6 flex-wrap">
-            {KINDS.map((kind) => (
-              <TabsTrigger key={kind.endpoint} value={kind.endpoint}>
-                {kind.label}
-                {list(data?.[kind.endpoint]).length > 0 && (
-                  <span className="text-muted-foreground tabular-nums">{list(data?.[kind.endpoint]).length}</span>
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {KINDS.map((kind) => (
-            <TabsContent key={kind.endpoint} value={kind.endpoint}>
-              <ProviderTable kind={kind} items={list(data?.[kind.endpoint])} isPending={isPending} />
-            </TabsContent>
-          ))}
-        </Tabs>
+        <ProvidersList rows={rows} isPending={isPending} />
       )}
+
+      {picking && (
+        <KindPickerDialog
+          counts={counts}
+          onPick={(kind) => {
+            setPicking(false);
+            setAdding(kind);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
+      {adding && <EditDialog kind={adding} target={null} onClose={() => setAdding(null)} />}
     </>
   );
 }

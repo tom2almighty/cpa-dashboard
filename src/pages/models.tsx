@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
-import { type FormEvent, useId, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useMemo, useState } from "react";
 import { Trans } from "react-i18next";
 import { toast } from "sonner";
 import { ModeTabs } from "@/components/dual-mode-field";
@@ -8,6 +8,14 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,39 +74,87 @@ function useCatalog(channel: string) {
   });
 }
 
-function ChannelInput({
+/**
+ * 可输入的单选下拉。值不在候选里时按输入内容生效 —— 渠道名和上游模型名都需要
+ * 「既能选、也能自己填」的语义。用站内的 Combobox 而不是原生 <datalist>，
+ * 样式与提供商页的模型选择保持一致。
+ */
+function SuggestInput({
+  id,
   value,
   onChange,
-  id,
   options,
+  placeholder,
+  ariaLabel,
 }: {
-  value: string;
-  onChange: (v: string) => void;
   id: string;
+  value: string;
+  onChange: (value: string) => void;
   options: string[];
+  placeholder?: string;
+  ariaLabel?: string;
 }) {
   const { t } = useI18n();
   return (
-    <>
-      <Input
+    <Combobox
+      autoHighlight
+      items={options}
+      // 默认过滤不去空格，粘贴的模型名常带尾随空格
+      filter={(item: string, query: string) => item.toLowerCase().includes(query.trim().toLowerCase())}
+      value={value || null}
+      onValueChange={(next) => onChange(typeof next === "string" ? next : "")}
+      inputValue={value}
+      onInputValueChange={(next) => onChange(next)}
+    >
+      <ComboboxInput
         id={id}
-        list={`${id}-options`}
-        value={value}
-        onChange={(e) => onChange(e.target.value.trim().toLowerCase())}
-        placeholder={t("models.channel_placeholder")}
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        className="w-full"
+        onKeyDown={(e) => {
+          // 没有高亮项时回车会提交外层表单
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) e.preventDefault();
+        }}
       />
-      <datalist id={`${id}-options`}>
-        {options.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
-    </>
+      <ComboboxContent>
+        <ComboboxEmpty>{t("models.combobox_empty")}</ComboboxEmpty>
+        <ComboboxList>
+          {(item: string) => (
+            <ComboboxItem key={item} value={item} className="font-mono text-xs">
+              {item}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }
 
 // ---------- 模型别名 ----------
 
 type Row = Alias & { key: number };
+
+/**
+ * 别名行的字段包装。窄屏下每个字段自带标签（否则只剩三个光秃秃的输入框），
+ * 宽屏用 `sm:contents` 让包装层不生成盒子，字段重新成为行网格的直接子项，布局与之前完全一致。
+ */
+function AliasField({
+  label,
+  inline = false,
+  children,
+}: {
+  label: string;
+  /** 窄屏下标签与控件同一行（开关用），否则标签在上 */
+  inline?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={inline ? "flex items-center justify-between gap-2 sm:contents" : "grid gap-1 sm:contents"}>
+      <span className="text-xs text-muted-foreground sm:hidden">{label}</span>
+      {children}
+    </div>
+  );
+}
 
 function AliasDialog({
   channel: initial,
@@ -159,16 +215,17 @@ function AliasDialog({
         </DialogHeader>
         <form id={`${uid}-form`} onSubmit={submit} className="grid gap-4">
           {!initial && (
-            <div className="grid max-w-xs gap-1.5">
+            <div className="grid gap-1.5 sm:max-w-xs">
               <Label htmlFor={`${uid}-channel`}>{t("models.channel")}</Label>
-              <ChannelInput id={`${uid}-channel`} value={channel} onChange={setChannel} options={ALIAS_CHANNELS} />
+              <SuggestInput
+                id={`${uid}-channel`}
+                value={channel}
+                onChange={(v) => setChannel(v.trim().toLowerCase())}
+                options={ALIAS_CHANNELS}
+                placeholder={t("models.channel_placeholder")}
+              />
             </div>
           )}
-          <datalist id={`${uid}-models`}>
-            {(catalog.data ?? []).map((m) => (
-              <option key={m.id} value={m.id} />
-            ))}
-          </datalist>
           <div className="grid gap-2">
             <div className="hidden grid-cols-[1fr_1fr_1fr_auto_auto_auto] gap-2 px-1 text-xs text-muted-foreground sm:grid">
               <span>{t("models.upstream_model")}</span>
@@ -179,41 +236,55 @@ function AliasDialog({
               <span className="w-8" />
             </div>
             {rows.map((r) => (
-              <div key={r.key} className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto_auto_auto] sm:items-center">
-                <Input
-                  aria-label={t("models.upstream_model")}
-                  list={`${uid}-models`}
-                  value={r.name}
-                  onChange={(e) => update(r.key, { name: e.target.value })}
-                  className="font-mono"
-                />
-                <Input
-                  aria-label={t("models.alias_name")}
-                  value={r.alias}
-                  onChange={(e) => update(r.key, { alias: e.target.value })}
-                  className="font-mono"
-                />
-                <Input
-                  aria-label={t("models.display_name")}
-                  value={r["display-name"] ?? ""}
-                  onChange={(e) => update(r.key, { "display-name": e.target.value })}
-                />
-                <Switch
-                  aria-label={t("models.fork")}
-                  className="justify-self-center"
-                  checked={r.fork === true}
-                  onCheckedChange={(v) => update(r.key, { fork: v })}
-                />
-                <Switch
-                  aria-label={t("models.force_mapping")}
-                  className="justify-self-center"
-                  checked={r["force-mapping"] === true}
-                  onCheckedChange={(v) => update(r.key, { "force-mapping": v })}
-                />
+              <div
+                key={r.key}
+                className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_1fr_auto_auto_auto] sm:items-center sm:rounded-none sm:border-0 sm:p-0"
+              >
+                <AliasField label={t("models.upstream_model")}>
+                  <SuggestInput
+                    id={`${uid}-model-${r.key}`}
+                    ariaLabel={t("models.upstream_model")}
+                    value={r.name}
+                    onChange={(v) => update(r.key, { name: v })}
+                    options={(catalog.data ?? []).map((m) => m.id)}
+                  />
+                </AliasField>
+                <AliasField label={t("models.alias_name")}>
+                  <Input
+                    aria-label={t("models.alias_name")}
+                    value={r.alias}
+                    onChange={(e) => update(r.key, { alias: e.target.value })}
+                    className="font-mono"
+                  />
+                </AliasField>
+                <AliasField label={t("models.display_name")}>
+                  <Input
+                    aria-label={t("models.display_name")}
+                    value={r["display-name"] ?? ""}
+                    onChange={(e) => update(r.key, { "display-name": e.target.value })}
+                  />
+                </AliasField>
+                <AliasField label={t("models.fork")} inline>
+                  <Switch
+                    aria-label={t("models.fork")}
+                    className="justify-self-center"
+                    checked={r.fork === true}
+                    onCheckedChange={(v) => update(r.key, { fork: v })}
+                  />
+                </AliasField>
+                <AliasField label={t("models.force_mapping")} inline>
+                  <Switch
+                    aria-label={t("models.force_mapping")}
+                    className="justify-self-center"
+                    checked={r["force-mapping"] === true}
+                    onCheckedChange={(v) => update(r.key, { "force-mapping": v })}
+                  />
+                </AliasField>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
+                  className="justify-self-end"
                   aria-label={t("models.delete_row")}
                   onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
                 >
@@ -416,7 +487,13 @@ function ExcludedDialog({
           {!initial && (
             <div className="grid gap-1.5">
               <Label htmlFor={`${uid}-provider`}>{t("models.channel")}</Label>
-              <ChannelInput id={`${uid}-provider`} value={provider} onChange={setProvider} options={ALIAS_CHANNELS} />
+              <SuggestInput
+                id={`${uid}-provider`}
+                value={provider}
+                onChange={(v) => setProvider(v.trim().toLowerCase())}
+                options={ALIAS_CHANNELS}
+                placeholder={t("models.channel_placeholder")}
+              />
             </div>
           )}
 
