@@ -1307,16 +1307,21 @@ export function SettingsGroup({ groupId }: { groupId: string }) {
       <p className="text-sm text-muted-foreground">{t(`config.groups.${group.id}`)}</p>
       <SettingsState>
         {nested ? (
-          <Tabs defaultValue={sections[0].id}>
-            {/* 窄屏小节名会换行，h-auto 覆盖列表基类的固定 h-8，并给触发器确定高度
-                （基类的 h-[calc(100%-1px)] 依赖父级高度，这里父级是 auto） */}
-            <TabsList variant="line" className="h-auto flex-wrap">
-              {sections.map((section) => (
-                <TabsTrigger key={section.id} value={section.id} className="h-7 px-2.5 text-xs sm:text-sm">
-                  {t(`config.sections.${group.id}.${section.id}`)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <Tabs defaultValue={sections[0].id} className="gap-4">
+            {/* 窄屏小节名单行横向滚动，避免折行破坏下划线样式；首个 tab 左内边距清零与上方描述对齐 */}
+            <div className="overflow-x-auto no-scrollbar">
+              <TabsList variant="line" className="h-8 w-max min-w-full justify-start">
+                {sections.map((section) => (
+                  <TabsTrigger
+                    key={section.id}
+                    value={section.id}
+                    className="h-8 px-2.5 text-xs sm:text-sm shrink-0 first:pl-0"
+                  >
+                    {t(`config.sections.${group.id}.${section.id}`)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
             {sections.map((section) => (
               <TabsContent key={section.id} value={section.id} className="pt-2">
                 <SettingsSection groupId={group.id} section={section} />
@@ -1324,7 +1329,11 @@ export function SettingsGroup({ groupId }: { groupId: string }) {
             ))}
           </Tabs>
         ) : (
-          sections.map((section) => <SettingsSection key={section.id} groupId={group.id} section={section} />)
+          <div className="space-y-6">
+            {sections.map((section) => (
+              <SettingsSection key={section.id} groupId={group.id} section={section} />
+            ))}
+          </div>
         )}
       </SettingsState>
       {group.link && (
