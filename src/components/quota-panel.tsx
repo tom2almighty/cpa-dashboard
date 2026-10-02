@@ -3,8 +3,10 @@ import {
   AlertTriangle,
   ArrowUpDown,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Clock,
+  ExternalLink,
   LayoutGrid,
   List,
   OctagonAlert,
@@ -18,6 +20,7 @@ import { Pagination, paginate } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,56 +67,28 @@ const BAR_FILL: Record<QuotaLevel, string> = {
   danger: "bg-destructive",
 };
 
-export function MeterRow({ window: w, compact = false }: { window: QuotaWindow; compact?: boolean }) {
-  const { t } = useI18n();
-  const remaining = w.usedPercent === null ? null : Math.max(0, Math.min(100, 100 - Math.round(w.usedPercent)));
-  const state = level(remaining);
+/** 计算剩余百分比 */
+function getRemaining(w: QuotaWindow): number | null {
+  return w.usedPercent === null ? null : Math.max(0, Math.min(100, 100 - Math.round(w.usedPercent)));
+}
 
-  if (compact) {
-    return (
-      <div className="flex w-full min-w-0 flex-col gap-1 text-xs">
-        <div className="flex w-full min-w-0 items-baseline justify-between gap-2">
-          <span className="truncate font-medium text-foreground text-xs" title={w.label}>
-            {w.label}
-          </span>
-          <span className="flex shrink-0 items-center gap-1 tabular-nums text-[11px]">
-            {state === "danger" && <OctagonAlert className="size-3 text-destructive" aria-hidden />}
-            {state === "warn" && <AlertTriangle className="size-3 text-warning" aria-hidden />}
-            <span
-              className={
-                state === "danger"
-                  ? "font-semibold text-destructive"
-                  : state === "warn"
-                    ? "text-warning font-medium"
-                    : "text-muted-foreground"
-              }
-            >
-              {remaining === null ? "—" : `${remaining}%`}
-            </span>
-          </span>
-        </div>
-        <div
-          role="progressbar"
-          aria-label={t("quota.remaining_aria", { label: w.label })}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={remaining ?? undefined}
-          className="relative h-1.5 w-full min-w-0 overflow-hidden rounded-full bg-muted"
-        >
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${BAR_FILL[state]}`}
-            style={{ width: `${remaining ?? 0}%` }}
-          />
-        </div>
-        {(w.resetAt || w.detail) && (
-          <div className="flex w-full min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
-            <span title={w.resetAt ? formatDateTime(w.resetAt) : undefined}>{formatCountdown(w.resetAt)}</span>
-            {w.detail && <span className="truncate tabular-nums">{w.detail}</span>}
-          </div>
-        )}
-      </div>
-    );
-  }
+/** 额度窗口按紧迫度排序：耗尽/紧张的排在最前，最接近重置的排在前 */
+function sortWindowsByUrgency(windows: QuotaWindow[]): QuotaWindow[] {
+  return [...windows].sort((a, b) => {
+    const remA = getRemaining(a) ?? 999;
+    const remB = getRemaining(b) ?? 999;
+    if (remA !== remB) return remA - remB;
+    const resetA = a.resetAt && a.resetAt > Date.now() ? a.resetAt : Number.MAX_SAFE_INTEGER;
+    const resetB = b.resetAt && b.resetAt > Date.now() ? b.resetAt : Number.MAX_SAFE_INTEGER;
+    return resetA - resetB;
+  });
+}
+
+/** 单个额度进度行：自然流式排布，呼吸感好，绝不套固定高度的滚动条 */
+export function MeterRow({ window: w }: { window: QuotaWindow }) {
+  const { t } = useI18n();
+  const remaining = getRemaining(w);
+  const state = level(remaining);
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-1.5">
@@ -125,7 +100,13 @@ export function MeterRow({ window: w, compact = false }: { window: QuotaWindow; 
           {state === "danger" && <OctagonAlert className="size-3.5 text-destructive" aria-hidden />}
           {state === "warn" && <AlertTriangle className="size-3.5 text-warning" aria-hidden />}
           <span
-            className={state === "danger" ? "font-semibold text-destructive" : state === "warn" ? "text-warning" : ""}
+            className={
+              state === "danger"
+                ? "font-semibold text-destructive"
+                : state === "warn"
+                  ? "font-medium text-warning"
+                  : "text-muted-foreground"
+            }
           >
             {remaining === null ? "—" : t("quota.remaining_percent", { n: remaining })}
           </span>
@@ -151,6 +132,149 @@ export function MeterRow({ window: w, compact = false }: { window: QuotaWindow; 
         </div>
       )}
     </div>
+  );
+}
+
+/** 表格行内的微型额度胶囊（水平流动排布） */
+function QuotaPill({ window: w }: { window: QuotaWindow }) {
+  const remaining = getRemaining(w);
+  const state = level(remaining);
+
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-0.5 text-[11px] font-mono"
+      title={`${w.label}: ${remaining === null ? "—" : `${remaining}%`} ${w.resetAt ? `· ${formatCountdown(w.resetAt)}` : ""}`}
+    >
+      <span
+        className={`size-1.5 rounded-full ${
+          state === "danger" ? "bg-destructive" : state === "warn" ? "bg-warning" : "bg-success"
+        }`}
+      />
+      <span className="max-w-28 truncate font-sans text-foreground" title={w.label}>
+        {w.label}
+      </span>
+      <span
+        className={
+          state === "danger"
+            ? "font-semibold text-destructive tabular-nums"
+            : state === "warn"
+              ? "font-medium text-warning tabular-nums"
+              : "text-muted-foreground tabular-nums"
+        }
+      >
+        {remaining === null ? "—" : `${remaining}%`}
+      </span>
+    </span>
+  );
+}
+
+/** 账号全量额度明细弹窗：专门服务于多达数十个模型的账号，带过滤和网格呈现 */
+function QuotaDetailModal({
+  item,
+  onClose,
+  onReset,
+  isResetting,
+}: {
+  item: {
+    file: AuthFile;
+    name: string;
+    query: {
+      data?: { windows: QuotaWindow[]; plan?: string | null; notes: string[] };
+      isFetching: boolean;
+      refetch: () => void;
+    };
+  };
+  onClose: () => void;
+  onReset?: () => void;
+  isResetting?: boolean;
+}) {
+  const { t } = useI18n();
+  const [filterQuery, setFilterQuery] = useState("");
+  const windows = sortWindowsByUrgency(item.query.data?.windows ?? []);
+
+  const filteredWindows = useMemo(() => {
+    const q = filterQuery.trim().toLowerCase();
+    if (!q) return windows;
+    return windows.filter((w) => w.label.toLowerCase().includes(q));
+  }, [windows, filterQuery]);
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden flex flex-col p-6">
+        <DialogHeader className="pb-3 border-b">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <DialogTitle className="text-base font-semibold">
+                {t("quota.details_dialog_title", { name: item.name })}
+              </DialogTitle>
+              <DialogDescription className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant="secondary" className="uppercase text-[10px]">
+                  {item.file.provider}
+                </Badge>
+                {item.query.data?.plan && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {item.query.data.plan}
+                  </Badge>
+                )}
+                <span>{t("quota.windows_count", { count: windows.length })}</span>
+              </DialogDescription>
+            </div>
+            <div className="flex items-center gap-1">
+              {item.file.quota_provider && onReset && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isResetting}
+                  onClick={onReset}
+                  className="h-8 text-xs gap-1"
+                >
+                  <RotateCcw className={isResetting ? "size-3.5 animate-spin" : "size-3.5"} />
+                  {t("quota.reset_account", { name: "" })}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={item.query.isFetching}
+                onClick={() => item.query.refetch()}
+                className="h-8 text-xs gap-1"
+              >
+                <RefreshCw className={item.query.isFetching ? "size-3.5 animate-spin" : "size-3.5"} />
+                {t("common.refresh")}
+              </Button>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {windows.length > 6 && (
+          <div className="pt-3">
+            <div className="relative">
+              <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                placeholder={t("quota.filter_models")}
+                className="h-8 pl-8 text-xs font-mono"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto pt-4 pr-1">
+          {filteredWindows.length === 0 ? (
+            <div className="py-12 text-center text-xs text-muted-foreground">{t("quota.no_matching")}</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {filteredWindows.map((w) => (
+                <div key={w.id} className="rounded-lg border bg-card/60 p-3">
+                  <MeterRow window={w} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -184,9 +308,9 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
   // 每页条数
   const [pageSize, setPageSize] = useState<number>(() => (viewMode === "list" ? 20 : 12));
 
-  // 展开多额度的卡片
+  // 卡片展开集合
   const [expandedCards, setExpandedCards] = useState<Record<string, true>>({});
-  const toggleCardExpanded = (id: string) => {
+  const toggleCard = (id: string) => {
     setExpandedCards((prev) => {
       const next = { ...prev };
       if (next[id]) delete next[id];
@@ -194,6 +318,28 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
       return next;
     });
   };
+
+  // 列表展开行集合
+  const [expandedRows, setExpandedRows] = useState<Record<string, true>>({});
+  const toggleRow = (id: string) => {
+    setExpandedRows((prev) => {
+      const next = { ...prev };
+      if (next[id]) delete next[id];
+      else next[id] = true;
+      return next;
+    });
+  };
+
+  // 独立详情弹窗对象
+  const [modalItem, setModalItem] = useState<{
+    file: AuthFile;
+    name: string;
+    query: {
+      data?: { windows: QuotaWindow[]; plan?: string | null; notes: string[] };
+      isFetching: boolean;
+      refetch: () => void;
+    };
+  } | null>(null);
 
   // 页码跟筛选条件及视图绑定,条件一变自动回到第一页
   const filterKey = `${selectedChannel}|${deferredSearch}|${sortMode}|${warningOnly}|${pageSize}|${viewMode}`;
@@ -224,8 +370,8 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
       let earliestReset: number | null = null;
 
       for (const w of windows) {
-        if (w.usedPercent !== null) {
-          const rem = Math.max(0, 100 - Math.round(w.usedPercent));
+        const rem = getRemaining(w);
+        if (rem !== null) {
           if (minRemaining === null || rem < minRemaining) minRemaining = rem;
         }
         if (w.resetAt && w.resetAt > Date.now()) {
@@ -280,15 +426,14 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
     const now = Date.now();
     for (const it of items) {
       for (const w of it.query?.data?.windows ?? []) {
-        const used = w.usedPercent !== null ? Math.round(w.usedPercent) : null;
-        // 只关心紧张或用尽的窗口,充裕的窗口什么时候重置无所谓
-        if (w.resetAt && w.resetAt > now && used !== null && level(100 - used) !== "ok") {
+        const remaining = getRemaining(w);
+        if (w.resetAt && w.resetAt > now && remaining !== null && level(remaining) !== "ok") {
           list.push({
             accountName: it.name,
             provider: it.file.provider ?? "",
             label: w.label,
             resetAt: w.resetAt,
-            remaining: Math.max(0, 100 - used),
+            remaining,
           });
         }
       }
@@ -336,7 +481,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
     else toast.success(t("quota.refreshed"));
   };
 
-  // 重置走插件额度提供方,CPA 会同时清掉该凭据的路由额度冷却
+  // 重置走插件额度提供方
   const reset = useMutation({
     mutationFn: (file: AuthFile) => resetQuota(file),
     onSuccess: (res, file) => {
@@ -364,6 +509,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
 
   return (
     <div className="space-y-4">
+      {/* 顶部统计与全部刷新 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>
@@ -516,17 +662,21 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
       ) : (
         <>
           {viewMode === "grid" ? (
-            /* 卡片视图 */
+            /* 卡片视图：恢复自然自适应尺寸，消除生硬的滚动条 */
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {pageItems.map((item) => {
                 const q = item.query;
-                const windows = q?.data?.windows ?? [];
+                const rawWindows = q?.data?.windows ?? [];
+                const sortedWindows = sortWindowsByUrgency(rawWindows);
                 const isExpanded = Boolean(expandedCards[item.file.auth_index ?? ""]);
+                // 默认展示前 3 项，超过 3 项时可原地自适应展开或呼出弹窗
+                const visibleWindows = isExpanded ? sortedWindows : sortedWindows.slice(0, 3);
+                const hasMore = sortedWindows.length > 3;
 
                 return (
                   <Card
                     key={item.file.auth_index}
-                    className="box-border flex w-full min-w-0 flex-col justify-between overflow-hidden p-4 sm:p-5"
+                    className="box-border flex w-full min-w-0 flex-col justify-between overflow-hidden p-4 sm:p-5 transition-all"
                   >
                     <div className="w-full min-w-0">
                       <div className="mb-4 flex items-start justify-between gap-2">
@@ -543,9 +693,9 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                                 {item.plan}
                               </Badge>
                             )}
-                            {windows.length > 3 && (
+                            {hasMore && (
                               <Badge variant="outline" className="text-[11px] font-normal">
-                                {t("quota.windows_count", { count: windows.length })}
+                                {t("quota.windows_count", { count: sortedWindows.length })}
                               </Badge>
                             )}
                             {q && q.dataUpdatedAt > 0 && (
@@ -560,6 +710,17 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                         </div>
 
                         <div className="flex shrink-0 items-center gap-0.5">
+                          {hasMore && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title={t("quota.view_all_dialog")}
+                              aria-label={t("quota.view_all_dialog")}
+                              onClick={() => setModalItem(item)}
+                            >
+                              <ExternalLink className="size-3.5" />
+                            </Button>
+                          )}
                           {item.file.quota_provider && (
                             <Button
                               variant="ghost"
@@ -572,8 +733,8 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                               <RotateCcw
                                 className={
                                   reset.isPending && reset.variables?.auth_index === item.file.auth_index
-                                    ? "animate-spin"
-                                    : undefined
+                                    ? "size-3.5 animate-spin"
+                                    : "size-3.5"
                                 }
                               />
                             </Button>
@@ -585,7 +746,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                             disabled={q?.isFetching}
                             onClick={() => q?.refetch()}
                           >
-                            <RefreshCw className={q?.isFetching ? "animate-spin" : undefined} />
+                            <RefreshCw className={q?.isFetching ? "size-3.5 animate-spin" : "size-3.5"} />
                           </Button>
                         </div>
                       </div>
@@ -605,40 +766,47 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                             {t("quota.retry")}
                           </Button>
                         </div>
-                      ) : windows.length === 0 ? (
+                      ) : sortedWindows.length === 0 ? (
                         <p className="py-4 text-center text-xs text-muted-foreground">{t("quota.no_details")}</p>
                       ) : (
-                        <div>
-                          {/* 额度过多时限制最大高度纵向滚动,避免卡片高度失控撑破整个网格 */}
-                          <div
-                            className={`flex w-full min-w-0 flex-col gap-3.5 ${
-                              isExpanded ? "" : "max-h-64 overflow-y-auto pr-1"
-                            }`}
-                          >
-                            {windows.map((w) => (
+                        <div className="space-y-3.5">
+                          {/* 自然平铺展示，绝不加生硬的局部滚动条 */}
+                          <div className="flex w-full min-w-0 flex-col gap-3.5">
+                            {visibleWindows.map((w) => (
                               <MeterRow key={w.id} window={w} />
                             ))}
                           </div>
-                          {windows.length > 3 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="mt-2.5 h-7 w-full text-xs text-muted-foreground hover:text-foreground"
-                              onClick={() => toggleCardExpanded(item.file.auth_index ?? "")}
-                            >
-                              {isExpanded ? (
-                                <>
-                                  <ChevronUp className="mr-1 size-3.5" />
-                                  {t("quota.collapse_windows")}
-                                </>
-                              ) : (
-                                <>
-                                  <ChevronDown className="mr-1 size-3.5" />
-                                  {t("quota.expand_windows", { count: windows.length })}
-                                </>
-                              )}
-                            </Button>
+                          {hasMore && (
+                            <div className="flex items-center justify-between pt-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-muted-foreground hover:text-foreground px-2"
+                                onClick={() => toggleCard(item.file.auth_index ?? "")}
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="mr-1 size-3.5" />
+                                    {t("quota.collapse")}
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="mr-1 size-3.5" />
+                                    {t("quota.expand_more", { count: sortedWindows.length - 3 })}
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                className="h-7 text-xs text-muted-foreground"
+                                onClick={() => setModalItem(item)}
+                              >
+                                {t("quota.view_all_dialog")}
+                              </Button>
+                            </div>
                           )}
                         </div>
                       )}
@@ -652,180 +820,245 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
               })}
             </div>
           ) : (
-            /* 列表表格视图 */
+            /* 列表视图：结构化数据表格 + 可展开 Master-Detail 行 */
             <div className="overflow-hidden rounded-lg border bg-card">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-52 sm:w-64">{t("quota.th_account")}</TableHead>
-                    <TableHead className="w-32">{t("quota.th_status")}</TableHead>
-                    <TableHead className="min-w-64">{t("quota.th_windows")}</TableHead>
+                    <TableHead className="w-10 px-2" />
+                    <TableHead className="w-48 sm:w-56">{t("quota.th_account")}</TableHead>
+                    <TableHead className="w-28">{t("quota.th_status")}</TableHead>
+                    <TableHead>{t("quota.th_windows")}</TableHead>
                     <TableHead className="w-32">{t("quota.th_reset")}</TableHead>
                     <TableHead className="w-28">{t("quota.th_updated")}</TableHead>
-                    <TableHead className="w-20 text-right">{t("common.actions")}</TableHead>
+                    <TableHead className="w-24 text-right">{t("quota.th_actions") || t("common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pageItems.map((item) => {
                     const q = item.query;
-                    const windows = q?.data?.windows ?? [];
+                    const rawWindows = q?.data?.windows ?? [];
+                    const sortedWindows = sortWindowsByUrgency(rawWindows);
                     const lvl = level(item.minRemaining);
+                    const isRowExpanded = Boolean(expandedRows[item.file.auth_index ?? ""]);
+                    const hasWindows = sortedWindows.length > 0;
 
                     return (
-                      <TableRow key={item.file.auth_index}>
-                        {/* 账号凭据 */}
-                        <TableCell className="align-top">
-                          <div className="space-y-1">
-                            <div className="max-w-56 truncate font-medium text-foreground text-sm" title={item.name}>
-                              {item.name}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1 text-xs">
-                              <Badge variant="secondary" className="text-[10px] font-normal uppercase">
-                                {item.file.provider}
-                              </Badge>
-                              {item.plan && (
-                                <Badge variant="outline" className="text-[10px] font-normal">
-                                  {item.plan}
-                                </Badge>
-                              )}
-                              {item.file.quota_provider && (
-                                <Badge variant="outline" className="text-[10px] font-normal">
-                                  {t("quota.source_plugin")}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-
-                        {/* 状态 / 最低剩余 */}
-                        <TableCell className="align-top">
-                          {q?.isError ? (
-                            <Badge variant="destructive" className="text-xs">
-                              {t("quota.query_failed_short")}
-                            </Badge>
-                          ) : q?.isPending ? (
-                            <Skeleton className="h-5 w-16" />
-                          ) : lvl === "danger" ? (
-                            <div className="space-y-1">
-                              <Badge variant="destructive" className="text-xs">
-                                {t("quota.exhausted")}
-                              </Badge>
-                              <div className="font-semibold text-destructive text-xs tabular-nums">0%</div>
-                            </div>
-                          ) : lvl === "warn" ? (
-                            <div className="space-y-1">
-                              <Badge
-                                variant="secondary"
-                                className="border-warning/30 bg-warning/10 text-warning text-xs"
-                              >
-                                {t("quota.tight")}
-                              </Badge>
-                              <div className="font-medium text-warning text-xs tabular-nums">{item.minRemaining}%</div>
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              <Badge
-                                variant="secondary"
-                                className="border-success/30 bg-success/10 text-success text-xs"
-                              >
-                                {t("quota.healthy")}
-                              </Badge>
-                              {item.minRemaining !== null && (
-                                <div className="text-muted-foreground text-xs tabular-nums">{item.minRemaining}%</div>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-
-                        {/* 额度明细 */}
-                        <TableCell className="align-top">
-                          {q?.isPending ? (
-                            <div className="space-y-1.5 py-1">
-                              <Skeleton className="h-3 w-40" />
-                              <Skeleton className="h-1.5 w-full" />
-                            </div>
-                          ) : q?.isError ? (
-                            <div className="flex items-center gap-2 text-xs text-destructive">
-                              <span className="truncate">{errorText(q.error)}</span>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-6 shrink-0 text-xs text-destructive hover:bg-destructive/15"
-                                onClick={() => q?.refetch()}
-                              >
-                                {t("quota.retry")}
-                              </Button>
-                            </div>
-                          ) : windows.length === 0 ? (
-                            <span className="text-muted-foreground text-xs">{t("quota.no_details")}</span>
-                          ) : (
-                            <div className="space-y-2">
-                              {windows.length > 2 && (
-                                <div className="font-medium text-[11px] text-muted-foreground">
-                                  {t("quota.windows_count", { count: windows.length })}
-                                </div>
-                              )}
-                              <div className="max-h-36 space-y-2.5 overflow-y-auto pr-1.5">
-                                {windows.map((w) => (
-                                  <MeterRow key={w.id} window={w} compact />
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </TableCell>
-
-                        {/* 下次重置 */}
-                        <TableCell className="align-top text-muted-foreground text-xs whitespace-nowrap">
-                          {item.earliestReset ? (
-                            <span
-                              title={formatDateTime(item.earliestReset)}
-                              className="font-medium text-foreground tabular-nums"
-                            >
-                              {formatCountdown(item.earliestReset)}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-
-                        {/* 更新时间 */}
-                        <TableCell className="align-top text-muted-foreground text-xs whitespace-nowrap">
-                          {q && q.dataUpdatedAt > 0 ? <span>{formatRelative(q.dataUpdatedAt)}</span> : "—"}
-                        </TableCell>
-
-                        {/* 操作 */}
-                        <TableCell className="align-top text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {item.file.quota_provider && (
+                      <>
+                        <TableRow
+                          key={item.file.auth_index}
+                          className={isRowExpanded ? "border-b-0 bg-muted/20" : undefined}
+                        >
+                          {/* 行展开箭头 */}
+                          <TableCell className="px-2 py-3">
+                            {hasWindows && (
                               <Button
                                 variant="ghost"
                                 size="icon-xs"
-                                title={t("quota.reset_hint")}
-                                aria-label={t("quota.reset_account", { name: item.name })}
-                                disabled={reset.isPending && reset.variables?.auth_index === item.file.auth_index}
-                                onClick={() => reset.mutate(item.file)}
+                                className="size-6 text-muted-foreground"
+                                onClick={() => toggleRow(item.file.auth_index ?? "")}
+                                aria-label={isRowExpanded ? t("quota.collapse_row") : t("quota.expand_row")}
                               >
-                                <RotateCcw
-                                  className={
-                                    reset.isPending && reset.variables?.auth_index === item.file.auth_index
-                                      ? "size-3.5 animate-spin"
-                                      : "size-3.5"
-                                  }
-                                />
+                                {isRowExpanded ? (
+                                  <ChevronDown className="size-3.5" />
+                                ) : (
+                                  <ChevronRight className="size-3.5" />
+                                )}
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label={t("quota.refresh_account", { name: item.name })}
-                              disabled={q?.isFetching}
-                              onClick={() => q?.refetch()}
-                            >
-                              <RefreshCw className={q?.isFetching ? "size-3.5 animate-spin" : "size-3.5"} />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                          </TableCell>
+
+                          {/* 账号凭据 */}
+                          <TableCell className="py-3">
+                            <div className="space-y-1">
+                              <div className="max-w-48 truncate font-medium text-foreground text-sm" title={item.name}>
+                                {item.name}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1 text-xs">
+                                <Badge variant="secondary" className="text-[10px] font-normal uppercase">
+                                  {item.file.provider}
+                                </Badge>
+                                {item.plan && (
+                                  <Badge variant="outline" className="text-[10px] font-normal">
+                                    {item.plan}
+                                  </Badge>
+                                )}
+                                {item.file.quota_provider && (
+                                  <Badge variant="outline" className="text-[10px] font-normal">
+                                    {t("quota.source_plugin")}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          {/* 健康状态与最低剩余 */}
+                          <TableCell className="py-3">
+                            {q?.isError ? (
+                              <Badge variant="destructive" className="text-xs">
+                                {t("quota.query_failed_short")}
+                              </Badge>
+                            ) : q?.isPending ? (
+                              <Skeleton className="h-5 w-16" />
+                            ) : lvl === "danger" ? (
+                              <div className="space-y-0.5">
+                                <Badge variant="destructive" className="text-xs">
+                                  {t("quota.exhausted")}
+                                </Badge>
+                                <div className="font-semibold text-destructive text-xs tabular-nums">0%</div>
+                              </div>
+                            ) : lvl === "warn" ? (
+                              <div className="space-y-0.5">
+                                <Badge
+                                  variant="secondary"
+                                  className="border-warning/30 bg-warning/10 text-warning text-xs"
+                                >
+                                  {t("quota.tight")}
+                                </Badge>
+                                <div className="font-medium text-warning text-xs tabular-nums">
+                                  {item.minRemaining}%
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-0.5">
+                                <Badge
+                                  variant="secondary"
+                                  className="border-success/30 bg-success/10 text-success text-xs"
+                                >
+                                  {t("quota.healthy")}
+                                </Badge>
+                                {item.minRemaining !== null && (
+                                  <div className="text-muted-foreground text-xs tabular-nums">{item.minRemaining}%</div>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+
+                          {/* 额度摘要：符合表格结构的行内胶囊 */}
+                          <TableCell className="py-3">
+                            {q?.isPending ? (
+                              <div className="flex gap-2">
+                                <Skeleton className="h-5 w-24 rounded-md" />
+                                <Skeleton className="h-5 w-24 rounded-md" />
+                              </div>
+                            ) : q?.isError ? (
+                              <span className="text-xs text-destructive">{errorText(q.error)}</span>
+                            ) : sortedWindows.length === 0 ? (
+                              <span className="text-xs text-muted-foreground">{t("quota.no_details")}</span>
+                            ) : (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {sortedWindows.slice(0, 3).map((w) => (
+                                  <QuotaPill key={w.id} window={w} />
+                                ))}
+                                {sortedWindows.length > 3 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRow(item.file.auth_index ?? "")}
+                                    className="inline-flex items-center gap-0.5 rounded-md border border-dashed px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted/50 cursor-pointer"
+                                  >
+                                    <span>{t("quota.more_quotas", { count: sortedWindows.length - 3 })}</span>
+                                    <ChevronDown className="size-3" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+
+                          {/* 下次重置 */}
+                          <TableCell className="py-3 text-muted-foreground text-xs whitespace-nowrap">
+                            {item.earliestReset ? (
+                              <span
+                                title={formatDateTime(item.earliestReset)}
+                                className="font-medium text-foreground tabular-nums"
+                              >
+                                {formatCountdown(item.earliestReset)}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+
+                          {/* 更新时间 */}
+                          <TableCell className="py-3 text-muted-foreground text-xs whitespace-nowrap">
+                            {q && q.dataUpdatedAt > 0 ? <span>{formatRelative(q.dataUpdatedAt)}</span> : "—"}
+                          </TableCell>
+
+                          {/* 操作 */}
+                          <TableCell className="py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {sortedWindows.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  title={t("quota.view_all_dialog")}
+                                  aria-label={t("quota.view_all_dialog")}
+                                  onClick={() => setModalItem(item)}
+                                >
+                                  <ExternalLink className="size-3.5" />
+                                </Button>
+                              )}
+                              {item.file.quota_provider && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  title={t("quota.reset_hint")}
+                                  aria-label={t("quota.reset_account", { name: item.name })}
+                                  disabled={reset.isPending && reset.variables?.auth_index === item.file.auth_index}
+                                  onClick={() => reset.mutate(item.file)}
+                                >
+                                  <RotateCcw
+                                    className={
+                                      reset.isPending && reset.variables?.auth_index === item.file.auth_index
+                                        ? "size-3.5 animate-spin"
+                                        : "size-3.5"
+                                    }
+                                  />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label={t("quota.refresh_account", { name: item.name })}
+                                disabled={q?.isFetching}
+                                onClick={() => q?.refetch()}
+                              >
+                                <RefreshCw className={q?.isFetching ? "size-3.5 animate-spin" : "size-3.5"} />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+
+                        {/* 展开的明细子面板（Master-Detail Row） */}
+                        {isRowExpanded && (
+                          <TableRow className="border-b bg-muted/15 hover:bg-muted/15">
+                            <TableCell colSpan={7} className="p-0">
+                              <div className="border-l-2 border-primary/40 px-6 py-4 space-y-3">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-medium text-foreground">
+                                    {t("quota.details_dialog_title", { name: item.name })} (
+                                    {t("quota.windows_count", { count: sortedWindows.length })})
+                                  </span>
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="h-6 text-xs text-muted-foreground p-0"
+                                    onClick={() => setModalItem(item)}
+                                  >
+                                    {t("quota.view_all_dialog")}
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                  {sortedWindows.map((w) => (
+                                    <div key={w.id} className="rounded-lg border bg-card p-3 shadow-2xs">
+                                      <MeterRow window={w} />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
                     );
                   })}
                 </TableBody>
@@ -833,7 +1066,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
             </div>
           )}
 
-          {/* 分页栏:包含数据范围指示、每页条数切换与标准翻页控制器 */}
+          {/* 分页栏 */}
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
               <span>
@@ -851,7 +1084,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                     setPage(1);
                   }}
                 >
-                  <SelectTrigger className="h-7 w-auto min-w-17.5 text-xs">
+                  <SelectTrigger className="h-7 w-auto min-w-[70px] text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent align="start">
@@ -866,6 +1099,16 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
             <Pagination page={current} pageCount={pageCount} total={filtered.length} onChange={setPage} />
           </div>
         </>
+      )}
+
+      {/* 独立额度明细大弹窗 */}
+      {modalItem && (
+        <QuotaDetailModal
+          item={modalItem}
+          onClose={() => setModalItem(null)}
+          onReset={modalItem.file.quota_provider ? () => reset.mutate(modalItem.file) : undefined}
+          isResetting={reset.isPending && reset.variables?.auth_index === modalItem.file.auth_index}
+        />
       )}
     </div>
   );
