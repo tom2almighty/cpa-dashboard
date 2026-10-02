@@ -610,6 +610,7 @@
       "management": "管理 API",
       "routing": "路由",
       "requests": "请求",
+      "client": "客户端兼容",
       "oauth": "OAuth 与凭据",
       "multimedia": "多媒体",
       "observability": "可观测性"
@@ -729,6 +730,7 @@
       "management": "管理接口权限与内置管理面板（对应 management 节）",
       "routing": "凭据选择策略、会话粘性、轮次重试与冷却（对应 routing 节）",
       "requests": "上游代理、响应头透传、流式保活与多媒体行为（对应 requests 节）",
+      "client": "面向客户端的兼容行为，对 OAuth 与 API key 两类凭据均生效（对应 client 节）",
       "oauth": "凭据目录、刷新线程，以及 OAuth / 文件凭据的提供商级参数（对应 oauth 节）",
       "multimedia": "图像与视频请求的行为（对应 multimedia 节）",
       "observability": "日志、用量统计聚合与 pprof 性能分析（对应 observability 节）"
@@ -753,6 +755,9 @@
       "requests": {
         "requests": "请求",
         "streaming": "流式传输"
+      },
+      "client": {
+        "codex": "Codex"
       },
       "oauth": {
         "oauth": "凭据存储与错误规则",
@@ -1023,10 +1028,6 @@
         "label": "Codex 响应引导（实验）",
         "hint": "全双工 Responses WebSocket，一个 socket 固定一个账号和模型"
       },
-      "oauth/providers/codex/optimize-multi-agent-v2": {
-        "label": "Codex multi-agent v2 优化",
-        "hint": "优化 Codex Desktop、codex-tui 与 codex_cli_rs 的 multi-agent v2 请求，不作用于 API key 凭据"
-      },
       "oauth/providers/claude/model-level-cooling": {
         "label": "Claude 按模型冷却",
         "hint": "配额冷却只作用于所请求的模型，而不是整个凭据"
@@ -1155,6 +1156,14 @@
         "label": "Devin 系统提示词敏感词",
         "hint": "在 Devin system instructions 与 prompt 中用零宽字符混淆的词，每行一项；命中会使整行被删除，谨慎配置"
       },
+      "client/codex/enable-apply-patch": {
+        "label": "Codex apply_patch 能力 (enable-apply-patch)",
+        "hint": "默认关闭 /v1/models?client_version= 目录中的 apply_patch_tool_type；开启后仅当所有路由执行器都支持该模型时才通告 freeform"
+      },
+      "client/codex/optimize-multi-agent-v2": {
+        "label": "Codex multi-agent v2 优化",
+        "hint": "优化 Codex Desktop、codex-tui 与 codex_cli_rs 的 multi-agent v2 请求，对 OAuth 与 API key 凭据均生效"
+      },
       "plugins/store-auth": {
         "label": "插件商店认证规则 (store-auth)",
         "hint": "按 match 前缀匹配注册表与制品请求；token、用户名、密码只填环境变量名，不写明文"
@@ -1222,7 +1231,8 @@
       "no_data": "没有返回额度数据",
       "missing_dca_token": "认证文件中缺少 DCA Token",
       "unsupported": "该提供商不支持额度查询",
-      "missing_auth_index": "凭据缺少 auth_index"
+      "missing_auth_index": "凭据缺少 auth_index",
+      "missing_plugin_provider": "凭据没有匹配的插件额度提供方"
     }
   },
   "version": {

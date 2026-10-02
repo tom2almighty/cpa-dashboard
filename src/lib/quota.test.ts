@@ -1,6 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import {
   fetchPluginQuota,
+  fetchQuota,
   parseAntigravity,
   parseClaude,
   parseCodex,
@@ -31,22 +32,66 @@ afterAll(() => {
   globalThis.fetch = originalFetch;
 });
 
-test("resetQuota 带 auth_index 打 /credentials/quota/reset", async () => {
+test("fetchQuota/resetQuota 按凭据的插件提供方定位插件", async () => {
   const calls: { url: string; init?: RequestInit }[] = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(input), init });
-    return new Response(JSON.stringify({ status: "ok", message: "restored" }), {
+    if (String(input) === "/v8/management/plugins") {
+      return new Response(JSON.stringify({ plugins: [{ id: "cpa-quota", quota_provider: "claude" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (init?.method === "DELETE") {
+      return new Response(JSON.stringify({ status: "ok", message: "restored" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response(
+      JSON.stringify({
+        subscription: { plan: "pro" },
+        groups: [{ displayName: "Claude", buckets: [{ displayName: "5 小时", remainingFraction: 0.4 }] }],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  const file = {
+    id: "a",
+    name: "a.json",
+    auth_index: "idx1",
+    provider: "claude",
+    supports_quota: true,
+    quota_provider: "claude",
+  };
+  const quota = await fetchQuota(file);
+
+  expect(calls[0].url).toBe("/v8/management/plugins");
+  expect(calls[1].url).toBe("/v8/management/plugins/cpa-quota/quota?auth_index=idx1");
+  expect(calls[1].init?.method).toBe("POST");
+  expect(JSON.parse(String(calls[1].init?.body))).toEqual({ auth_index: "idx1" });
+  expect(quota.plan).toBe("pro");
+  expect(quota.windows.map((w) => [w.label, w.usedPercent])).toEqual([["Claude 5 小时", 60]]);
+
+  const res = await resetQuota(file);
+  expect(calls[2].url).toBe("/v8/management/plugins/cpa-quota/quota?auth_index=idx1");
+  expect(calls[2].init?.method).toBe("DELETE");
+  expect(res).toEqual({ status: "ok", message: "restored" });
+});
+
+test("没有匹配的插件提供方时不发重置请求", async () => {
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    calls.push(String(input));
+    return new Response(JSON.stringify({ plugins: [{ id: "cpa-quota", quota_provider: "claude" }] }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   }) as typeof fetch;
 
-  const res = await resetQuota({ id: "a", name: "a.json", auth_index: "idx1" });
-
-  expect(calls[0].url).toBe("/v8/management/credentials/quota/reset");
-  expect(calls[0].init?.method).toBe("POST");
-  expect(JSON.parse(String(calls[0].init?.body))).toEqual({ auth_index: "idx1" });
-  expect(res).toEqual({ status: "ok", message: "restored" });
+  await expect(resetQuota({ id: "a", name: "a.json", auth_index: "idx1", quota_provider: "codex" })).rejects.toThrow();
+  expect(calls.filter((url) => url.includes("/quota"))).toEqual([]);
 });
 
 test("缺少 auth_index 时不发请求", async () => {

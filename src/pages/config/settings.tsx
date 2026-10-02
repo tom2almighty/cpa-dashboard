@@ -187,6 +187,18 @@ export const GROUPS: ConfigGroup[] = [
     ],
   },
   {
+    id: "client",
+    sections: [
+      {
+        id: "codex",
+        items: [
+          { endpoint: "client/codex/enable-apply-patch", type: "bool" },
+          { endpoint: "client/codex/optimize-multi-agent-v2", type: "bool" },
+        ],
+      },
+    ],
+  },
+  {
     id: "oauth",
     sections: [
       {
@@ -231,7 +243,6 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "oauth/providers/codex/header-defaults/beta-features", type: "text" },
           { endpoint: "oauth/providers/codex/model-level-cooling", type: "bool" },
           { endpoint: "oauth/providers/codex/response-steering", type: "bool" },
-          { endpoint: "oauth/providers/codex/optimize-multi-agent-v2", type: "bool" },
           { endpoint: "oauth/providers/codex/orphan-delegation-compatibility", type: "bool" },
           { endpoint: "oauth/providers/codex/stream-bootstrap-buffering", type: "bool" },
           { endpoint: "oauth/providers/codex/stream-bootstrap-timeout", type: "text", fallback: "0" },

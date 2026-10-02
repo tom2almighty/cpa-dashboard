@@ -129,8 +129,6 @@ const ERROR_KEYS: Record<string, string> = {
   "logging to file disabled": "api_error.logging_to_file_disabled",
   "unknown channel": "api_error.unknown_channel",
   "auth not found": "api_error.auth_not_found",
-  "no quota provider available for credential": "api_error.no_quota_provider",
-  "no quota provider available for credential to reset": "api_error.no_quota_provider",
   "quota provider not found for plugin": "api_error.no_quota_provider",
   "quota provider did not handle reset request": "api_error.no_quota_provider",
   cannot_delete_config: "api_error.cannot_delete_config",

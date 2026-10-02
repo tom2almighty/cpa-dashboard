@@ -610,6 +610,7 @@
       "management": "Management API",
       "routing": "Routing",
       "requests": "Requests",
+      "client": "Client Compatibility",
       "oauth": "OAuth & Credentials",
       "multimedia": "Multimedia",
       "observability": "Observability"
@@ -729,6 +730,7 @@
       "management": "Management access and the bundled control panel (the management section)",
       "routing": "Credential selection strategy, session affinity, retries and cooldown (the routing section)",
       "requests": "Upstream proxy, header passthrough, stream keep-alives and multimedia (the requests section)",
+      "client": "Client-facing compatibility behavior applied to both OAuth and API key credentials (the client section)",
       "oauth": "Credential directory, refresh workers and provider-level OAuth/file credential settings (the oauth section)",
       "multimedia": "Image and video request behavior (the multimedia section)",
       "observability": "Logs, usage aggregation and pprof profiling (the observability section)"
@@ -753,6 +755,9 @@
       "requests": {
         "requests": "Requests",
         "streaming": "Streaming"
+      },
+      "client": {
+        "codex": "Codex"
       },
       "oauth": {
         "oauth": "Credential store & error rules",
@@ -1023,10 +1028,6 @@
         "label": "Codex Response Steering (experimental)",
         "hint": "Full-duplex Responses WebSocket; one socket stays on one account and model"
       },
-      "oauth/providers/codex/optimize-multi-agent-v2": {
-        "label": "Codex Multi-Agent v2 Optimization",
-        "hint": "Optimize multi-agent v2 requests from Codex Desktop, codex-tui and codex_cli_rs; not applied to API key credentials"
-      },
       "oauth/providers/claude/model-level-cooling": {
         "label": "Claude Model-Level Cooling",
         "hint": "Scope quota cooldowns to the requested model instead of the whole credential"
@@ -1155,6 +1156,14 @@
         "label": "Devin System Prompt Sensitive Words",
         "hint": "Words obfuscated with zero-width characters in Devin system instructions and prompts, one per line. A match removes the whole line, so configure carefully"
       },
+      "client/codex/enable-apply-patch": {
+        "label": "Codex apply_patch Capability",
+        "hint": "Off by default clears apply_patch_tool_type from /v1/models?client_version= catalogs. When on, only models supported by every routing executor advertise freeform"
+      },
+      "client/codex/optimize-multi-agent-v2": {
+        "label": "Codex Multi-Agent v2 Optimization",
+        "hint": "Optimizes multi-agent v2 requests from Codex Desktop, codex-tui and codex_cli_rs. Applies to both OAuth and API key credentials"
+      },
       "plugins/store-auth": {
         "label": "Plugin Store Auth Rules",
         "hint": "Rules matching registry and artifact requests by URL prefix. Put token, username, and password environment variable names here, never plaintext values"
@@ -1222,7 +1231,8 @@
       "no_data": "No quota data returned",
       "missing_dca_token": "DCA Token missing from auth file",
       "unsupported": "Quota query is not supported for this provider",
-      "missing_auth_index": "Credential is missing auth_index"
+      "missing_auth_index": "Credential is missing auth_index",
+      "missing_plugin_provider": "Credential has no matching plugin quota provider"
     }
   },
   "version": {

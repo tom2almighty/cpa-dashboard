@@ -1,5 +1,5 @@
 import i18n from "@/i18n";
-import { ApiError, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import type { AuthFile } from "@/lib/types";
 
 // 额度窗口:usedPercent 为 0~100,resetAt 为毫秒时间戳
@@ -523,19 +523,49 @@ export function fetchQuota(file: AuthFile): Promise<Quota> {
 
 /**
  * 通过插件额度提供方重置该凭据的额度,CPA 会顺带清掉路由侧的额度冷却。
- * 只有 file.quota_provider 存在(插件提供方)时可用,否则 CPA 返回 501。
+ * v8 只提供 /plugins/:id/quota,凭据只带 provider 标识,需要先映射回插件 id。
  */
-export function resetQuota(file: AuthFile): Promise<{ message?: string }> {
+export async function resetQuota(file: AuthFile): Promise<{ message?: string }> {
   const authIndex = file.auth_index ?? "";
-  if (!authIndex) return Promise.reject(new Error(i18n.t("quota.error.missing_auth_index")));
-  return api<{ message?: string }>("/v8/management/credentials/quota/reset", {
-    method: "POST",
-    body: { auth_index: authIndex },
-  });
+  if (!authIndex) throw new Error(i18n.t("quota.error.missing_auth_index"));
+  const pluginId = await quotaPluginId(file);
+  if (!pluginId) throw new Error(i18n.t("quota.error.missing_plugin_provider"));
+  return api<{ message?: string }>(pluginQuotaPath(pluginId, authIndex), { method: "DELETE" });
 }
 
 const pluginQuotaPath = (pluginId: string, authIndex: string) =>
   `/v8/management/plugins/${encodeURIComponent(pluginId)}/quota?auth_index=${encodeURIComponent(authIndex)}`;
+
+// 凭据只带 quota_provider(provider 标识),插件额度端点按插件 id 定位,所以先从插件列表建映射。
+// 同一批查询共用一次请求,60 秒内复用结果;失败时清掉缓存,避免把错误一直缓存下去。
+const PLUGIN_MAP_TTL = 60_000;
+let pluginMap: { at: number; value: Promise<Map<string, string>> } | null = null;
+
+function quotaPluginIds(): Promise<Map<string, string>> {
+  if (!pluginMap || Date.now() - pluginMap.at > PLUGIN_MAP_TTL) {
+    const value = api<{ plugins?: { id?: string; quota_provider?: string }[] }>("/v8/management/plugins")
+      .then((res) => {
+        const map = new Map<string, string>();
+        for (const plugin of res.plugins ?? []) {
+          const provider = (plugin.quota_provider ?? "").trim().toLowerCase();
+          if (provider && plugin.id) map.set(provider, plugin.id);
+        }
+        return map;
+      })
+      .catch((error) => {
+        pluginMap = null;
+        throw error;
+      });
+    pluginMap = { at: Date.now(), value };
+  }
+  return pluginMap.value;
+}
+
+async function quotaPluginId(file: AuthFile): Promise<string | undefined> {
+  const provider = (file.quota_provider ?? "").trim().toLowerCase();
+  if (!provider) return undefined;
+  return (await quotaPluginIds()).get(provider);
+}
 
 /** 指定插件额度提供方查询一个凭据的额度 */
 export async function fetchPluginQuota(pluginId: string, authIndex: string): Promise<Quota> {
@@ -548,14 +578,17 @@ export function resetPluginQuota(pluginId: string, authIndex: string): Promise<{
 }
 
 async function fetchQuotaNow(file: AuthFile, authIndex: string): Promise<Quota> {
-  // CPA 自身没有内置额度提供方,只有插件 QuotaProvider 或凭据的 quota_probe;没有时返回 501,再走 api-call
+  // v8 没有凭据级额度路由:凭据带 quota_provider 时映射到插件 id 查询;
+  // 只有声明式 quota_probe(无插件提供方)的凭据 v8 无从查询,退回厂商直连
   if (file.supports_quota) {
-    try {
+    const pluginId = await quotaPluginId(file);
+    if (pluginId) {
       return parsePluginQuota(
-        await api<Json>("/v8/management/credentials/quota/fetch", { method: "POST", body: { auth_index: authIndex } }),
+        await api<Json>(pluginQuotaPath(pluginId, authIndex), {
+          method: "POST",
+          body: { auth_index: authIndex },
+        }),
       );
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 501)) throw error;
     }
   }
 
