@@ -156,7 +156,7 @@
     "save_properties": "Edit Properties - {{name}}",
     "proxy_placeholder": "Leave empty to use global proxy",
     "extra_headers": "Extra Headers",
-    "headers_hint": "One per line in Name: Value format",
+    "headers_hint": "Add rows visually, or switch to text mode to paste in bulk. A value starting with $ copies the same header from the downstream request.",
     "cooldown_reasons": {
       "quota": "Quota Exceeded",
       "credential_quota": "Credential Quota Limit",
@@ -223,10 +223,10 @@
     "timezone_hint": "IANA timezone used for the cloaked currentDate; empty inherits the global setting",
     "field_model_aliases": "Model aliases",
     "model_aliases_placeholder": "claude-sonnet-4-5 => cs4.5",
-    "model_aliases_hint": "One \"upstream model => client-visible name\" per line. Applies to this credential only and overrides global aliases with the same name; fields not edited here are preserved on save",
+    "model_aliases_hint": "Add upstream models and aliases visually, or switch to text mode to paste in bulk. Fields not edited here are preserved on save.",
     "field_excluded_models": "Excluded models",
     "excluded_models_placeholder": "claude-3-5-haiku-20241022",
-    "excluded_models_hint": "One model name per line, supports * wildcards. Applies to this credential only",
+    "excluded_models_hint": "Add and remove excluded rules visually, or switch to text mode to edit in bulk. Supports * wildcards.",
     "inherit_placeholder": "Empty to inherit"
   },
   "oauth": {
@@ -1201,6 +1201,17 @@
     "reset_failed": "Quota reset failed: {{message}}",
     "retry": "Retry",
     "no_details": "Upstream returned no quota details",
+    "view_grid": "Card View",
+    "view_list": "List View",
+    "th_account": "Account",
+    "th_status": "Status / Remaining",
+    "th_windows": "Quota Details",
+    "th_reset": "Next Reset",
+    "th_updated": "Updated",
+    "windows_count": "{{count}} quotas",
+    "expand_windows": "Expand all ({{count}})",
+    "collapse_windows": "Collapse",
+    "per_page": "/ page",
     "label": {
       "quota": "Quota",
       "hours": "{{n}} h",
@@ -1275,6 +1286,7 @@
   "pagination": {
     "label": "Pagination",
     "total": "{{total}} items",
+    "range": "Showing {{from}}–{{to}} of {{total}}",
     "first": "First page",
     "prev": "Previous page",
     "next": "Next page",

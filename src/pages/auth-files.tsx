@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { type ChangeEvent, type FormEvent, useDeferredValue, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ExcludedModelsEditor } from "@/components/excluded-models-editor";
+import { HeadersEditor } from "@/components/headers-editor";
+import { ModelAliasesEditor } from "@/components/model-aliases-editor";
 import { PageHeader } from "@/components/page-header";
 import { Pagination, paginate } from "@/components/pagination";
 import { accountName, QuotaPanel } from "@/components/quota-panel";
@@ -50,7 +53,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { api, download, errorText, fetchBlob, saveBlob } from "@/lib/api";
@@ -212,7 +214,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85svh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-lg">
+      <DialogContent className="max-h-[85svh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("auth_files.save_properties", { name: accountName(target) })}</DialogTitle>
         </DialogHeader>
@@ -264,16 +266,13 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
                   onCheckedChange={(checked) => update({ websockets: checked })}
                 />
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-headers">{t("auth_files.extra_headers")}</Label>
-                <Textarea
-                  id="f-headers"
-                  value={form.headers}
-                  onChange={(e) => update({ headers: e.target.value })}
-                  className="min-h-20 font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">{t("auth_files.headers_hint")}</p>
-              </div>
+              <HeadersEditor
+                id="f-headers"
+                value={form.headers}
+                onChange={(headers) => update({ headers })}
+                label={t("auth_files.extra_headers")}
+                hint={t("auth_files.headers_hint")}
+              />
               <div className="grid gap-1.5">
                 <Label htmlFor="f-timezone">{t("auth_files.field_timezone")}</Label>
                 <Input
@@ -284,28 +283,22 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
                 />
                 <p className="text-xs text-muted-foreground">{t("auth_files.timezone_hint")}</p>
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-aliases">{t("auth_files.field_model_aliases")}</Label>
-                <Textarea
-                  id="f-aliases"
-                  value={form.model_aliases}
-                  placeholder={t("auth_files.model_aliases_placeholder")}
-                  onChange={(e) => update({ model_aliases: e.target.value })}
-                  className="min-h-20 font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">{t("auth_files.model_aliases_hint")}</p>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-excluded">{t("auth_files.field_excluded_models")}</Label>
-                <Textarea
-                  id="f-excluded"
-                  value={form.excluded_models}
-                  placeholder={t("auth_files.excluded_models_placeholder")}
-                  onChange={(e) => update({ excluded_models: e.target.value })}
-                  className="min-h-20 font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">{t("auth_files.excluded_models_hint")}</p>
-              </div>
+              <ModelAliasesEditor
+                id="f-aliases"
+                value={form.model_aliases}
+                placeholder={t("auth_files.model_aliases_placeholder")}
+                onChange={(model_aliases) => update({ model_aliases })}
+                label={t("auth_files.field_model_aliases")}
+                hint={t("auth_files.model_aliases_hint")}
+              />
+              <ExcludedModelsEditor
+                id="f-excluded"
+                value={form.excluded_models}
+                placeholder={t("auth_files.excluded_models_placeholder")}
+                onChange={(excluded_models) => update({ excluded_models })}
+                label={t("auth_files.field_excluded_models")}
+                hint={t("auth_files.excluded_models_hint")}
+              />
             </form>
           )}
         </div>
