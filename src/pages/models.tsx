@@ -365,20 +365,34 @@ function Aliases() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t("models.th_alias")}</TableHead>
-                    <TableHead>{t("models.upstream_model")}</TableHead>
-                    <TableHead>{t("models.display_name")}</TableHead>
-                    <TableHead>{t("models.th_options")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t("models.upstream_model")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t("models.display_name")}</TableHead>
+                    <TableHead className="w-16">{t("models.th_options")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {list.map((a) => (
                     <TableRow key={`${a.name}-${a.alias}`}>
-                      <TableCell className="font-mono text-sm">{a.alias}</TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">{a.name}</TableCell>
-                      <TableCell>{a["display-name"] || "—"}</TableCell>
-                      <TableCell className="space-x-1.5">
-                        {a.fork && <Badge variant="outline">{t("models.fork")}</Badge>}
-                        {a["force-mapping"] && <Badge variant="outline">{t("models.force_mapping")}</Badge>}
+                      {/*
+                        四列都带 whitespace-nowrap，窄屏按内容算约 700px，必然横向滚动。
+                        这里把上游模型与显示名称折到别名下方，窄屏只留一列主字段。
+                      */}
+                      <TableCell className="font-mono text-sm">
+                        <span className="block">{a.alias}</span>
+                        <span className="mt-0.5 block font-sans text-xs font-normal break-all whitespace-normal text-muted-foreground sm:hidden">
+                          {[a.name, a["display-name"]].filter(Boolean).join(" · ")}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden font-mono text-sm text-muted-foreground sm:table-cell">
+                        {a.name}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">{a["display-name"] || "—"}</TableCell>
+                      <TableCell>
+                        {/* 窄屏两个徽章竖排，横向省出一列宽度 */}
+                        <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-1.5">
+                          {a.fork && <Badge variant="outline">{t("models.fork")}</Badge>}
+                          {a["force-mapping"] && <Badge variant="outline">{t("models.force_mapping")}</Badge>}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -803,8 +817,8 @@ function Catalog() {
         <TableHeader>
           <TableRow>
             <TableHead>{t("models.th_model")}</TableHead>
-            <TableHead>{t("models.display_name")}</TableHead>
-            <TableHead>{t("models.th_owner")}</TableHead>
+            <TableHead className="hidden sm:table-cell">{t("models.display_name")}</TableHead>
+            <TableHead className="hidden sm:table-cell">{t("models.th_owner")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -817,9 +831,15 @@ function Catalog() {
           ) : (
             data.map((m) => (
               <TableRow key={m.id}>
-                <TableCell className="font-mono text-sm">{m.id}</TableCell>
-                <TableCell>{m.display_name || "—"}</TableCell>
-                <TableCell className="text-muted-foreground">{m.owned_by || "—"}</TableCell>
+                {/* 模型 ID 本身可能很长，窄屏把显示名称与提供方折到它下面，避免整表横向滚动 */}
+                <TableCell className="font-mono text-sm">
+                  <span className="block break-all whitespace-normal">{m.id}</span>
+                  <span className="mt-0.5 block font-sans text-xs font-normal text-muted-foreground sm:hidden">
+                    {[m.display_name, m.owned_by].filter(Boolean).join(" · ")}
+                  </span>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">{m.display_name || "—"}</TableCell>
+                <TableCell className="hidden text-muted-foreground sm:table-cell">{m.owned_by || "—"}</TableCell>
               </TableRow>
             ))
           )}
