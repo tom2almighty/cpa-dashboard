@@ -73,12 +73,12 @@ function sortWindowsByUrgency(windows: QuotaWindow[]): QuotaWindow[] {
   });
 }
 
-function formatWindowPeriod(w: QuotaWindow): string {
+function formatWindowPeriod(w: QuotaWindow, t: (key: string) => string): string {
   const text = `${w.id} ${w.label} ${w.detail ?? ""}`.toLowerCase();
   if (/five[-_ ]?hour|5\s*h(our)?|5\s*小时/.test(text)) return "5h";
-  if (/seven[-_ ]?day|7\s*d(ay)?|week(ly)?|7\s*天|每周|周/.test(text)) return "周";
-  if (/month(ly)?|每月|月/.test(text)) return "月";
-  if (/daily|day|每日|日/.test(text)) return "日";
+  if (/seven[-_ ]?day|7\s*d(ay)?|week(ly)?|7\s*天|每周|周/.test(text)) return t("quota.period_week");
+  if (/month(ly)?|每月|月/.test(text)) return t("quota.period_month");
+  if (/daily|day|每日|日/.test(text)) return t("quota.period_day");
   if (w.resetAt) {
     const diff = w.resetAt - Date.now();
     if (diff > 0) {
@@ -94,9 +94,10 @@ function formatWindowPeriod(w: QuotaWindow): string {
 
 /** 紧凑型胶囊额度进度条：单行容纳名称、进度背景、百分比与周期标识，卡片高度大幅缩小 */
 export function MeterRow({ window: w }: { window: QuotaWindow }) {
+  const { t } = useI18n();
   const remaining = getRemaining(w);
   const state = level(remaining);
-  const period = formatWindowPeriod(w);
+  const period = formatWindowPeriod(w, t);
 
   const fillBg =
     state === "danger"
@@ -117,7 +118,7 @@ export function MeterRow({ window: w }: { window: QuotaWindow }) {
 
   return (
     <div
-      className="group relative flex h-7.5 w-full min-w-0 items-center overflow-hidden rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs transition-colors hover:border-border hover:bg-muted/30"
+      className="group relative flex h-8 w-full min-w-0 items-center overflow-hidden rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs transition-colors hover:border-border hover:bg-muted/30"
       title={fullTooltip}
     >
       {remaining !== null && (
@@ -131,12 +132,12 @@ export function MeterRow({ window: w }: { window: QuotaWindow }) {
           style={{ width: `${Math.min(100, Math.max(0, remaining))}%` }}
         />
       )}
-      <div className="relative z-10 flex w-full min-w-0 items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div className="relative z-10 flex w-full min-w-0 items-center justify-between gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <span className={`size-1.5 shrink-0 rounded-full ${dotBg}`} aria-hidden />
-          <span className="truncate font-medium text-foreground text-xs leading-none">{w.label}</span>
+          <span className="truncate text-xs font-medium text-foreground">{w.label}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-1 font-mono text-[11px] tabular-nums leading-none">
+        <div className="flex shrink-0 items-center gap-1 font-mono text-[11px] tabular-nums">
           <span
             className={
               state === "danger"
@@ -148,7 +149,7 @@ export function MeterRow({ window: w }: { window: QuotaWindow }) {
           >
             {remaining === null ? "—" : `${remaining}%`}
           </span>
-          {period && <span className="text-[10px] text-muted-foreground font-sans">· {period}</span>}
+          {period && <span className="font-sans text-[10px] text-muted-foreground">· {period}</span>}
         </div>
       </div>
     </div>
@@ -157,9 +158,10 @@ export function MeterRow({ window: w }: { window: QuotaWindow }) {
 
 /** 表格行内的微型额度胶囊（水平流动排布，进度条衬底） */
 function QuotaPill({ window: w }: { window: QuotaWindow }) {
+  const { t } = useI18n();
   const remaining = getRemaining(w);
   const state = level(remaining);
-  const period = formatWindowPeriod(w);
+  const period = formatWindowPeriod(w, t);
 
   const fillBg =
     state === "danger"
@@ -179,7 +181,7 @@ function QuotaPill({ window: w }: { window: QuotaWindow }) {
 
   return (
     <span
-      className="group relative inline-flex h-6 min-w-20 max-w-44 items-center overflow-hidden rounded-md border border-border/60 bg-muted/20 px-2 text-[11px] font-mono select-none"
+      className="group relative inline-flex h-6.5 min-w-20 max-w-44 items-center overflow-hidden rounded-md border border-border/60 bg-muted/20 px-2 text-[11px] font-mono select-none"
       title={fullTooltip}
     >
       {remaining !== null && (
@@ -584,9 +586,9 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                 const rawWindows = q?.data?.windows ?? [];
                 const sortedWindows = sortWindowsByUrgency(rawWindows);
                 const isExpanded = Boolean(expandedCards[item.file.auth_index ?? ""]);
-                // 默认展示前 3 项，超过 3 项时可原地自适应展开或呼出弹窗
-                const visibleWindows = isExpanded ? sortedWindows : sortedWindows.slice(0, 3);
-                const hasMore = sortedWindows.length > 3;
+                // 默认展示前 4 项，超过 4 项时可原地自适应展开
+                const visibleWindows = isExpanded ? sortedWindows : sortedWindows.slice(0, 4);
+                const hasMore = sortedWindows.length > 4;
 
                 return (
                   <Card
@@ -697,7 +699,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                                 ) : (
                                   <>
                                     <ChevronDown className="size-3.5" />
-                                    {t("quota.expand_more", { count: sortedWindows.length - 3 })}
+                                    {t("quota.expand_more", { count: sortedWindows.length - 4 })}
                                   </>
                                 )}
                               </Button>
@@ -723,10 +725,10 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                     <TableHead className="w-10 px-2" />
                     <TableHead className="w-48 sm:w-56">{t("quota.th_account")}</TableHead>
                     <TableHead className="w-28">{t("quota.th_status")}</TableHead>
-                    <TableHead>{t("quota.th_windows")}</TableHead>
+                    <TableHead className="min-w-64 max-w-lg">{t("quota.th_windows")}</TableHead>
                     <TableHead className="w-32">{t("quota.th_reset")}</TableHead>
                     <TableHead className="w-28">{t("quota.th_updated")}</TableHead>
-                    <TableHead className="w-24 text-right">{t("quota.th_actions") || t("common.actions")}</TableHead>
+                    <TableHead className="w-24 text-right">{t("quota.th_actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -841,17 +843,17 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                             ) : sortedWindows.length === 0 ? (
                               <span className="text-xs text-muted-foreground">{t("quota.no_details")}</span>
                             ) : (
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {sortedWindows.slice(0, 3).map((w) => (
+                              <div className="flex min-w-64 max-w-lg flex-wrap items-center gap-1.5 py-0.5">
+                                {sortedWindows.slice(0, 4).map((w) => (
                                   <QuotaPill key={w.id} window={w} />
                                 ))}
-                                {sortedWindows.length > 3 && (
+                                {sortedWindows.length > 4 && (
                                   <button
                                     type="button"
                                     onClick={() => toggleRow(item.file.auth_index ?? "")}
                                     className="inline-flex items-center gap-0.5 rounded-md border border-dashed px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted/50 cursor-pointer"
                                   >
-                                    <span>{t("quota.more_quotas", { count: sortedWindows.length - 3 })}</span>
+                                    <span>{t("quota.more_quotas", { count: sortedWindows.length - 4 })}</span>
                                     <ChevronDown className="size-3" />
                                   </button>
                                 )}
