@@ -22,18 +22,16 @@ const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLAUDE_PROFILE_URL = "https://api.anthropic.com/api/oauth/profile";
 const KIMI_USAGE_URL = "https://api.kimi.com/coding/v1/usages";
+const KIMI_AI_USAGE_URL = "https://api.kimi.ai/coding/v1/usages";
 const XAI_WEEKLY_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
 const XAI_MONTHLY_URL = "https://cli-chat-proxy.grok.com/v1/billing";
-const ANTIGRAVITY_URLS = [
+const ANTIGRAVITY_QUOTA_URLS = [
   "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+  "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary",
   "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
-  "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
-  "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
 ];
 const DEVIN_STATUS_URL = "https://server.codeium.com/exa.seat_management_pb.SeatManagementService/GetUserStatus";
 const META_MUSE_QUOTA_URL = "https://api.meta.ai/muse-code/key";
-// Antigravity 认证文件里没有 project_id 时,官方客户端使用的默认项目
-const ANTIGRAVITY_DEFAULT_PROJECT = "bamboo-precept-lgxtn";
 
 // 上游会校验客户端标识,取值与官方 CLI 保持一致
 const HEADERS = {
@@ -42,7 +40,13 @@ const HEADERS = {
     "Content-Type": "application/json",
     "User-Agent": "codex-tui/0.149.1 (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 (codex-tui; 0.149.1)",
   },
-  claude: { Authorization: "Bearer $TOKEN$", "Content-Type": "application/json", "anthropic-beta": "oauth-2025-04-20" },
+  claude: {
+    Authorization: "Bearer $TOKEN$",
+    "Content-Type": "application/json",
+    "anthropic-version": "2023-06-01",
+    "anthropic-beta": "claude-code-20250219",
+    "user-agent": "claude-code/2.1.280",
+  },
   kimi: { Authorization: "Bearer $TOKEN$" },
   xai: {
     Authorization: "Bearer $TOKEN$",
@@ -331,25 +335,7 @@ export function parseAntigravity(payload: Json): Quota {
       });
     }
   }
-  if (windows.length === 0) {
-    // fetchAvailableModels 返回按模型的 quotaInfo;同名模型去重
-    const models = obj(payload.models) ?? {};
-    const seen = new Set<string>();
-    for (const [id, value] of Object.entries(models)) {
-      const model = obj(value);
-      const info = obj(pick(model, "quotaInfo", "quota_info"));
-      if (!info) continue;
-      const label = str(pick(model, "displayName", "display_name")) ?? id;
-      if (seen.has(label)) continue;
-      seen.add(label);
-      windows.push({
-        id,
-        label,
-        usedPercent: remainingToUsed(pick(info, "remainingFraction", "remaining_fraction", "remaining")),
-        resetAt: toMs(pick(info, "resetTime", "reset_time")),
-      });
-    }
-  }
+  // 对齐官方：仅解析正式 groups[].buckets[]，空或无权限时不使用静态模型清单伪造配额
   return { plan: null, windows, notes: [] };
 }
 
@@ -471,6 +457,40 @@ function credentialFile(file: AuthFile, authIndex: string): Promise<Json | null>
     fileCache.set(authIndex, cached);
   }
   return cached;
+}
+function extractHttpStatus(error: unknown): number | undefined {
+  if (error && typeof error === "object" && "status" in error && typeof error.status === "number") {
+    return error.status;
+  }
+  return undefined;
+}
+
+async function resolveAntigravityProjectId(file: AuthFile, authIndex: string): Promise<string> {
+  const direct = str(file.project_id);
+  if (direct) return direct;
+  const raw = await credentialFile(file, authIndex);
+  if (raw) {
+    const installed = obj(raw.installed);
+    const web = obj(raw.web);
+    const fromRaw =
+      str(raw.project_id) ||
+      str(raw.projectId) ||
+      str(installed?.project_id) ||
+      str(installed?.projectId) ||
+      str(web?.project_id) ||
+      str(web?.projectId);
+    if (fromRaw) return fromRaw;
+  }
+  return "";
+}
+
+function resolveKimiUrl(file: AuthFile): string {
+  const provider = (file.provider ?? "").toLowerCase();
+  const name = file.name ?? "";
+  if (provider === "kimi-ai" || provider === "kimi.ai" || /kimi-ai|kimi\.ai/i.test(name)) {
+    return KIMI_AI_USAGE_URL;
+  }
+  return KIMI_USAGE_URL;
 }
 
 // 插件 QuotaProvider / quota_probe 返回的统一结构:subscription、summary、groups[].buckets[]
@@ -605,8 +625,10 @@ async function fetchQuotaNow(file: AuthFile, authIndex: string): Promise<Quota> 
       ]);
       return parseClaude(usage, profile);
     }
-    case "kimi":
-      return parseKimi(await upstream(authIndex, "GET", KIMI_USAGE_URL, HEADERS.kimi));
+    case "kimi": {
+      const url = resolveKimiUrl(file);
+      return parseKimi(await upstream(authIndex, "GET", url, HEADERS.kimi));
+    }
     case "xai": {
       const userId = findField(await credentialFile(file, authIndex), ["sub", "user_id", "userId"]);
       const header = userId ? { ...HEADERS.xai, "x-userid": userId } : HEADERS.xai;
@@ -617,16 +639,22 @@ async function fetchQuotaNow(file: AuthFile, authIndex: string): Promise<Quota> 
       return parseXai(weekly, monthly);
     }
     case "antigravity": {
-      // 列表里的 project_id 就取自认证文件,缺失时用官方客户端的默认项目
-      const data = JSON.stringify({ project: file.project_id || ANTIGRAVITY_DEFAULT_PROJECT });
+      const projectId = await resolveAntigravityProjectId(file, authIndex);
+      if (!projectId) {
+        throw new Error(i18n.t("quota.error.no_data"));
+      }
+      const data = JSON.stringify({ project: projectId });
       let lastError: unknown = new Error(i18n.t("quota.error.no_data"));
-      for (const url of ANTIGRAVITY_URLS) {
+      for (const url of ANTIGRAVITY_QUOTA_URLS) {
         try {
           const quota = parseAntigravity(await upstream(authIndex, "POST", url, HEADERS.antigravity, data));
-          if (quota.windows.length > 0) return quota;
+          return quota;
         } catch (error) {
           lastError = error;
-          if ((error as { status?: number }).status === 429) break;
+          const status = extractHttpStatus(error);
+          if (status === 401 || status === 403 || status === 404 || status === 429) {
+            break;
+          }
         }
       }
       throw lastError;

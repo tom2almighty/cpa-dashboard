@@ -199,16 +199,20 @@ test("xai 周期与月度", () => {
 
 test("antigravity 剩余比例换算为已用", () => {
   const q = parseAntigravity({
-    models: {
-      "gemini-3-pro-high": {
+    groups: [
+      {
         displayName: "Gemini 3 Pro",
-        quotaInfo: { remainingFraction: 0.75, resetTime: "2026-09-24T08:00:00Z" },
+        buckets: [
+          {
+            displayName: "Daily",
+            remainingFraction: 0.75,
+            resetTime: "2026-09-24T08:00:00Z",
+          },
+        ],
       },
-      "gemini-3-pro-low": { displayName: "Gemini 3 Pro", quotaInfo: { remainingFraction: 0.75 } },
-      "no-quota": { displayName: "X" },
-    },
+    ],
   });
-  expect(q.windows.map((w) => [w.label, w.usedPercent])).toEqual([["Gemini 3 Pro", 25]]);
+  expect(q.windows.map((w) => [w.label, w.usedPercent])).toEqual([["Gemini 3 Pro Daily", 25]]);
 });
 
 test("窗口时长命名", () => {
