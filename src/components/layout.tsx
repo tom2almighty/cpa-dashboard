@@ -197,9 +197,11 @@ function HeaderCollapseButton() {
 
 export function Layout() {
   const logout = useLogout();
+  const { pathname } = useLocation();
   const { t } = useI18n();
   const [openVersion, setOpenVersion] = useState(false);
   const { hasAnyUpdate } = useVersionData();
+  const isPluginView = pathname.startsWith("/plugins/view/");
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
@@ -218,8 +220,8 @@ export function Layout() {
           <NavGroup label={t("nav.overview_group")} items={OVERVIEW_NAV} />
           <NavGroup label={t("nav.gateway_group")} items={GATEWAY_NAV} />
           <NavGroup label={t("nav.models_group")} items={MODEL_NAV} />
-          <PluginDashboardsNavGroup />
           <NavGroup label={t("nav.system_group")} items={SYSTEM_NAV} />
+          <PluginDashboardsNavGroup />
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
@@ -262,14 +264,20 @@ export function Layout() {
             <span>CPA Dashboard</span>
           </NavLink>
         </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main
+          className={
+            isPluginView
+              ? "flex-1 w-full h-[calc(100vh-3rem)] md:h-screen p-0 overflow-hidden"
+              : "mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-8 md:py-8"
+          }
+        >
           <Suspense fallback={<Spinner className="mx-auto mt-24 size-6 text-muted-foreground" />}>
             <Outlet />
           </Suspense>
         </main>
       </SidebarInset>
       <VersionDialog open={openVersion} onOpenChange={setOpenVersion} />
-      <BackToTop />
+      {!isPluginView && <BackToTop />}
     </SidebarProvider>
   );
 }
