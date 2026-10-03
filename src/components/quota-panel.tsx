@@ -200,7 +200,7 @@ function QuotaDetailModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden flex flex-col p-6">
+      <DialogContent className="flex max-h-[88vh] w-[95vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl flex-col overflow-hidden p-6">
         <DialogHeader className="pb-3 border-b">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -264,9 +264,9 @@ function QuotaDetailModal({
           {filteredWindows.length === 0 ? (
             <div className="py-12 text-center text-xs text-muted-foreground">{t("quota.no_matching")}</div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
               {filteredWindows.map((w) => (
-                <div key={w.id} className="rounded-lg border bg-card/60 p-3">
+                <div key={w.id} className="rounded-lg border bg-card/60 p-3.5 shadow-2xs">
                   <MeterRow window={w} />
                 </div>
               ))}
