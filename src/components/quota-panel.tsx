@@ -1,15 +1,12 @@
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   ArrowUpDown,
   ChevronDown,
   ChevronRight,
   ChevronUp,
   Clock,
-  ExternalLink,
   LayoutGrid,
   List,
-  OctagonAlert,
   RefreshCw,
   RotateCcw,
   Search,
@@ -20,7 +17,6 @@ import { Pagination, paginate } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,13 +56,6 @@ function level(remaining: number | null): QuotaLevel {
   return "ok";
 }
 
-// 进度条按状态取语义色，和卡片上的文字/图标保持一致
-const BAR_FILL: Record<QuotaLevel, string> = {
-  ok: "bg-success",
-  warn: "bg-warning",
-  danger: "bg-destructive",
-};
-
 /** 计算剩余百分比 */
 function getRemaining(w: QuotaWindow): number | null {
   return w.usedPercent === null ? null : Math.max(0, Math.min(100, 100 - Math.round(w.usedPercent)));
@@ -84,197 +73,134 @@ function sortWindowsByUrgency(windows: QuotaWindow[]): QuotaWindow[] {
   });
 }
 
-/** 单个额度进度行：自然流式排布，呼吸感好，绝不套固定高度的滚动条 */
+function formatWindowPeriod(w: QuotaWindow): string {
+  const text = `${w.id} ${w.label} ${w.detail ?? ""}`.toLowerCase();
+  if (/five[-_ ]?hour|5\s*h(our)?|5\s*小时/.test(text)) return "5h";
+  if (/seven[-_ ]?day|7\s*d(ay)?|week(ly)?|7\s*天|每周|周/.test(text)) return "周";
+  if (/month(ly)?|每月|月/.test(text)) return "月";
+  if (/daily|day|每日|日/.test(text)) return "日";
+  if (w.resetAt) {
+    const diff = w.resetAt - Date.now();
+    if (diff > 0) {
+      const hours = Math.round(diff / 3_600_000);
+      if (hours >= 24) return `${Math.round(hours / 24)}d`;
+      if (hours > 0) return `${hours}h`;
+      const mins = Math.max(1, Math.round(diff / 60_000));
+      return `${mins}m`;
+    }
+  }
+  return "";
+}
+
+/** 紧凑型胶囊额度进度条：单行容纳名称、进度背景、百分比与周期标识，卡片高度大幅缩小 */
 export function MeterRow({ window: w }: { window: QuotaWindow }) {
-  const { t } = useI18n();
   const remaining = getRemaining(w);
   const state = level(remaining);
+  const period = formatWindowPeriod(w);
+
+  const fillBg =
+    state === "danger"
+      ? "bg-destructive/20 border-destructive/40"
+      : state === "warn"
+        ? "bg-amber-500/20 border-amber-500/40"
+        : "bg-emerald-500/15 border-emerald-500/30";
+
+  const dotBg = state === "danger" ? "bg-destructive" : state === "warn" ? "bg-amber-500" : "bg-emerald-500";
+
+  const fullTooltip = [
+    `${w.label}: ${remaining === null ? "—" : `${remaining}%`}`,
+    w.resetAt ? formatDateTime(w.resetAt) : null,
+    w.detail,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-1.5">
-      <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-sm">
-        <span className="truncate text-xs font-medium sm:text-sm" title={w.label}>
-          {w.label}
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5 tabular-nums text-xs">
-          {state === "danger" && <OctagonAlert className="size-3.5 text-destructive" aria-hidden />}
-          {state === "warn" && <AlertTriangle className="size-3.5 text-warning" aria-hidden />}
+    <div
+      className="group relative flex h-7.5 w-full min-w-0 items-center overflow-hidden rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs transition-colors hover:border-border hover:bg-muted/30"
+      title={fullTooltip}
+    >
+      {remaining !== null && (
+        <div
+          role="progressbar"
+          aria-valuenow={remaining}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={w.label}
+          className={`absolute inset-y-0 left-0 border-r transition-all duration-300 ${fillBg}`}
+          style={{ width: `${Math.min(100, Math.max(0, remaining))}%` }}
+        />
+      )}
+      <div className="relative z-10 flex w-full min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className={`size-1.5 shrink-0 rounded-full ${dotBg}`} aria-hidden />
+          <span className="truncate font-medium text-foreground text-xs leading-none">{w.label}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1 font-mono text-[11px] tabular-nums leading-none">
           <span
             className={
               state === "danger"
                 ? "font-semibold text-destructive"
                 : state === "warn"
-                  ? "font-medium text-warning"
-                  : "text-muted-foreground"
+                  ? "font-medium text-amber-600 dark:text-amber-400"
+                  : "font-medium text-foreground"
             }
           >
-            {remaining === null ? "—" : t("quota.remaining_percent", { n: remaining })}
+            {remaining === null ? "—" : `${remaining}%`}
           </span>
-        </span>
-      </div>
-      <div
-        role="progressbar"
-        aria-label={t("quota.remaining_aria", { label: w.label })}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={remaining ?? undefined}
-        className="relative h-2 w-full min-w-0 overflow-hidden rounded-full bg-muted"
-      >
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${BAR_FILL[state]}`}
-          style={{ width: `${remaining ?? 0}%` }}
-        />
-      </div>
-      {(w.resetAt || w.detail) && (
-        <div className="flex w-full min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span title={w.resetAt ? formatDateTime(w.resetAt) : undefined}>{formatCountdown(w.resetAt)}</span>
-          {w.detail && <span className="tabular-nums">{w.detail}</span>}
+          {period && <span className="text-[10px] text-muted-foreground font-sans">· {period}</span>}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-/** 表格行内的微型额度胶囊（水平流动排布） */
+/** 表格行内的微型额度胶囊（水平流动排布，进度条衬底） */
 function QuotaPill({ window: w }: { window: QuotaWindow }) {
   const remaining = getRemaining(w);
   const state = level(remaining);
+  const period = formatWindowPeriod(w);
+
+  const fillBg =
+    state === "danger"
+      ? "bg-destructive/20 border-destructive/40"
+      : state === "warn"
+        ? "bg-amber-500/20 border-amber-500/40"
+        : "bg-emerald-500/15 border-emerald-500/30";
+
+  const dotBg = state === "danger" ? "bg-destructive" : state === "warn" ? "bg-amber-500" : "bg-emerald-500";
+
+  const fullTooltip = [
+    `${w.label}: ${remaining === null ? "—" : `${remaining}%`}`,
+    w.resetAt ? formatCountdown(w.resetAt) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-0.5 text-[11px] font-mono"
-      title={`${w.label}: ${remaining === null ? "—" : `${remaining}%`} ${w.resetAt ? `· ${formatCountdown(w.resetAt)}` : ""}`}
+      className="group relative inline-flex h-6 min-w-20 max-w-44 items-center overflow-hidden rounded-md border border-border/60 bg-muted/20 px-2 text-[11px] font-mono select-none"
+      title={fullTooltip}
     >
-      <span
-        className={`size-1.5 rounded-full ${
-          state === "danger" ? "bg-destructive" : state === "warn" ? "bg-warning" : "bg-success"
-        }`}
-      />
-      <span className="max-w-28 truncate font-sans text-foreground" title={w.label}>
-        {w.label}
-      </span>
-      <span
-        className={
-          state === "danger"
-            ? "font-semibold text-destructive tabular-nums"
-            : state === "warn"
-              ? "font-medium text-warning tabular-nums"
-              : "text-muted-foreground tabular-nums"
-        }
-      >
-        {remaining === null ? "—" : `${remaining}%`}
+      {remaining !== null && (
+        <span
+          className={`absolute inset-y-0 left-0 border-r transition-all duration-300 ${fillBg}`}
+          style={{ width: `${Math.min(100, Math.max(0, remaining))}%` }}
+        />
+      )}
+      <span className="relative z-10 flex w-full items-center justify-between gap-1.5">
+        <span className="flex min-w-0 items-center gap-1">
+          <span className={`size-1.5 shrink-0 rounded-full ${dotBg}`} />
+          <span className="max-w-20 truncate font-sans text-foreground text-[11px]">{w.label}</span>
+        </span>
+        <span className="shrink-0 tabular-nums font-semibold">
+          {remaining === null ? "—" : `${remaining}%`}
+          {period ? (
+            <span className="ml-0.5 text-[10px] font-sans font-normal text-muted-foreground">·{period}</span>
+          ) : null}
+        </span>
       </span>
     </span>
-  );
-}
-
-/** 账号全量额度明细弹窗：专门服务于多达数十个模型的账号，带过滤和网格呈现 */
-function QuotaDetailModal({
-  item,
-  onClose,
-  onReset,
-  isResetting,
-}: {
-  item: {
-    file: AuthFile;
-    name: string;
-    query: {
-      data?: { windows: QuotaWindow[]; plan?: string | null; notes: string[] };
-      isFetching: boolean;
-      refetch: () => void;
-    };
-  };
-  onClose: () => void;
-  onReset?: () => void;
-  isResetting?: boolean;
-}) {
-  const { t } = useI18n();
-  const [filterQuery, setFilterQuery] = useState("");
-  const windows = sortWindowsByUrgency(item.query.data?.windows ?? []);
-
-  const filteredWindows = useMemo(() => {
-    const q = filterQuery.trim().toLowerCase();
-    if (!q) return windows;
-    return windows.filter((w) => w.label.toLowerCase().includes(q));
-  }, [windows, filterQuery]);
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[88vh] w-[95vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl flex-col overflow-hidden p-6">
-        <DialogHeader className="pb-3 border-b">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <DialogTitle className="text-base font-semibold">
-                {t("quota.details_dialog_title", { name: item.name })}
-              </DialogTitle>
-              <DialogDescription className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                <Badge variant="secondary" className="uppercase text-[10px]">
-                  {item.file.provider}
-                </Badge>
-                {item.query.data?.plan && (
-                  <Badge variant="outline" className="text-[10px]">
-                    {item.query.data.plan}
-                  </Badge>
-                )}
-                <span>{t("quota.windows_count", { count: windows.length })}</span>
-              </DialogDescription>
-            </div>
-            <div className="flex items-center gap-1">
-              {item.file.quota_provider && onReset && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={isResetting}
-                  onClick={onReset}
-                  className="h-8 text-xs gap-1"
-                >
-                  <RotateCcw className={isResetting ? "size-3.5 animate-spin" : "size-3.5"} />
-                  {t("quota.reset_account", { name: "" })}
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={item.query.isFetching}
-                onClick={() => item.query.refetch()}
-                className="h-8 text-xs gap-1"
-              >
-                <RefreshCw className={item.query.isFetching ? "size-3.5 animate-spin" : "size-3.5"} />
-                {t("common.refresh")}
-              </Button>
-            </div>
-          </div>
-        </DialogHeader>
-
-        {windows.length > 6 && (
-          <div className="pt-3">
-            <div className="relative">
-              <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={filterQuery}
-                onChange={(e) => setFilterQuery(e.target.value)}
-                placeholder={t("quota.filter_models")}
-                className="h-8 pl-8 text-xs font-mono"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="min-h-0 flex-1 overflow-y-auto pt-4 pr-1">
-          {filteredWindows.length === 0 ? (
-            <div className="py-12 text-center text-xs text-muted-foreground">{t("quota.no_matching")}</div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredWindows.map((w) => (
-                <div key={w.id} className="rounded-lg border bg-card/60 p-3.5 shadow-2xs">
-                  <MeterRow window={w} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -329,17 +255,6 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
       return next;
     });
   };
-
-  // 独立详情弹窗对象
-  const [modalItem, setModalItem] = useState<{
-    file: AuthFile;
-    name: string;
-    query: {
-      data?: { windows: QuotaWindow[]; plan?: string | null; notes: string[] };
-      isFetching: boolean;
-      refetch: () => void;
-    };
-  } | null>(null);
 
   // 页码跟筛选条件及视图绑定,条件一变自动回到第一页
   const filterKey = `${selectedChannel}|${deferredSearch}|${sortMode}|${warningOnly}|${pageSize}|${viewMode}`;
@@ -710,17 +625,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                         </div>
 
                         <div className="flex shrink-0 items-center gap-0.5">
-                          {hasMore && (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title={t("quota.view_all_dialog")}
-                              aria-label={t("quota.view_all_dialog")}
-                              onClick={() => setModalItem(item)}
-                            >
-                              <ExternalLink className="size-3.5" />
-                            </Button>
-                          )}
+                          {/* 卡片额度弹窗已去除 */}
                           {item.file.quota_provider && (
                             <Button
                               variant="ghost"
@@ -769,42 +674,32 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                       ) : sortedWindows.length === 0 ? (
                         <p className="py-4 text-center text-xs text-muted-foreground">{t("quota.no_details")}</p>
                       ) : (
-                        <div className="space-y-3.5">
-                          {/* 自然平铺展示，绝不加生硬的局部滚动条 */}
-                          <div className="flex w-full min-w-0 flex-col gap-3.5">
+                        <div className="space-y-2">
+                          <div className="flex w-full min-w-0 flex-col gap-2">
                             {visibleWindows.map((w) => (
                               <MeterRow key={w.id} window={w} />
                             ))}
                           </div>
                           {hasMore && (
-                            <div className="flex items-center justify-between pt-1">
+                            <div className="pt-1">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 text-xs text-muted-foreground hover:text-foreground px-2"
+                                className="h-7 w-full text-xs text-muted-foreground hover:text-foreground justify-center gap-1"
                                 onClick={() => toggleCard(item.file.auth_index ?? "")}
                               >
                                 {isExpanded ? (
                                   <>
-                                    <ChevronUp className="mr-1 size-3.5" />
+                                    <ChevronUp className="size-3.5" />
                                     {t("quota.collapse")}
                                   </>
                                 ) : (
                                   <>
-                                    <ChevronDown className="mr-1 size-3.5" />
+                                    <ChevronDown className="size-3.5" />
                                     {t("quota.expand_more", { count: sortedWindows.length - 3 })}
                                   </>
                                 )}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="link"
-                                size="sm"
-                                className="h-7 text-xs text-muted-foreground"
-                                onClick={() => setModalItem(item)}
-                              >
-                                {t("quota.view_all_dialog")}
                               </Button>
                             </div>
                           )}
@@ -986,17 +881,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                           {/* 操作 */}
                           <TableCell className="py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              {sortedWindows.length > 0 && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  title={t("quota.view_all_dialog")}
-                                  aria-label={t("quota.view_all_dialog")}
-                                  onClick={() => setModalItem(item)}
-                                >
-                                  <ExternalLink className="size-3.5" />
-                                </Button>
-                              )}
+                              {/* 列表弹窗按钮已去除 */}
                               {item.file.quota_provider && (
                                 <Button
                                   variant="ghost"
@@ -1032,26 +917,14 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                         {isRowExpanded && (
                           <TableRow className="border-b bg-muted/15 hover:bg-muted/15">
                             <TableCell colSpan={7} className="p-0">
-                              <div className="border-l-2 border-primary/40 px-6 py-4 space-y-3">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="font-medium text-foreground">
-                                    {t("quota.details_dialog_title", { name: item.name })} (
-                                    {t("quota.windows_count", { count: sortedWindows.length })})
-                                  </span>
-                                  <Button
-                                    variant="link"
-                                    size="sm"
-                                    className="h-6 text-xs text-muted-foreground p-0"
-                                    onClick={() => setModalItem(item)}
-                                  >
-                                    {t("quota.view_all_dialog")}
-                                  </Button>
+                              <div className="border-l-2 border-primary/40 px-6 py-3 space-y-2.5">
+                                <div className="text-xs font-medium text-muted-foreground">
+                                  {t("quota.details_dialog_title", { name: item.name })} (
+                                  {t("quota.windows_count", { count: sortedWindows.length })})
                                 </div>
-                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                                   {sortedWindows.map((w) => (
-                                    <div key={w.id} className="rounded-lg border bg-card p-3 shadow-2xs">
-                                      <MeterRow window={w} />
-                                    </div>
+                                    <MeterRow key={w.id} window={w} />
                                   ))}
                                 </div>
                               </div>
@@ -1099,16 +972,6 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
             <Pagination page={current} pageCount={pageCount} total={filtered.length} onChange={setPage} />
           </div>
         </>
-      )}
-
-      {/* 独立额度明细大弹窗 */}
-      {modalItem && (
-        <QuotaDetailModal
-          item={modalItem}
-          onClose={() => setModalItem(null)}
-          onReset={modalItem.file.quota_provider ? () => reset.mutate(modalItem.file) : undefined}
-          isResetting={reset.isPending && reset.variables?.auth_index === modalItem.file.auth_index}
-        />
       )}
     </div>
   );
