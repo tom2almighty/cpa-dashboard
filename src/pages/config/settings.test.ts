@@ -9,6 +9,7 @@ import {
   parseAuthRules,
   parseChannelEntries,
   parseValue,
+  readPath,
 } from "./settings";
 
 // 词条以 endpoint 为键平铺在 config.fields 下,这里按字符串索引读取,失败信息里带上具体项
@@ -173,4 +174,42 @@ test("配置页编辑器用到的 config.settings 词条中英文齐全,且没�
 
   expect(missing).toEqual([]);
   expect(stale).toEqual([]);
+});
+
+test("readPath 支持新版 canonical 路径以及历史别名回退", () => {
+  const canonicalConfig = {
+    upstream: {
+      codex: {
+        "disable-codex-cloaking": true,
+      },
+      claude: {
+        "disable-claude-cloak-mode": true,
+      },
+    },
+    client: {
+      codex: {
+        "optimize-multi-agent-v2": true,
+      },
+    },
+  };
+  expect(readPath(canonicalConfig, "upstream/codex/disable-codex-cloaking")).toBe(true);
+  expect(readPath(canonicalConfig, "upstream/claude/disable-claude-cloak-mode")).toBe(true);
+  expect(readPath(canonicalConfig, "client/codex/optimize-multi-agent-v2")).toBe(true);
+
+  const legacyConfig = {
+    oauth: {
+      providers: {
+        codex: {
+          "disable-codex-cloaking": true,
+          "optimize-multi-agent-v2": true,
+        },
+        claude: {
+          "disable-claude-cloak-mode": true,
+        },
+      },
+    },
+  };
+  expect(readPath(legacyConfig, "upstream/codex/disable-codex-cloaking")).toBe(true);
+  expect(readPath(legacyConfig, "upstream/claude/disable-claude-cloak-mode")).toBe(true);
+  expect(readPath(legacyConfig, "client/codex/optimize-multi-agent-v2")).toBe(true);
 });

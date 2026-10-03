@@ -611,6 +611,7 @@
       "routing": "Routing",
       "requests": "Requests",
       "client": "Client Compatibility",
+      "upstream": "Upstream",
       "oauth": "OAuth & Credentials",
       "multimedia": "Multimedia",
       "observability": "Observability"
@@ -731,7 +732,8 @@
       "routing": "Credential selection strategy, session affinity, retries and cooldown (the routing section)",
       "requests": "Upstream proxy, header passthrough, stream keep-alives and multimedia (the requests section)",
       "client": "Client-facing compatibility behavior applied to both OAuth and API key credentials (the client section)",
-      "oauth": "Credential directory, refresh workers and provider-level OAuth/file credential settings (the oauth section)",
+      "upstream": "Shared upstream behavior applied to both OAuth and API key credentials (the upstream section)",
+      "oauth": "Credential directory, refresh workers and OAuth-specific provider/media relay settings (the oauth section)",
       "multimedia": "Image and video request behavior (the multimedia section)",
       "observability": "Logs, usage aggregation and pprof profiling (the observability section)"
     },
@@ -759,13 +761,16 @@
       "client": {
         "codex": "Codex"
       },
+      "upstream": {
+        "codex": "Codex",
+        "claude": "Claude",
+        "xai": "xAI"
+      },
       "oauth": {
         "oauth": "Credential store & error rules",
         "aistudio": "AI Studio",
         "codex": "Codex",
-        "claude": "Claude",
         "antigravity": "Antigravity",
-        "xai": "xAI",
         "devin": "Devin"
       },
       "multimedia": {
@@ -906,7 +911,7 @@
         "label": "AI Studio /ws Auth",
         "hint": "Require clients to send a valid key on the /v1/ws route"
       },
-      "oauth/providers/claude/disable-claude-cloak-mode": {
+      "upstream/claude/disable-claude-cloak-mode": {
         "label": "Disable Claude Cloak Mode",
         "hint": "Pass requests through as-is without mimicking the Claude Code client fingerprint and system prompt"
       },
@@ -922,11 +927,11 @@
         "label": "Antigravity Strict Signature Bypass",
         "hint": "Bypass strict Protobuf signature validation (experimental) for compatibility with specific calls"
       },
-      "oauth/providers/claude/header-defaults/stabilize-device-profile": {
+      "upstream/claude/header-defaults/stabilize-device-profile": {
         "label": "Claude Stabilize Device Profile",
         "hint": "Pin OS and architecture to baseline values per credential to reduce risk-control triggers"
       },
-      "oauth/providers/claude/header-defaults/user-agent": {
+      "upstream/claude/header-defaults/user-agent": {
         "label": "Claude Default User-Agent",
         "hint": "Baseline Claude Code CLI User-Agent used when the client doesn't send one"
       },
@@ -1008,35 +1013,35 @@
         "label": "OAuth Request-Scoped Errors",
         "hint": "Per-channel upstream error rules (JSON object), e.g. {\"codex\": [{\"status\": 429, \"match\": [\"...\"], \"action\": \"stop\"}]}"
       },
-      "oauth/providers/codex/disable-codex-cloaking": {
+      "upstream/codex/disable-codex-cloaking": {
         "label": "Disable Codex Cloaking",
         "hint": "Don't force the official Codex User-Agent and Originator headers on HTTP, SSE or WebSocket requests"
       },
-      "oauth/providers/codex/model-level-cooling": {
+      "upstream/codex/model-level-cooling": {
         "label": "Codex Model-Level Cooling",
         "hint": "Scope usage_limit_reached cooldowns to the requested model instead of the whole credential"
       },
-      "oauth/providers/codex/stream-bootstrap-buffering": {
+      "upstream/codex/stream-bootstrap-buffering": {
         "label": "Codex Stream Bootstrap Buffering",
         "hint": "Hold handshake and heartbeat frames until the first generated event so in-stream overloads can fail over before headers are sent"
       },
-      "oauth/providers/codex/stream-bootstrap-timeout": {
+      "upstream/codex/stream-bootstrap-timeout": {
         "label": "Codex Stream Bootstrap Timeout",
         "hint": "Maximum buffering time, e.g. 20s; 0 means no limit"
       },
-      "oauth/providers/codex/response-steering": {
+      "upstream/codex/response-steering": {
         "label": "Codex Response Steering (experimental)",
         "hint": "Full-duplex Responses WebSocket; one socket stays on one account and model"
       },
-      "oauth/providers/claude/model-level-cooling": {
+      "upstream/claude/model-level-cooling": {
         "label": "Claude Model-Level Cooling",
         "hint": "Scope quota cooldowns to the requested model instead of the whole credential"
       },
-      "oauth/providers/claude/claude-code/disable-cloaking-model-list": {
+      "upstream/claude/disable-cloaking-model-list": {
         "label": "Uncloaked Claude Model List",
         "hint": "Return original model IDs in the Anthropic model list instead of cloaked ones"
       },
-      "oauth/providers/xai/inject-x-search": {
+      "upstream/xai/inject-x-search": {
         "label": "xAI Inject x_search",
         "hint": "Inject the native x_search tool when the request doesn't declare it"
       },
@@ -1092,7 +1097,7 @@
         "label": "Channel Model Metadata",
         "hint": "Per-channel model metadata overrides (JSON object), for example {\"codex\":[{\"name\":\"gpt-6-sol\",\"max-context-length\":524288}]}. The node is replaced as a whole on save"
       },
-      "oauth/providers/codex/orphan-delegation-compatibility": {
+      "upstream/codex/orphan-delegation-compatibility": {
         "label": "Orphan Delegation Compatibility",
         "hint": "When X-Openai-Subagent is collab_spawn, convert orphan function_call_output items from create_thread / send_message_to_thread into user messages"
       },
@@ -1124,27 +1129,27 @@
         "label": "UDP Port Range End",
         "hint": "Optional upper bound. Set together with the lower bound"
       },
-      "oauth/providers/claude/header-defaults/package-version": {
+      "upstream/claude/header-defaults/package-version": {
         "label": "Package Version",
         "hint": "Claude Code baseline package version"
       },
-      "oauth/providers/claude/header-defaults/runtime-version": {
+      "upstream/claude/header-defaults/runtime-version": {
         "label": "Runtime Version",
         "hint": "Claude Code baseline runtime version"
       },
-      "oauth/providers/claude/header-defaults/os": {
+      "upstream/claude/header-defaults/os": {
         "label": "Operating System",
         "hint": "Baseline OS. Pinned to this value when device profile stabilization is on; empty derives it from the runtime"
       },
-      "oauth/providers/claude/header-defaults/arch": {
+      "upstream/claude/header-defaults/arch": {
         "label": "Architecture",
         "hint": "Baseline CPU architecture. Pinned when device profile stabilization is on; empty derives it from the runtime"
       },
-      "oauth/providers/claude/header-defaults/timeout": {
+      "upstream/claude/header-defaults/timeout": {
         "label": "Timeout Header",
         "hint": "Fallback timeout header value when the client omits it, for example 600"
       },
-      "oauth/providers/claude/header-defaults/timezone": {
+      "upstream/claude/header-defaults/timezone": {
         "label": "Timezone",
         "hint": "IANA timezone fallback for the cloaked currentDate. A credential JSON timezone takes priority"
       },

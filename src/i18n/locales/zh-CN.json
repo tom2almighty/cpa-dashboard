@@ -611,6 +611,7 @@
       "routing": "路由",
       "requests": "请求",
       "client": "客户端兼容",
+      "upstream": "上游行为",
       "oauth": "OAuth 与凭据",
       "multimedia": "多媒体",
       "observability": "可观测性"
@@ -731,7 +732,8 @@
       "routing": "凭据选择策略、会话粘性、轮次重试与冷却（对应 routing 节）",
       "requests": "上游代理、响应头透传、流式保活与多媒体行为（对应 requests 节）",
       "client": "面向客户端的兼容行为，对 OAuth 与 API key 两类凭据均生效（对应 client 节）",
-      "oauth": "凭据目录、刷新线程，以及 OAuth / 文件凭据的提供商级参数（对应 oauth 节）",
+      "upstream": "共享上游行为，对 OAuth 与 API key 两类凭据统一生效（对应 upstream 节）",
+      "oauth": "凭据目录、刷新线程，以及 OAuth 专有提供商参数与媒体中继（对应 oauth 节）",
       "multimedia": "图像与视频请求的行为（对应 multimedia 节）",
       "observability": "日志、用量统计聚合与 pprof 性能分析（对应 observability 节）"
     },
@@ -759,13 +761,16 @@
       "client": {
         "codex": "Codex"
       },
+      "upstream": {
+        "codex": "Codex",
+        "claude": "Claude",
+        "xai": "xAI"
+      },
       "oauth": {
         "oauth": "凭据存储与错误规则",
         "aistudio": "AI Studio",
         "codex": "Codex",
-        "claude": "Claude",
         "antigravity": "Antigravity",
-        "xai": "xAI",
         "devin": "Devin"
       },
       "multimedia": {
@@ -906,7 +911,7 @@
         "label": "AI Studio /ws 路由鉴权",
         "hint": "为 /v1/ws 路由强制要求客户端携带有效密钥"
       },
-      "oauth/providers/claude/disable-claude-cloak-mode": {
+      "upstream/claude/disable-claude-cloak-mode": {
         "label": "禁用 Claude 伪装",
         "hint": "不伪装 Claude Code 客户端指纹和系统提示词，原样透传"
       },
@@ -922,11 +927,11 @@
         "label": "Antigravity 严格签名绕过",
         "hint": "绕过严格 Protobuf 签名校验（实验性），用于兼容特定调用"
       },
-      "oauth/providers/claude/header-defaults/stabilize-device-profile": {
+      "upstream/claude/header-defaults/stabilize-device-profile": {
         "label": "Claude 设备配置指纹稳定化",
         "hint": "为每个凭据将 OS 与系统架构固定为基准值，降低风控概率"
       },
-      "oauth/providers/claude/header-defaults/user-agent": {
+      "upstream/claude/header-defaults/user-agent": {
         "label": "Claude 默认 User-Agent",
         "hint": "客户端未携带时填补的 Claude Code CLI 基准 User-Agent"
       },
@@ -1008,35 +1013,35 @@
         "label": "OAuth 请求级错误规则",
         "hint": "按渠道配置的上游错误规则（JSON 对象），例如 {\"codex\": [{\"status\": 429, \"match\": [\"...\"], \"action\": \"stop\"}]}"
       },
-      "oauth/providers/codex/disable-codex-cloaking": {
+      "upstream/codex/disable-codex-cloaking": {
         "label": "关闭 Codex 伪装",
         "hint": "不在 HTTP、SSE 或 WebSocket 请求上强制官方 Codex User-Agent 和 Originator 头"
       },
-      "oauth/providers/codex/model-level-cooling": {
+      "upstream/codex/model-level-cooling": {
         "label": "Codex 按模型冷却",
         "hint": "usage_limit_reached 冷却只作用于所请求的模型，而不是整个凭据"
       },
-      "oauth/providers/codex/stream-bootstrap-buffering": {
+      "upstream/codex/stream-bootstrap-buffering": {
         "label": "Codex 流启动缓冲",
         "hint": "首个生成事件前暂存握手与心跳帧，便于流内过载时在提交响应头前切换凭据"
       },
-      "oauth/providers/codex/stream-bootstrap-timeout": {
+      "upstream/codex/stream-bootstrap-timeout": {
         "label": "Codex 流启动缓冲时限",
         "hint": "缓冲的最长时间，例如 20s；0 表示不限时"
       },
-      "oauth/providers/codex/response-steering": {
+      "upstream/codex/response-steering": {
         "label": "Codex 响应引导（实验）",
         "hint": "全双工 Responses WebSocket，一个 socket 固定一个账号和模型"
       },
-      "oauth/providers/claude/model-level-cooling": {
+      "upstream/claude/model-level-cooling": {
         "label": "Claude 按模型冷却",
         "hint": "配额冷却只作用于所请求的模型，而不是整个凭据"
       },
-      "oauth/providers/claude/claude-code/disable-cloaking-model-list": {
+      "upstream/claude/disable-cloaking-model-list": {
         "label": "Claude 模型列表不伪装",
         "hint": "Anthropic 模型列表返回原始模型 ID，而不是伪装后的 ID"
       },
-      "oauth/providers/xai/inject-x-search": {
+      "upstream/xai/inject-x-search": {
         "label": "xAI 注入 x_search",
         "hint": "请求未声明原生 x_search 工具时自动注入"
       },
@@ -1092,7 +1097,7 @@
         "label": "渠道模型元数据 (oauth.settings)",
         "hint": "按渠道覆盖模型元数据（JSON 对象），例如 {\"codex\":[{\"name\":\"gpt-6-sol\",\"max-context-length\":524288}]}；保存时整体替换该节点"
       },
-      "oauth/providers/codex/orphan-delegation-compatibility": {
+      "upstream/codex/orphan-delegation-compatibility": {
         "label": "孤立委托输出兼容",
         "hint": "当 X-Openai-Subagent 为 collab_spawn 时，把 create_thread / send_message_to_thread 中缺少匹配 function_call 的孤立 function_call_output 转成用户消息"
       },
@@ -1124,27 +1129,27 @@
         "label": "UDP 端口范围上限",
         "hint": "可选的 UDP 分配范围上限，必须与下限同时设置"
       },
-      "oauth/providers/claude/header-defaults/package-version": {
+      "upstream/claude/header-defaults/package-version": {
         "label": "包版本 (package-version)",
         "hint": "Claude Code 基准包版本"
       },
-      "oauth/providers/claude/header-defaults/runtime-version": {
+      "upstream/claude/header-defaults/runtime-version": {
         "label": "运行时版本 (runtime-version)",
         "hint": "Claude Code 基准运行时版本"
       },
-      "oauth/providers/claude/header-defaults/os": {
+      "upstream/claude/header-defaults/os": {
         "label": "操作系统 (os)",
         "hint": "基准操作系统；启用设备配置稳定化后固定为该值，留空由运行时推导"
       },
-      "oauth/providers/claude/header-defaults/arch": {
+      "upstream/claude/header-defaults/arch": {
         "label": "系统架构 (arch)",
         "hint": "基准 CPU 架构；启用设备配置稳定化后固定为该值，留空由运行时推导"
       },
-      "oauth/providers/claude/header-defaults/timeout": {
+      "upstream/claude/header-defaults/timeout": {
         "label": "超时请求头 (timeout)",
         "hint": "客户端未提供时的超时回退值，例如 600"
       },
-      "oauth/providers/claude/header-defaults/timezone": {
+      "upstream/claude/header-defaults/timezone": {
         "label": "时区 (timezone)",
         "hint": "伪装 currentDate 使用的 IANA 时区回退值；凭据 JSON 中的 timezone 优先"
       },

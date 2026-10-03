@@ -200,6 +200,42 @@ export const GROUPS: ConfigGroup[] = [
     ],
   },
   {
+    id: "upstream",
+    sections: [
+      {
+        id: "codex",
+        items: [
+          { endpoint: "upstream/codex/response-steering", type: "bool" },
+          { endpoint: "upstream/codex/disable-codex-cloaking", type: "bool" },
+          { endpoint: "upstream/codex/stream-bootstrap-buffering", type: "bool" },
+          { endpoint: "upstream/codex/stream-bootstrap-timeout", type: "text", fallback: "0" },
+          { endpoint: "upstream/codex/orphan-delegation-compatibility", type: "bool" },
+          { endpoint: "upstream/codex/model-level-cooling", type: "bool" },
+        ],
+      },
+      {
+        id: "claude",
+        items: [
+          { endpoint: "upstream/claude/model-level-cooling", type: "bool" },
+          { endpoint: "upstream/claude/disable-claude-cloak-mode", type: "bool" },
+          { endpoint: "upstream/claude/disable-cloaking-model-list", type: "bool" },
+          { endpoint: "upstream/claude/header-defaults/user-agent", type: "text" },
+          { endpoint: "upstream/claude/header-defaults/package-version", type: "text" },
+          { endpoint: "upstream/claude/header-defaults/runtime-version", type: "text" },
+          { endpoint: "upstream/claude/header-defaults/os", type: "text" },
+          { endpoint: "upstream/claude/header-defaults/arch", type: "text" },
+          { endpoint: "upstream/claude/header-defaults/timeout", type: "text" },
+          { endpoint: "upstream/claude/header-defaults/timezone", type: "text" },
+          { endpoint: "upstream/claude/header-defaults/stabilize-device-profile", type: "bool" },
+        ],
+      },
+      {
+        id: "xai",
+        items: [{ endpoint: "upstream/xai/inject-x-search", type: "bool" }],
+      },
+    ],
+  },
+  {
     id: "oauth",
     sections: [
       {
@@ -239,36 +275,14 @@ export const GROUPS: ConfigGroup[] = [
       {
         id: "codex",
         items: [
-          { endpoint: "oauth/providers/codex/disable-codex-cloaking", type: "bool" },
           { endpoint: "oauth/providers/codex/header-defaults/user-agent", type: "text" },
           { endpoint: "oauth/providers/codex/header-defaults/beta-features", type: "text" },
-          { endpoint: "oauth/providers/codex/model-level-cooling", type: "bool" },
-          { endpoint: "oauth/providers/codex/response-steering", type: "bool" },
-          { endpoint: "oauth/providers/codex/orphan-delegation-compatibility", type: "bool" },
-          { endpoint: "oauth/providers/codex/stream-bootstrap-buffering", type: "bool" },
-          { endpoint: "oauth/providers/codex/stream-bootstrap-timeout", type: "text", fallback: "0" },
           { endpoint: "oauth/providers/codex/live-media-relay/enabled", type: "bool" },
           { endpoint: "oauth/providers/codex/live-media-relay/max-sessions", type: "int", fallback: "32" },
           { endpoint: "oauth/providers/codex/live-media-relay/disable-private-remote-ips", type: "bool" },
           { endpoint: "oauth/providers/codex/live-media-relay/public-ip", type: "text" },
           { endpoint: "oauth/providers/codex/live-media-relay/udp-port-min", type: "int" },
           { endpoint: "oauth/providers/codex/live-media-relay/udp-port-max", type: "int" },
-        ],
-      },
-      {
-        id: "claude",
-        items: [
-          { endpoint: "oauth/providers/claude/disable-claude-cloak-mode", type: "bool" },
-          { endpoint: "oauth/providers/claude/model-level-cooling", type: "bool" },
-          { endpoint: "oauth/providers/claude/claude-code/disable-cloaking-model-list", type: "bool" },
-          { endpoint: "oauth/providers/claude/header-defaults/user-agent", type: "text" },
-          { endpoint: "oauth/providers/claude/header-defaults/package-version", type: "text" },
-          { endpoint: "oauth/providers/claude/header-defaults/runtime-version", type: "text" },
-          { endpoint: "oauth/providers/claude/header-defaults/os", type: "text" },
-          { endpoint: "oauth/providers/claude/header-defaults/arch", type: "text" },
-          { endpoint: "oauth/providers/claude/header-defaults/timeout", type: "text" },
-          { endpoint: "oauth/providers/claude/header-defaults/timezone", type: "text" },
-          { endpoint: "oauth/providers/claude/header-defaults/stabilize-device-profile", type: "bool" },
         ],
       },
       {
@@ -286,10 +300,6 @@ export const GROUPS: ConfigGroup[] = [
             fallback: "2",
           },
         ],
-      },
-      {
-        id: "xai",
-        items: [{ endpoint: "oauth/providers/xai/inject-x-search", type: "bool" }],
       },
       {
         id: "devin",
@@ -363,10 +373,69 @@ export const GROUPS: ConfigGroup[] = [
 
 const SETTINGS = GROUPS.flatMap((g) => g.sections.flatMap((s) => s.items));
 
-function readPath(config: Json | undefined, endpoint: string): unknown {
+const ENDPOINT_ALIASES: Record<string, string[]> = {
+  "upstream/codex/disable-codex-cloaking": [
+    "oauth/providers/codex/disable-codex-cloaking",
+    "codex/disable-codex-cloaking",
+  ],
+  "upstream/codex/stream-bootstrap-buffering": [
+    "oauth/providers/codex/stream-bootstrap-buffering",
+    "codex/stream-bootstrap-buffering",
+  ],
+  "upstream/codex/stream-bootstrap-timeout": [
+    "oauth/providers/codex/stream-bootstrap-timeout",
+    "codex/stream-bootstrap-timeout",
+  ],
+  "upstream/codex/orphan-delegation-compatibility": [
+    "oauth/providers/codex/orphan-delegation-compatibility",
+    "codex/orphan-delegation-compatibility",
+  ],
+  "upstream/codex/model-level-cooling": ["oauth/providers/codex/model-level-cooling", "codex/model-level-cooling"],
+  "upstream/codex/response-steering": ["oauth/providers/codex/response-steering", "codex/response-steering"],
+  "upstream/claude/model-level-cooling": ["oauth/providers/claude/model-level-cooling"],
+  "upstream/claude/disable-cloaking-model-list": [
+    "oauth/providers/claude/claude-code/disable-cloaking-model-list",
+    "oauth/providers/claude/disable-cloaking-model-list",
+  ],
+  "upstream/claude/disable-claude-cloak-mode": [
+    "oauth/providers/claude/disable-claude-cloak-mode",
+    "disable-claude-cloak-mode",
+  ],
+  "upstream/claude/header-defaults/user-agent": ["oauth/providers/claude/header-defaults/user-agent"],
+  "upstream/claude/header-defaults/package-version": ["oauth/providers/claude/header-defaults/package-version"],
+  "upstream/claude/header-defaults/runtime-version": ["oauth/providers/claude/header-defaults/runtime-version"],
+  "upstream/claude/header-defaults/os": ["oauth/providers/claude/header-defaults/os"],
+  "upstream/claude/header-defaults/arch": ["oauth/providers/claude/header-defaults/arch"],
+  "upstream/claude/header-defaults/timeout": ["oauth/providers/claude/header-defaults/timeout"],
+  "upstream/claude/header-defaults/timezone": ["oauth/providers/claude/header-defaults/timezone"],
+  "upstream/claude/header-defaults/stabilize-device-profile": [
+    "oauth/providers/claude/header-defaults/stabilize-device-profile",
+  ],
+  "upstream/xai/inject-x-search": ["oauth/providers/xai/inject-x-search"],
+  "client/codex/optimize-multi-agent-v2": [
+    "oauth/providers/codex/optimize-multi-agent-v2",
+    "providers/codex/optimize-multi-agent-v2",
+    "codex/optimize-multi-agent-v2",
+  ],
+};
+
+function lookupPath(config: Json | undefined, path: string): unknown {
   let node: unknown = config;
-  for (const key of endpoint.split("/")) node = node && typeof node === "object" ? (node as Json)[key] : undefined;
+  for (const key of path.split("/")) node = node && typeof node === "object" ? (node as Json)[key] : undefined;
   return node ?? undefined;
+}
+
+export function readPath(config: Json | undefined, endpoint: string): unknown {
+  const value = lookupPath(config, endpoint);
+  if (value !== undefined) return value;
+  const aliases = ENDPOINT_ALIASES[endpoint];
+  if (aliases) {
+    for (const alias of aliases) {
+      const aliasValue = lookupPath(config, alias);
+      if (aliasValue !== undefined) return aliasValue;
+    }
+  }
+  return undefined;
 }
 
 // 输入框里的文本转成写入值,非法返回 undefined
