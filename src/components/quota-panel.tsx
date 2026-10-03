@@ -1084,7 +1084,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                     setPage(1);
                   }}
                 >
-                  <SelectTrigger className="h-7 w-auto min-w-[70px] text-xs">
+                  <SelectTrigger className="h-7 w-auto min-w-17.5 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent align="start">

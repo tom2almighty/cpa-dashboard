@@ -44,6 +44,7 @@
     "api_keys": "API Keys",
     "models_group": "Model Services",
     "models": "Model Management",
+    "plugin_dashboards_group": "Plugin Dashboards",
     "system_group": "System",
     "plugins": "Plugins",
     "logs": "Logs",
@@ -489,6 +490,10 @@
   "plugins": {
     "title": "Plugins",
     "desc": "View installed plugins, manage configurations, and install extensions from the store",
+    "view_title": "Plugin Dashboard",
+    "view_desc": "Embedded plugin web management interface",
+    "view_not_found": "Plugin dashboard not found or plugin disabled",
+    "view_not_found_hint": "Please confirm in plugin management that the plugin is installed, enabled, and declares a valid web dashboard route.",
     "tab_installed": "Installed",
     "tab_store": "Plugin Store",
     "install": "Install",

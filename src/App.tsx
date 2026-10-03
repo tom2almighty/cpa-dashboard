@@ -15,6 +15,7 @@ const ModelsPage = lazy(() => import("@/pages/models").then((m) => ({ default: m
 const PluginsPage = lazy(() => import("@/pages/plugins").then((m) => ({ default: m.PluginsPage })));
 const LogsPage = lazy(() => import("@/pages/logs").then((m) => ({ default: m.LogsPage })));
 const ApiKeysPage = lazy(() => import("@/pages/api-keys").then((m) => ({ default: m.ApiKeysPage })));
+const PluginViewPage = lazy(() => import("@/pages/plugin-view").then((m) => ({ default: m.PluginViewPage })));
 // 用保存的管理密钥试探一次 CPA
 async function checkSession(): Promise<boolean> {
   if (!storedKey()) return false;
@@ -51,6 +52,7 @@ export function App() {
         <Route path="models" element={<ModelsPage />} />
         <Route path="plugins" element={<PluginsPage />} />
         <Route path="logs" element={<LogsPage />} />
+        <Route path="plugins/view/:pluginId" element={<PluginViewPage />} />
         <Route path="config" element={<ConfigPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

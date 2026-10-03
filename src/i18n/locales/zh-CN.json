@@ -44,6 +44,7 @@
     "api_keys": "API Key",
     "models_group": "模型服务",
     "models": "模型管理",
+    "plugin_dashboards_group": "插件面板",
     "system_group": "系统运维",
     "plugins": "插件",
     "logs": "日志",
@@ -489,6 +490,10 @@
   "plugins": {
     "title": "插件",
     "desc": "查看已安装插件、管理配置并从插件商店安装扩展",
+    "view_title": "插件 Web 面板",
+    "view_desc": "内嵌加载插件声明的资源管理界面",
+    "view_not_found": "未找到该插件面板或插件未启用",
+    "view_not_found_hint": "请在插件管理中确认插件是否已安装且已启用，并声明了有效的 Web 面板路由。",
     "tab_installed": "已安装",
     "tab_store": "插件商店",
     "install": "安装",

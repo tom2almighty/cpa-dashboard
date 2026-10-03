@@ -32,44 +32,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { i18n, useI18n } from "@/i18n/context";
-import { ApiError, api, CONFIG_KEY, configPath, configQuery, errorText, resolveUrl } from "@/lib/api";
-
-type ConfigField = { name: string; type?: string; enum_values?: string[] | null; description?: string };
-
-type PluginMenu = { path: string; menu?: string; description?: string };
-
-type Plugin = {
-  id: string;
-  registered?: boolean;
-  enabled?: boolean;
-  effective_enabled?: boolean;
-  supports_oauth?: boolean;
-  oauth_provider?: string;
-  supports_quota?: boolean;
-  quota_provider?: string;
-  logo?: string;
-  config_fields?: ConfigField[] | null;
-  menus?: PluginMenu[] | null;
-  metadata?: {
-    name?: string;
-    version?: string;
-    author?: string;
-    github_repository?: string;
-    logo?: string;
-    config_fields?: ConfigField[] | null;
-  };
-};
-
-// 插件资源页挂在 /v0/resource/plugins/<id>/ 下，结合 CPA 服务地址解析完整访问 URL
-function resolvePluginMenuUrl(pluginId: string, path: string): string {
-  const trimmed = path.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  let rawPath = trimmed;
-  if (!rawPath.startsWith("/v0/resource/plugins/")) {
-    rawPath = `/v0/resource/plugins/${encodeURIComponent(pluginId)}${rawPath.startsWith("/") ? "" : "/"}${rawPath}`;
-  }
-  return resolveUrl(rawPath);
-}
+import { ApiError, api, CONFIG_KEY, configPath, configQuery, errorText } from "@/lib/api";
+import {
+  type ConfigField,
+  fetchPlugins,
+  PLUGINS_KEY,
+  type Plugin,
+  type PluginsResponse,
+  resolvePluginAsset,
+  resolvePluginMenuUrl,
+} from "@/lib/plugins";
 
 function fieldsOf(p: Plugin): ConfigField[] {
   return (p.config_fields?.length ? p.config_fields : p.metadata?.config_fields) ?? [];
@@ -121,8 +93,6 @@ function fromForm(fields: ConfigField[], values: Record<string, unknown>): Recor
   return out;
 }
 
-type PluginsResponse = { plugins_enabled?: boolean; plugins_dir?: string; plugins?: Plugin[] };
-
 type PluginPlatform = { goos?: string; goarch?: string };
 
 type StorePlugin = {
@@ -150,13 +120,6 @@ type StorePlugin = {
   update_available?: boolean;
   logo?: string;
 };
-
-function resolvePluginAsset(value?: string): string {
-  const trimmed = (value || "").trim();
-  if (!trimmed) return "";
-  if (/^(https?:|data:|blob:)/i.test(trimmed)) return trimmed;
-  return resolveUrl(trimmed);
-}
 
 function PluginLogo({ src, name, size = "md" }: { src?: string; name: string; size?: "sm" | "md" | "lg" }) {
   const [error, setError] = useState(false);
@@ -198,13 +161,10 @@ type StoreResponse = {
   plugins?: StorePlugin[];
 };
 
-const PLUGINS_KEY = ["cpa", "plugins"];
 const STORE_KEY = ["cpa", "plugin-store"];
 // 插件重载是异步的:写入配置后轮询几次,直到列表状态与预期一致(或放弃)
 const REFRESH_ATTEMPTS = 4;
 const REFRESH_DELAY_MS = 700;
-
-const fetchPlugins = () => api<PluginsResponse>("/v8/management/plugins");
 
 async function refreshPlugins(queryClient: QueryClient, waitFor?: (plugins: Plugin[]) => boolean) {
   await queryClient.invalidateQueries({ queryKey: CONFIG_KEY });

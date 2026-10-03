@@ -1,8 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   Boxes,
   FileCog,
   FileKey,
+  Globe,
   KeyRound,
   KeySquare,
   LogOut,
@@ -13,7 +15,7 @@ import {
   ScrollText,
   Sparkles,
 } from "lucide-react";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { BackToTop } from "@/components/back-to-top";
 import { LanguageToggle } from "@/components/language-toggle";
@@ -41,6 +43,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useVersionData, VersionDialog } from "@/components/version-dialog";
 import { useLogout } from "@/hooks/use-logout";
 import { useI18n } from "@/i18n/context";
+import { fetchPlugins, PLUGINS_KEY, resolvePluginAsset } from "@/lib/plugins";
 
 type NavItemDef = { to: string; labelKey: string; icon: typeof FileKey };
 
@@ -94,6 +97,83 @@ function NavGroup({ label, items }: { label: string; items: NavItemDef[] }) {
     </SidebarGroup>
   );
 }
+function PluginIcon({ logo }: { logo: string }) {
+  const [failed, setFailed] = useState(false);
+  const resolved = resolvePluginAsset(logo);
+
+  if (!resolved || failed) {
+    return <Globe className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
+  }
+
+  return (
+    <img
+      src={resolved}
+      alt=""
+      aria-hidden
+      onError={() => setFailed(true)}
+      className="size-4 shrink-0 rounded-xs object-contain"
+    />
+  );
+}
+
+function PluginDashboardsNavGroup() {
+  const { pathname } = useLocation();
+  const { setOpenMobile, isMobile } = useSidebar();
+  const { t } = useI18n();
+  const { data } = useQuery({
+    queryKey: PLUGINS_KEY,
+    queryFn: fetchPlugins,
+    staleTime: 60_000,
+  });
+
+  const webPlugins = useMemo(() => {
+    const all = data?.plugins ?? [];
+    return all.filter(
+      (p) =>
+        p.registered !== false &&
+        p.effective_enabled !== false &&
+        Array.isArray(p.menus) &&
+        p.menus.length > 0 &&
+        Boolean(p.menus[0]?.path),
+    );
+  }, [data]);
+
+  if (webPlugins.length === 0) return null;
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{t("nav.plugin_dashboards_group")}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {webPlugins.map((plugin) => {
+            const to = `/plugins/view/${encodeURIComponent(plugin.id)}`;
+            const title = plugin.menus?.[0]?.menu || plugin.metadata?.name || plugin.id;
+            const logo = plugin.logo || plugin.metadata?.logo || "";
+            return (
+              <SidebarMenuItem key={plugin.id}>
+                <SidebarMenuButton
+                  isActive={pathname === to}
+                  tooltip={title}
+                  onClick={handleNavClick}
+                  render={<NavLink to={to} />}
+                >
+                  <PluginIcon logo={logo} />
+                  <span>{title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
 
 // 桌面端收起/展开,收起后只保留图标;快捷键 Ctrl/⌘ + B
 function HeaderCollapseButton() {
@@ -138,6 +218,7 @@ export function Layout() {
           <NavGroup label={t("nav.overview_group")} items={OVERVIEW_NAV} />
           <NavGroup label={t("nav.gateway_group")} items={GATEWAY_NAV} />
           <NavGroup label={t("nav.models_group")} items={MODEL_NAV} />
+          <PluginDashboardsNavGroup />
           <NavGroup label={t("nav.system_group")} items={SYSTEM_NAV} />
         </SidebarContent>
         <SidebarFooter>
