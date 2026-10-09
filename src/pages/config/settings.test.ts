@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import en from "@/i18n/locales/en.json";
 import zhCN from "@/i18n/locales/zh-CN.json";
 import {

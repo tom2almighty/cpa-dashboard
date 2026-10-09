@@ -81,6 +81,19 @@ export const AUTH_TYPE_FIELDS: Record<string, string[]> = {
  */
 export const GROUPS: ConfigGroup[] = [
   {
+    id: "models",
+    sections: [
+      {
+        id: "catalogs",
+        items: [
+          { endpoint: "models/catalog", type: "text" },
+          { endpoint: "models/codex-catalog", type: "text" },
+          { endpoint: "models/devin-catalog", type: "text" },
+        ],
+      },
+    ],
+  },
+  {
     id: "server",
     sections: [
       {
@@ -88,6 +101,7 @@ export const GROUPS: ConfigGroup[] = [
         items: [
           { endpoint: "server/host", type: "text", fallback: "" },
           { endpoint: "server/port", type: "int", fallback: "8317" },
+          { endpoint: "server/github-token", type: "password" },
           { endpoint: "server/trusted-proxies", type: "list" },
           { endpoint: "server/commercial-mode", type: "bool" },
         ],
