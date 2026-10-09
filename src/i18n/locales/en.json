@@ -414,7 +414,18 @@
     "note_saved": "Note saved",
     "edit_note_title": "Edit API Key Note",
     "edit_note_placeholder": "Enter a note, e.g. Cursor, Dev testing",
-    "load_failed": "Failed to load: {{message}}"
+    "load_failed": "Failed to load: {{message}}",
+    "batch_add": "Batch Add",
+    "batch_add_title": "Batch Add Client API Keys",
+    "batch_add_desc": "Enter one key per line, or separate with commas or semicolons. Existing or duplicate keys will be skipped automatically.",
+    "batch_add_placeholder": "sk-...\nsk-...\nsk-...",
+    "batch_generate": "Batch Generate",
+    "batch_generate_5": "Generate 5",
+    "batch_generate_10": "Generate 10",
+    "batch_stat": "{{valid}} new key(s) detected (skipping {{duplicate}} duplicate/existing)",
+    "batch_submit": "Add {{count}} Key(s)",
+    "batch_add_none": "No valid and unique new keys found to add",
+    "batch_add_success": "Successfully added {{count}} key(s)"
   },
   "models": {
     "title": "Model Management",
@@ -611,6 +622,7 @@
     "desc": "Unified configuration reading and atomic writing based on config.yaml, auto-reloaded by CPA.",
     "tabs": {
       "plugins": "Plugins",
+      "models": "Model Catalogs",
       "server": "Server",
       "management": "Management API",
       "routing": "Routing",
@@ -732,6 +744,7 @@
     },
     "groups": {
       "plugins": "Dynamic binary plugin discovery, store sources and store auth (the plugins section)",
+      "models": "Model catalog sources (HTTP(s) URLs or absolute local paths, corresponding to the models section in config.yaml)",
       "server": "Listener, TLS and LAN service discovery (the server section)",
       "management": "Management access and the bundled control panel (the management section)",
       "routing": "Credential selection strategy, session affinity, retries and cooldown (the routing section)",
@@ -745,6 +758,9 @@
     "sections": {
       "plugins": {
         "plugins": "Plugins & store"
+      },
+      "models": {
+        "catalogs": "Catalog sources"
       },
       "server": {
         "listening": "Listener",
@@ -798,6 +814,22 @@
       "server/port": {
         "label": "Port",
         "hint": "CPA listen port, default 8317"
+      },
+      "server/github-token": {
+        "label": "Global GitHub Token",
+        "hint": "Used for panel updates, plugin downloads, and other server-side GitHub requests. Takes precedence over GITHUB_TOKEN; leave empty to fall back to the environment variable, or unauthenticated requests"
+      },
+      "models/catalog": {
+        "label": "General Model Catalog",
+        "hint": "HTTP(S) URL or absolute local path overriding the general model catalog. Leave empty for default"
+      },
+      "models/codex-catalog": {
+        "label": "Codex Model Catalog",
+        "hint": "HTTP(S) URL or absolute local path overriding the Codex model catalog. Leave empty for default"
+      },
+      "models/devin-catalog": {
+        "label": "Devin Model Catalog",
+        "hint": "HTTP(S) URL or absolute local path overriding the Devin model catalog. Leave empty for default"
       },
       "server/commercial-mode": {
         "label": "Commercial Mode",

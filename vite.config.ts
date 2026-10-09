@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import fs from "node:fs";
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
@@ -38,6 +39,9 @@ export default defineConfig(() => {
         "/v8": target,
         "/v1": target,
       },
+    },
+    test: {
+      setupFiles: ["./src/test-setup.ts"],
     },
   };
 });

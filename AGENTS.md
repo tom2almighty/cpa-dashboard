@@ -9,7 +9,7 @@
 - 官方面板仓库参考：https://github.com/router-for-me/Cli-Proxy-API-Management-Center
 
 ## 技术栈与工程规范
-- **开发与构建**：Bun + Vite + React 19 + TypeScript + Tailwind CSS
+- **开发与构建**：pnpm + Vite + React 19 + TypeScript + Tailwind CSS
 - **代码规范与格式化**：Biome 统一格式化与代码检查（遵循规范严格缩进与规则）
 - **组件与交互**：
   - 采用标准 ShadcnUI 风格和主题 CSS 变量（Token 驱动，支持深浅色模式），圆角与间距保持原生体系（`rounded-md`/`rounded-lg`），禁止大面积阴影与模板化卡片边框。

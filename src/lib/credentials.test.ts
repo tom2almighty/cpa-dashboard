@@ -1,18 +1,7 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, expect, test } from "vitest";
 import { fetchCredentialsPage, mergePages, nextPageParam } from "./credentials";
 
 const originalFetch = globalThis.fetch;
-
-// bun test 没有 DOM,api.ts 解析地址与密钥时要用到 Web Storage
-const memory = new Map<string, string>();
-const storage = {
-  getItem: (key: string) => memory.get(key) ?? null,
-  setItem: (key: string, value: string) => void memory.set(key, String(value)),
-  removeItem: (key: string) => void memory.delete(key),
-  clear: () => memory.clear(),
-} as unknown as Storage;
-globalThis.localStorage ??= storage;
-globalThis.sessionStorage ??= storage;
 
 function stubFetch(payloads: Record<string, unknown>, urls: string[]) {
   globalThis.fetch = (async (input: string | URL | Request) => {

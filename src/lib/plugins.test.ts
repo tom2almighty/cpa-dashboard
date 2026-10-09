@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { resolvePluginAsset, resolvePluginMenuUrl } from "./plugins";
 
 test("resolvePluginMenuUrl 解析插件相对路径与绝对路径", () => {

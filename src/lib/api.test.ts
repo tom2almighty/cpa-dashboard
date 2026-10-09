@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { ApiError, errorText } from "./api";
 
 test("CPA 错误码映射为文案", () => {

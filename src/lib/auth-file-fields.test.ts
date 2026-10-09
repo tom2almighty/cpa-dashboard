@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { diffFields, readFields } from "./auth-file-fields";
 
 const empty = readFields({});

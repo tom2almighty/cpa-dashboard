@@ -30,24 +30,24 @@ management:
 
 ## 本地开发
 
-本项目使用 [Bun](https://bun.sh)。
+本项目使用 Node.js 22+ 与 [pnpm](https://pnpm.io/)。
 
 ```bash
-bun install
-bun run dev
+pnpm install
+pnpm run dev
 ```
 
 开发服务器启动后访问 `http://localhost:5173`。
 
 可选环境变量：
-- `CPA_URL`：指定本地开发反向代理的后端 CPA 地址，例如 `CPA_URL=http://127.0.0.1:8317 bun run dev`。
+- `CPA_URL`：指定本地开发反向代理的后端 CPA 地址，例如 `CPA_URL=http://127.0.0.1:8317 pnpm run dev`。
 
 ## 构建与校验
 
 ```bash
-bun run check     # Biome 检查与 TypeScript 类型校验
-bun run test      # 运行测试用例
-bun run build     # 编译生成单文件 dist/management.html
+pnpm run check     # Biome 检查与 TypeScript 类型校验
+pnpm run test      # 运行测试用例
+pnpm run build     # 编译生成单文件 dist/management.html
 ```
 
 ## 致谢

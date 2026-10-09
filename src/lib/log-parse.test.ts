@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { appendLines } from "./log-parse";
 
 test("解析 CPA 日志行、合并续行、限制条数", () => {
