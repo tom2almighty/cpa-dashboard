@@ -1,13 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, Terminal, Trash2 } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, KeyRound, ListPlus, Pencil, Plus, Terminal, Trash2 } from "lucide-react";
+import type React from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, errorText, storedBaseUrl } from "@/lib/api";
 
@@ -58,6 +67,8 @@ export function ApiKeysPage() {
   const [notes, setNotes] = useState<Record<string, string>>(() => loadNotes());
   const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
   const [editingNoteValue, setEditingNoteValue] = useState("");
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchText, setBatchText] = useState("");
 
   const toggleVisible = (k: string) => {
     setVisibleKeys((prev) => ({ ...prev, [k]: !prev[k] }));
@@ -102,6 +113,47 @@ export function ApiKeysPage() {
     setNotes(next);
     saveNotes(next);
     setAddingNote("");
+  };
+
+  const parseBatchKeys = (raw: string): string[] => {
+    const items = raw
+      .split(/[\r\n,;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return Array.from(new Set(items));
+  };
+
+  const parsedBatchKeys = parseBatchKeys(batchText);
+  const newBatchKeys = parsedBatchKeys.filter((k) => !keys.includes(k));
+  const duplicateBatchCount = parsedBatchKeys.length - newBatchKeys.length;
+
+  const handleBatchGenerate = (count: number) => {
+    const generated: string[] = [];
+    const existingSet = new Set([...keys, ...parsedBatchKeys]);
+    for (let i = 0; i < count; i++) {
+      let key = randomKey();
+      while (existingSet.has(key)) {
+        key = randomKey();
+      }
+      existingSet.add(key);
+      generated.push(key);
+    }
+    setBatchText((prev) => (prev.trim() ? `${prev.trim()}\n${generated.join("\n")}` : generated.join("\n")));
+  };
+
+  const handleBatchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newBatchKeys.length === 0) {
+      toast.error(t("api_keys.batch_add_none"));
+      return;
+    }
+    save.mutate([...keys, ...newBatchKeys], {
+      onSuccess: () => {
+        setBatchOpen(false);
+        setBatchText("");
+        toast.success(t("api_keys.batch_add_success", { count: newBatchKeys.length }));
+      },
+    });
   };
 
   const copy = (text: string, message: string) => {
@@ -306,6 +358,19 @@ export function ApiKeysPage() {
               <Plus />
               {t("api_keys.add_key")}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              disabled={!data || save.isPending}
+              onClick={() => {
+                setBatchText("");
+                setBatchOpen(true);
+              }}
+            >
+              <ListPlus className="size-4" />
+              {t("api_keys.batch_add")}
+            </Button>
           </div>
         </form>
       </div>
@@ -344,6 +409,55 @@ export function ApiKeysPage() {
                   {t("common.cancel")}
                 </Button>
                 <Button type="submit">{t("api_keys.save_note")}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+      {batchOpen && (
+        <Dialog open onOpenChange={(open) => !open && setBatchOpen(false)}>
+          <DialogContent className="sm:max-w-md">
+            <form onSubmit={handleBatchSubmit}>
+              <DialogHeader>
+                <DialogTitle>{t("api_keys.batch_add_title")}</DialogTitle>
+                <DialogDescription>{t("api_keys.batch_add_desc")}</DialogDescription>
+              </DialogHeader>
+              <div className="py-4 space-y-3">
+                <Textarea
+                  value={batchText}
+                  onChange={(e) => setBatchText(e.target.value)}
+                  placeholder={t("api_keys.batch_add_placeholder")}
+                  rows={6}
+                  className="font-mono text-xs min-h-32"
+                  autoFocus
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">{t("api_keys.batch_generate")}:</span>
+                    <Button type="button" variant="secondary" size="xs" onClick={() => handleBatchGenerate(5)}>
+                      {t("api_keys.batch_generate_5")}
+                    </Button>
+                    <Button type="button" variant="secondary" size="xs" onClick={() => handleBatchGenerate(10)}>
+                      {t("api_keys.batch_generate_10")}
+                    </Button>
+                  </div>
+                  {parsedBatchKeys.length > 0 && (
+                    <span className="text-muted-foreground">
+                      {t("api_keys.batch_stat", {
+                        valid: newBatchKeys.length,
+                        duplicate: duplicateBatchCount,
+                      })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setBatchOpen(false)}>
+                  {t("common.cancel")}
+                </Button>
+                <Button type="submit" disabled={newBatchKeys.length === 0 || save.isPending}>
+                  {t("api_keys.batch_submit", { count: newBatchKeys.length })}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
