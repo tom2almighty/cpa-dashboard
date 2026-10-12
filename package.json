@@ -2,7 +2,7 @@
   "name": "cpa-dashboard",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.9.1",
+  "packageManager": "bun@1.4.3",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
