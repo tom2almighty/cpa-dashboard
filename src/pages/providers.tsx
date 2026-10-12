@@ -367,7 +367,7 @@ function KeyRowsEditor({ kind, form, update }: { kind: Kind; form: Form; update:
             aria-label={t("providers.key_proxy_named", { n: index + 1 })}
             className="font-mono text-xs sm:col-span-3"
           />
-          {(kind.websockets || kind.cloak) && (
+          {(kind.websockets || kind.cloak || kind.nativeToolSearch) && (
             <div className="flex flex-wrap items-center gap-4 sm:col-span-3">
               {kind.websockets && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -377,6 +377,16 @@ function KeyRowsEditor({ kind, form, update }: { kind: Kind; form: Form; update:
                     aria-label={t("providers.websockets_named", { n: index + 1 })}
                   />
                   <span>{t("providers.websockets")}</span>
+                </div>
+              )}
+              {kind.nativeToolSearch && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Switch
+                    checked={row.nativeToolSearch}
+                    onCheckedChange={(checked) => setRow(index, { nativeToolSearch: checked })}
+                    aria-label={t("providers.native_tool_search_named", { n: index + 1 })}
+                  />
+                  <span>{t("providers.native_tool_search")}</span>
                 </div>
               )}
               {kind.cloak && (
@@ -424,6 +434,9 @@ function KeyRowsEditor({ kind, form, update }: { kind: Kind; form: Form; update:
       <p className="text-xs text-muted-foreground">{t("providers.keys_hint")}</p>
       {kind.websockets && <p className="text-xs text-muted-foreground">{t("providers.websockets_hint")}</p>}
       {kind.cloak && <p className="text-xs text-muted-foreground">{t("providers.cloak_hint")}</p>}
+      {kind.nativeToolSearch && (
+        <p className="text-xs text-muted-foreground">{t("providers.native_tool_search_hint")}</p>
+      )}
     </div>
   );
 }

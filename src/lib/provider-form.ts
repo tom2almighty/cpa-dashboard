@@ -11,6 +11,8 @@ export type Kind = {
   websockets?: boolean;
   /** 键级支持 cloak.mode(仅官方 Claude API key) */
   cloak?: boolean;
+  /** 键级支持 native-tool-search(Claude 渠道) */
+  nativeToolSearch?: boolean;
   /**
    * 只有键级 proxy-url,没有分组级。
    * openai-compatibility 的 Go 结构体没有分组代理字段,分组级写进去会被静默丢弃。
@@ -20,7 +22,7 @@ export type Kind = {
 
 export const KINDS: Kind[] = [
   { endpoint: "gemini", label: "Gemini" },
-  { endpoint: "claude", label: "Claude", cloak: true },
+  { endpoint: "claude", label: "Claude", cloak: true, nativeToolSearch: true },
   { endpoint: "codex", label: "Codex", baseUrlRequired: true, websockets: true },
   {
     endpoint: "openai-compatibility",
@@ -48,6 +50,7 @@ export type ProviderKey = {
   "proxy-url"?: string;
   websockets?: boolean;
   cloak?: { mode?: string } & Json;
+  "native-tool-search"?: boolean;
 };
 
 // 键级字段:weight 决定加权轮询份额,proxy-url 覆盖分组代理,websockets 仅个别渠道支持
@@ -58,6 +61,7 @@ export type KeyRow = {
   "proxy-url": string;
   websockets: boolean;
   cloakMode: string;
+  nativeToolSearch: boolean;
 };
 
 export type Form = {
@@ -88,6 +92,7 @@ export function newKeyRow(): KeyRow {
     "proxy-url": "",
     websockets: false,
     cloakMode: "",
+    nativeToolSearch: false,
   };
 }
 
@@ -298,6 +303,7 @@ export function toForm(item: Json): Form {
       "proxy-url": str(k["proxy-url"]),
       websockets: k.websockets === true,
       cloakMode: str(k.cloak?.mode),
+      nativeToolSearch: k["native-tool-search"] === true,
     })),
     baseUrl: str(item["base-url"]),
     proxyUrl: str(item["proxy-url"]),
@@ -332,6 +338,12 @@ function applyKeyRow(kind: Kind, row: KeyRow, previous: Json | undefined): Json 
     else delete cloak.mode;
     if (Object.keys(cloak).length) entry.cloak = cloak;
     else delete entry.cloak;
+  }
+  if (kind.nativeToolSearch) {
+    if (row.nativeToolSearch) entry["native-tool-search"] = true;
+    else delete entry["native-tool-search"];
+  } else {
+    delete entry["native-tool-search"];
   }
   return entry;
 }

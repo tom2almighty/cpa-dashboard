@@ -325,6 +325,7 @@
     "weight_named": "第 {{n}} 个密钥的权重",
     "key_proxy_named": "第 {{n}} 个密钥的代理",
     "websockets_named": "第 {{n}} 个密钥使用 WebSocket",
+    "native_tool_search_named": "第 {{n}} 个密钥启用原生工具搜索",
     "remove_key_named": "删除第 {{n}} 个密钥",
     "cloak_mode": "伪装模式",
     "cloak_hint": "按密钥覆盖 Claude 请求伪装：auto 仅伪装非 Claude Code 客户端，always 始终伪装，never 关闭；留空继承默认行为",
@@ -347,6 +348,8 @@
     "priority_hint": "数值越大越优先",
     "websockets": "使用 WebSocket",
     "websockets_hint": "上游支持时通过 WebSocket 发起请求",
+    "native_tool_search": "原生工具搜索",
+    "native_tool_search_hint": "信任自定义 Base URL 具备 Anthropic 原生工具搜索能力（defer_loading 与 tool_reference）；官方 api.anthropic.com 密钥默认支持",
     "excluded_models": "排除的模型",
     "excluded_hint": "每行或逗号分隔一个，支持 * 通配",
     "extra_headers": "额外请求头",
@@ -1073,6 +1076,10 @@
       "upstream/claude/model-level-cooling": {
         "label": "Claude 按模型冷却",
         "hint": "配额冷却只作用于所请求的模型，而不是整个凭据"
+      },
+      "upstream/claude/tool-search": {
+        "label": "Claude 工具搜索 (tool-search)",
+        "hint": "在 Claude Responses 路由上启用 Codex 客户端 tool_search；支持原生工具搜索的上游使用 Anthropic native 协议"
       },
       "upstream/claude/disable-cloaking-model-list": {
         "label": "Claude 模型列表不伪装",

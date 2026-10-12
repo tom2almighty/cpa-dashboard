@@ -231,6 +231,7 @@ export const GROUPS: ConfigGroup[] = [
         id: "claude",
         items: [
           { endpoint: "upstream/claude/model-level-cooling", type: "bool" },
+          { endpoint: "upstream/claude/tool-search", type: "bool" },
           { endpoint: "upstream/claude/disable-claude-cloak-mode", type: "bool" },
           { endpoint: "upstream/claude/disable-cloaking-model-list", type: "bool" },
           { endpoint: "upstream/claude/header-defaults/user-agent", type: "text" },

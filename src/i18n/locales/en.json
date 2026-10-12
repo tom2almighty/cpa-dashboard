@@ -325,6 +325,7 @@
     "weight_named": "Weight for key {{n}}",
     "key_proxy_named": "Proxy for key {{n}}",
     "websockets_named": "Use WebSocket for key {{n}}",
+    "native_tool_search_named": "Enable native tool search for key {{n}}",
     "remove_key_named": "Remove key {{n}}",
     "cloak_mode": "Cloak mode",
     "cloak_hint": "Per-key override for Claude request cloaking: auto cloaks non-Claude-Code clients, always cloaks every unconfirmed client, never disables it; empty keeps the default",
@@ -347,6 +348,8 @@
     "priority_hint": "Higher values take precedence",
     "websockets": "Use WebSocket",
     "websockets_hint": "Send requests over WebSocket when the upstream supports it",
+    "native_tool_search": "Native Tool Search",
+    "native_tool_search_hint": "Trust a custom base URL with Anthropic native tool search (defer_loading and tool_reference); official api.anthropic.com credentials support it natively",
     "excluded_models": "Excluded Models",
     "excluded_hint": "One per line or comma-separated; supports * wildcards",
     "extra_headers": "Extra Headers",
@@ -1073,6 +1076,10 @@
       "upstream/claude/model-level-cooling": {
         "label": "Claude Model-Level Cooling",
         "hint": "Scope quota cooldowns to the requested model instead of the whole credential"
+      },
+      "upstream/claude/tool-search": {
+        "label": "Claude Tool Search",
+        "hint": "Enable Codex client tool_search on Claude Responses routes with native tool search where supported"
       },
       "upstream/claude/disable-cloaking-model-list": {
         "label": "Uncloaked Claude Model List",

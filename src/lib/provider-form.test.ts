@@ -25,7 +25,9 @@ const codex = kindOf("codex");
 const vertex = kindOf("vertex");
 
 // 表格行:只覆盖需要的列,其余保持默认
-const rows = (...items: { key: string; weight?: string; proxy?: string; ws?: boolean; cloak?: string }[]) =>
+const rows = (
+  ...items: { key: string; weight?: string; proxy?: string; ws?: boolean; cloak?: string; nativeToolSearch?: boolean }[]
+) =>
   items.map((item) => ({
     ...newKeyRow(),
     "api-key": item.key,
@@ -33,6 +35,7 @@ const rows = (...items: { key: string; weight?: string; proxy?: string; ws?: boo
     "proxy-url": item.proxy ?? "",
     websockets: item.ws ?? false,
     cloakMode: item.cloak ?? "",
+    nativeToolSearch: item.nativeToolSearch ?? false,
   }));
 
 test("编辑时保留表单不管的字段,清空的字段会删除", () => {
@@ -114,6 +117,36 @@ test("键级 WebSocket 与 cloak.mode 按行写入,未选择的渠道不写", ()
   expect(withCloak.keys).toEqual([{ "api-key": "k1", cloak: { "strict-mode": true, mode: "never" } }]);
   const cleared = fromForm(claude, { ...toForm(claudeOriginal), keys: rows({ key: "k1" }) }, claudeOriginal);
   expect(cleared.keys).toEqual([{ "api-key": "k1", cloak: { "strict-mode": true } }]);
+});
+
+test("Claude 键级 native-tool-search 开关写入与回退", () => {
+  const original = {
+    keys: [{ "api-key": "k1", "native-tool-search": true }, { "api-key": "k2" }],
+  };
+  const parsed = toForm(original);
+  expect(parsed.keys[0].nativeToolSearch).toBe(true);
+  expect(parsed.keys[1].nativeToolSearch).toBe(false);
+
+  const form = {
+    ...parsed,
+    keys: rows({ key: "k1", nativeToolSearch: true }, { key: "k2", nativeToolSearch: true }),
+  };
+  const withBoth = fromForm(claude, form, original);
+  expect(withBoth.keys).toEqual([
+    { "api-key": "k1", "native-tool-search": true },
+    { "api-key": "k2", "native-tool-search": true },
+  ]);
+
+  const cleared = fromForm(
+    claude,
+    { ...parsed, keys: rows({ key: "k1", nativeToolSearch: false }, { key: "k2" }) },
+    original,
+  );
+  expect(cleared.keys).toEqual([{ "api-key": "k1" }, { "api-key": "k2" }]);
+
+  // 非 Claude 渠道不写入 native-tool-search
+  const codexOut = fromForm(codex, { ...parsed, keys: rows({ key: "k1", nativeToolSearch: true }) }, original);
+  expect(codexOut.keys).toEqual([{ "api-key": "k1" }]);
 });
 
 test("分组级 disable-cooling 三态与 request-retry", () => {
