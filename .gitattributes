@@ -1,0 +1,2 @@
+# 统一按 LF 存储与检出，避免 Windows 与 CI 之间的行尾校验差异
+* text=auto eol=lf
