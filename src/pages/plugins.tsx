@@ -56,6 +56,13 @@ function kindOf(f: ConfigField): "bool" | "number" | "enum" | "json" | "text" {
   return "text";
 }
 
+/** 插件字段的默认值,作为输入框占位提示 */
+function defaultHint(field: ConfigField): string | undefined {
+  const value = field.default;
+  if (value === undefined || value === null || typeof value === "boolean") return undefined;
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
 // 表单里数字和 JSON 字段编辑时保留原文,保存时再转换校验
 function toForm(fields: ConfigField[], config: Record<string, unknown>): Record<string, unknown> {
   const out = { ...config };
@@ -231,6 +238,7 @@ function FieldControl({
         inputMode={kind === "number" ? "decimal" : undefined}
         value={value === undefined || value === null ? "" : String(value)}
         onChange={(e) => onChange(e.target.value)}
+        placeholder={defaultHint(field)}
         className={kind === "number" ? "w-32" : "w-full sm:w-72"}
       />
     );

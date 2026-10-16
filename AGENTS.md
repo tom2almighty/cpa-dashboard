@@ -29,6 +29,7 @@
    - 插件列表、商店与安装统一走 `/v8/management/plugins*`；插件个性化配置走 `/v8/management/config/plugins/configs/<id>`。
 4. **前端数据约定**（`src/lib/api.ts`）：
    - 配置读取统一走 `configQuery`（`GET /config` 单一缓存，`CONFIG_KEY = ["config"]`），各页面用 `select` 取子树；任何配置写入后 invalidate `CONFIG_KEY`。
+   - v8 配置写入由 `request` 自动带上最近一次读取的 `ETag`（写响应会刷新版本），服务端版本落后时返回 412，`errorText` 已映射为刷新提示。
    - 读后写（read-modify-write）场景只把 404 视为空值（`orNotFound`），其它错误照常抛出，禁止吞错后整体覆盖写。
    - 按服务端错误码分支用 `ApiError.code`；自带错误提示的 mutation 设置 `meta: { quiet: true }`，避免重复 toast。
 5. **设计理念**：

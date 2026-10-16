@@ -278,7 +278,9 @@
     "update_requires_restart": "该插件无法热更新，更新后需要重启 CPA",
     "store_source_conflict": "该插件已从其它商店源安装，请先确认来源",
     "store_installed_source_unknown": "无法确认插件当前的安装来源",
-    "store_rate_limited": "插件商店请求过于频繁，请稍后重试"
+    "store_rate_limited": "插件商店请求过于频繁，请稍后重试",
+    "precondition_failed": "配置已被其它会话修改，请刷新后重试",
+    "request_body_too_large": "请求体超过 CPA 的 server.max-request-body-bytes 限制，请裁剪配置或调大该值"
   },
   "providers": {
     "title": "AI 提供商",
@@ -1216,6 +1218,51 @@
       "plugins/store-auth": {
         "label": "插件商店认证规则 (store-auth)",
         "hint": "按 match 前缀匹配注册表与制品请求；token、用户名、密码只填环境变量名，不写明文"
+      },
+      "server/max-request-body-bytes": {
+        "label": "请求体大小上限（字节）",
+        "hint": "超过该值的入站请求返回 413，0 表示不限制"
+      },
+      "routing/session-affinity-rebind-on": {
+        "label": "会话粘性重绑时机",
+        "hint": "any：任何凭据失败都切换并重绑会话；quota：瞬态错误仅本次请求切换，额度与鉴权错误才重绑。session-affinity 关闭时忽略",
+        "options": {
+          "any": "任意失败 (any)",
+          "quota": "仅额度与鉴权失败 (quota)"
+        }
+      },
+      "requests/tls-handshake-timeout-seconds": {
+        "label": "上游 TLS 握手超时（秒）",
+        "hint": "内置 uTLS 客户端（Claude 与 Codex 通道）完成 TLS 握手的上限，0 表示不限时；仅约束握手阶段"
+      },
+      "requests/streaming/send-keepalive-before-ft": {
+        "label": "首字节前发送保活心跳",
+        "hint": "keepalive-seconds 大于 0 时，在首个 token 之前也发送 SSE 心跳"
+      },
+      "upstream/claude/header-defaults/anthropic-beta-strip": {
+        "label": "Anthropic-Beta 剔除项",
+        "hint": "从最终 Anthropic-Beta 集合中移除的 beta 名，每行一项；可能与真实 Claude Code 行为不一致，谨慎使用"
+      },
+      "upstream/claude/header-defaults/anthropic-beta-append": {
+        "label": "Anthropic-Beta 追加项",
+        "hint": "追加到 Anthropic-Beta 集合末尾的 beta 名，已存在则跳过，每行一项"
+      },
+      "upstream/claude/header-defaults/inject-diagnostics": {
+        "label": "注入 diagnostics 字段",
+        "hint": "对 api.anthropic.com 的伪装请求注入 diagnostics 字段（并附带 cache-diagnosis beta），默认开启"
+      },
+      "upstream/claude/header-defaults/client-request-id": {
+        "label": "x-client-request-id 模式",
+        "hint": "on：每个请求生成新的 UUID；passthrough：只透传调用方的值；off：不发送该头",
+        "options": {
+          "on": "每次生成 (on)",
+          "passthrough": "仅透传 (passthrough)",
+          "off": "不发送 (off)"
+        }
+      },
+      "oauth/providers/codex/signin-with-chatgpt-identifier": {
+        "label": "Sign in with ChatGPT 标识",
+        "hint": "Codex SIWC 登录与 API 请求使用的 agent_name_hint 与 User-Agent 前缀，默认 CLIProxyAPI"
       }
     }
   },

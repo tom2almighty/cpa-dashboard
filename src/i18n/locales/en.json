@@ -278,7 +278,9 @@
     "update_requires_restart": "This plugin cannot be hot-updated; restart CPA after updating it",
     "store_source_conflict": "This plugin is installed from another store source; confirm the source first",
     "store_installed_source_unknown": "Cannot confirm which source the plugin was installed from",
-    "store_rate_limited": "Plugin store is rate limited, try again later"
+    "store_rate_limited": "Plugin store is rate limited, try again later",
+    "precondition_failed": "Configuration was changed by another session; refresh and try again",
+    "request_body_too_large": "Request body exceeds CPA's server.max-request-body-bytes limit; trim the config or raise the value"
   },
   "providers": {
     "title": "AI Providers",
@@ -1216,6 +1218,51 @@
       "plugins/store-auth": {
         "label": "Plugin Store Auth Rules",
         "hint": "Rules matching registry and artifact requests by URL prefix. Put token, username, and password environment variable names here, never plaintext values"
+      },
+      "server/max-request-body-bytes": {
+        "label": "Max Request Body Bytes",
+        "hint": "Inbound requests larger than this return 413; 0 disables the limit"
+      },
+      "routing/session-affinity-rebind-on": {
+        "label": "Session Affinity Rebind",
+        "hint": "any: any credential failure rebinds the session; quota: transient errors fail over for one request only and only quota/auth errors rebind. Ignored when session-affinity is off",
+        "options": {
+          "any": "Any failure (any)",
+          "quota": "Quota and auth only (quota)"
+        }
+      },
+      "requests/tls-handshake-timeout-seconds": {
+        "label": "Upstream TLS Handshake Timeout (s)",
+        "hint": "Upper bound for the built-in uTLS client handshake on the Claude and Codex transports; 0 disables it. Only the handshake is bounded"
+      },
+      "requests/streaming/send-keepalive-before-ft": {
+        "label": "Keepalive Before First Token",
+        "hint": "When keepalive-seconds > 0, also send SSE heartbeats before the first token"
+      },
+      "upstream/claude/header-defaults/anthropic-beta-strip": {
+        "label": "Anthropic-Beta Strip",
+        "hint": "Beta names removed from the final Anthropic-Beta set, one per line; may diverge from real Claude Code behavior, use with care"
+      },
+      "upstream/claude/header-defaults/anthropic-beta-append": {
+        "label": "Anthropic-Beta Append",
+        "hint": "Beta names appended to the Anthropic-Beta set, skipped when already present, one per line"
+      },
+      "upstream/claude/header-defaults/inject-diagnostics": {
+        "label": "Inject Diagnostics Field",
+        "hint": "Inject the diagnostics body field (with the cache-diagnosis beta) on cloaked api.anthropic.com requests; on by default"
+      },
+      "upstream/claude/header-defaults/client-request-id": {
+        "label": "x-client-request-id Mode",
+        "hint": "on: synthesize a new UUID per request; passthrough: forward only the caller value; off: never send the header",
+        "options": {
+          "on": "Synthesize (on)",
+          "passthrough": "Passthrough only (passthrough)",
+          "off": "Never send (off)"
+        }
+      },
+      "oauth/providers/codex/signin-with-chatgpt-identifier": {
+        "label": "Sign in with ChatGPT Identifier",
+        "hint": "agent_name_hint and User-Agent prefix used by Codex SIWC OAuth and API requests, default CLIProxyAPI"
       }
     }
   },

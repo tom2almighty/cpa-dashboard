@@ -4,6 +4,8 @@ export type ConfigField = {
   name: string;
   type?: string;
   enum_values?: string[] | null;
+  /** 未配置时的默认值,CPA 8 起由 pluginapi 返回 */
+  default?: unknown;
   description?: string;
 };
 

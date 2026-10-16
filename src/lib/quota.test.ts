@@ -83,6 +83,26 @@ test("没有匹配的插件提供方时不发重置请求", async () => {
   expect(calls.filter((url) => url.includes("/quota"))).toEqual([]);
 });
 
+test("凭据带 quota_plugin_id 时直接定位插件,不再查询插件列表", async () => {
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    calls.push(String(input));
+    return new Response(JSON.stringify({ status: "ok" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  await resetQuota({
+    id: "a",
+    name: "a.json",
+    auth_index: "idx1",
+    quota_provider: "claude",
+    quota_plugin_id: "cpa-quota",
+  });
+  expect(calls).toEqual(["/v8/management/plugins/cpa-quota/quota?auth_index=idx1"]);
+});
+
 test("缺少 auth_index 时不发请求", async () => {
   let called = false;
   globalThis.fetch = (async () => {

@@ -543,7 +543,7 @@ export function fetchQuota(file: AuthFile): Promise<Quota> {
 
 /**
  * 通过插件额度提供方重置该凭据的额度,CPA 会顺带清掉路由侧的额度冷却。
- * v8 只提供 /plugins/:id/quota,凭据只带 provider 标识,需要先映射回插件 id。
+ * v8 只提供 /plugins/:id/quota,插件 id 优先取凭据的 quota_plugin_id(旧版按 provider 反查)。
  */
 export async function resetQuota(file: AuthFile): Promise<{ message?: string }> {
   const authIndex = file.auth_index ?? "";
@@ -582,6 +582,9 @@ function quotaPluginIds(): Promise<Map<string, string>> {
 }
 
 async function quotaPluginId(file: AuthFile): Promise<string | undefined> {
+  // v8 凭据直接带插件 id;旧版只带 provider 标识,再从插件列表反查
+  const direct = (file.quota_plugin_id ?? "").trim();
+  if (direct) return direct;
   const provider = (file.quota_provider ?? "").trim().toLowerCase();
   if (!provider) return undefined;
   return (await quotaPluginIds()).get(provider);

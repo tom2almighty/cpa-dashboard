@@ -38,10 +38,12 @@ export type AuthFile = {
   cooldowns?: AuthFileCooldown[] | null;
   priority?: number;
   note?: string;
-  // 有插件 QuotaProvider 或凭据内配置了 quota_probe 时为 true
+  // 该凭据有插件 QuotaProvider 时为 true；v8 不再宣告凭据内的声明式 quota_probe
   supports_quota?: boolean;
-  // 由插件提供额度时返回的来源渠道;只有这种凭据支持重置额度
+  // 由插件提供额度时返回的来源渠道
   quota_provider?: string;
+  // v8 下直接返回额度插件 id，重置额度优先用它；非 v8 或旧版 CPA 不返回
+  quota_plugin_id?: string;
   last_refresh?: string;
   updated_at?: string;
 };

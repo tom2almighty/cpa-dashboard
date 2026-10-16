@@ -101,6 +101,7 @@ export const GROUPS: ConfigGroup[] = [
         items: [
           { endpoint: "server/host", type: "text", fallback: "" },
           { endpoint: "server/port", type: "int", fallback: "8317" },
+          { endpoint: "server/max-request-body-bytes", type: "int", fallback: "0" },
           { endpoint: "server/github-token", type: "password" },
           { endpoint: "server/trusted-proxies", type: "list" },
           { endpoint: "server/commercial-mode", type: "bool" },
@@ -159,6 +160,12 @@ export const GROUPS: ConfigGroup[] = [
           },
           { endpoint: "routing/session-affinity", type: "bool" },
           { endpoint: "routing/session-affinity-subagents", type: "bool", fallback: true },
+          {
+            endpoint: "routing/session-affinity-rebind-on",
+            type: "select",
+            options: ["any", "quota"],
+            fallback: "any",
+          },
           { endpoint: "routing/session-affinity-ttl", type: "text", fallback: "1h" },
           { endpoint: "routing/force-model-prefix", type: "bool" },
         ],
@@ -188,6 +195,7 @@ export const GROUPS: ConfigGroup[] = [
         id: "requests",
         items: [
           { endpoint: "requests/proxy-url", type: "text" },
+          { endpoint: "requests/tls-handshake-timeout-seconds", type: "int", fallback: "0" },
           { endpoint: "requests/passthrough-headers", type: "bool" },
           { endpoint: "requests/nonstream-keepalive-interval", type: "int" },
         ],
@@ -197,6 +205,7 @@ export const GROUPS: ConfigGroup[] = [
         items: [
           { endpoint: "requests/streaming/keepalive-seconds", type: "int" },
           { endpoint: "requests/streaming/bootstrap-retries", type: "int" },
+          { endpoint: "requests/streaming/send-keepalive-before-ft", type: "bool", fallback: false },
         ],
       },
     ],
@@ -242,6 +251,15 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "upstream/claude/header-defaults/timeout", type: "text" },
           { endpoint: "upstream/claude/header-defaults/timezone", type: "text" },
           { endpoint: "upstream/claude/header-defaults/stabilize-device-profile", type: "bool" },
+          { endpoint: "upstream/claude/header-defaults/anthropic-beta-strip", type: "list" },
+          { endpoint: "upstream/claude/header-defaults/anthropic-beta-append", type: "list" },
+          { endpoint: "upstream/claude/header-defaults/inject-diagnostics", type: "bool", fallback: true },
+          {
+            endpoint: "upstream/claude/header-defaults/client-request-id",
+            type: "select",
+            options: ["on", "passthrough", "off"],
+            fallback: "on",
+          },
         ],
       },
       {
@@ -290,6 +308,7 @@ export const GROUPS: ConfigGroup[] = [
       {
         id: "codex",
         items: [
+          { endpoint: "oauth/providers/codex/signin-with-chatgpt-identifier", type: "text", fallback: "CLIProxyAPI" },
           { endpoint: "oauth/providers/codex/header-defaults/user-agent", type: "text" },
           { endpoint: "oauth/providers/codex/header-defaults/beta-features", type: "text" },
           { endpoint: "oauth/providers/codex/live-media-relay/enabled", type: "bool" },
@@ -426,6 +445,14 @@ const ENDPOINT_ALIASES: Record<string, string[]> = {
   "upstream/claude/header-defaults/stabilize-device-profile": [
     "oauth/providers/claude/header-defaults/stabilize-device-profile",
   ],
+  "upstream/claude/header-defaults/anthropic-beta-strip": [
+    "oauth/providers/claude/header-defaults/anthropic-beta-strip",
+  ],
+  "upstream/claude/header-defaults/anthropic-beta-append": [
+    "oauth/providers/claude/header-defaults/anthropic-beta-append",
+  ],
+  "upstream/claude/header-defaults/inject-diagnostics": ["oauth/providers/claude/header-defaults/inject-diagnostics"],
+  "upstream/claude/header-defaults/client-request-id": ["oauth/providers/claude/header-defaults/client-request-id"],
   "upstream/xai/inject-x-search": ["oauth/providers/xai/inject-x-search"],
   "client/codex/optimize-multi-agent-v2": [
     "oauth/providers/codex/optimize-multi-agent-v2",
