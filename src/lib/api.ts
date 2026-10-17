@@ -17,19 +17,6 @@ export class ApiError extends Error {
 const KEY_STORAGE = "cpa-dashboard.management-key";
 const BASE_STORAGE = "cpa-dashboard.api-base";
 
-// CPA 8 的 v8 配置端点返回 ETag 并在写入时校验 If-Match：带上最近一次读到的版本，
-// 别处已经保存过时服务端回 412，避免静默覆盖其它会话的改动。切换目标服务或密钥时清空。
-let configEtag = "";
-
-function isConfigPath(path: string): boolean {
-  const clean = path.split("?")[0];
-  return (
-    clean === "/v8/management/config" ||
-    clean === "/v8/management/config.yaml" ||
-    clean.startsWith("/v8/management/config/")
-  );
-}
-
 export function normalizeBaseUrl(input: string): string {
   let base = (input || "").trim().replace(/\/+$/, "");
   if (!base) return "";
@@ -46,7 +33,6 @@ export function storedBaseUrl(): string {
 }
 
 export function saveBaseUrl(base: string, remember = true) {
-  configEtag = "";
   const normalized = normalizeBaseUrl(base);
   if (normalized) {
     (remember ? localStorage : sessionStorage).setItem(BASE_STORAGE, normalized);
@@ -57,7 +43,6 @@ export function saveBaseUrl(base: string, remember = true) {
 }
 
 export function clearBaseUrl() {
-  configEtag = "";
   sessionStorage.removeItem(BASE_STORAGE);
   localStorage.removeItem(BASE_STORAGE);
 }
@@ -86,7 +71,6 @@ export function replaceKey(key: string) {
 }
 
 export function clearKey() {
-  configEtag = "";
   sessionStorage.removeItem(KEY_STORAGE);
   localStorage.removeItem(KEY_STORAGE);
 }
@@ -106,21 +90,11 @@ export async function request(path: string, { body, raw, headers, ...init }: Ini
   const url = resolveUrl(path);
   const h = withAuth(url, headers);
   if (isJson) h.set("Content-Type", "application/json");
-  const config = isConfigPath(path);
-  if (config && configEtag && (init.method ?? "GET").toUpperCase() !== "GET" && !h.has("If-Match")) {
-    h.set("If-Match", configEtag);
-  }
-  const res = await fetch(url, {
+  return fetch(url, {
     ...init,
     headers: h,
     body: isJson ? JSON.stringify(body) : (body as BodyInit | undefined),
   });
-  // 写入成功也会带回新版本，同一次保存里的后续写入沿用最新的 ETag
-  if (config) {
-    const etag = res.headers.get("etag");
-    if (etag) configEtag = etag;
-  }
-  return res;
 }
 
 // CPA 的错误格式是 {error, message?}
