@@ -1421,15 +1421,10 @@ export function SettingsGroup({ groupId }: { groupId: string }) {
       <SettingsState>
         {nested ? (
           <Tabs defaultValue={sections[0].id} className="gap-4">
-            {/* 窄屏小节名单行横向滚动，避免折行破坏下划线样式；首个 tab 左内边距清零与上方描述对齐 */}
             <div className="overflow-x-auto no-scrollbar">
-              <TabsList variant="line" className="h-8 w-max min-w-full justify-start">
+              <TabsList variant="line" className="h-8">
                 {sections.map((section) => (
-                  <TabsTrigger
-                    key={section.id}
-                    value={section.id}
-                    className="h-8 px-2.5 text-xs sm:text-sm shrink-0 first:pl-0"
-                  >
+                  <TabsTrigger key={section.id} value={section.id} className="h-8 px-2.5 text-xs sm:text-sm shrink-0">
                     {t(`config.sections.${group.id}.${section.id}`)}
                   </TabsTrigger>
                 ))}
