@@ -260,6 +260,7 @@ export const GROUPS: ConfigGroup[] = [
             options: ["on", "passthrough", "off"],
             fallback: "on",
           },
+          { endpoint: "upstream/claude/session-date-pin-days", type: "int", fallback: "7" },
         ],
       },
       {
@@ -453,6 +454,7 @@ const ENDPOINT_ALIASES: Record<string, string[]> = {
   ],
   "upstream/claude/header-defaults/inject-diagnostics": ["oauth/providers/claude/header-defaults/inject-diagnostics"],
   "upstream/claude/header-defaults/client-request-id": ["oauth/providers/claude/header-defaults/client-request-id"],
+  "upstream/claude/session-date-pin-days": ["claude/session-date-pin-days"],
   "upstream/xai/inject-x-search": ["oauth/providers/xai/inject-x-search"],
   "client/codex/optimize-multi-agent-v2": [
     "oauth/providers/codex/optimize-multi-agent-v2",

@@ -1260,6 +1260,10 @@
           "off": "Never send (off)"
         }
       },
+      "upstream/claude/session-date-pin-days": {
+        "label": "Session Date Pin Retention (Days)",
+        "hint": "Days to retain the cloaked currentDate pin per session to prevent credential switches or idle gaps from invalidating thinking signatures and prompt cache; defaults to 7, 0 keeps 1h continuity"
+      },
       "oauth/providers/codex/signin-with-chatgpt-identifier": {
         "label": "Sign in with ChatGPT Identifier",
         "hint": "agent_name_hint and User-Agent prefix used by Codex SIWC OAuth and API requests, default CLIProxyAPI"
