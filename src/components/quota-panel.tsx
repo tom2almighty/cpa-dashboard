@@ -118,7 +118,11 @@ export function MeterRow({ window: w }: { window: QuotaWindow }) {
 
   return (
     <div
-      className="group relative flex h-8 w-full min-w-0 items-center overflow-hidden rounded-md border border-border/60 bg-muted/20 px-2.5 text-xs transition-colors hover:border-border hover:bg-muted/30"
+      className={`group relative flex h-8 w-full min-w-0 items-center overflow-hidden rounded-md border px-2.5 text-xs transition-colors hover:border-border hover:bg-muted/30 ${
+        state === "danger"
+          ? "border-destructive/40 bg-destructive/5 hover:bg-destructive/10"
+          : "border-border/60 bg-muted/20"
+      }`}
       title={fullTooltip}
     >
       {remaining !== null && (
@@ -136,6 +140,7 @@ export function MeterRow({ window: w }: { window: QuotaWindow }) {
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <span className={`size-1.5 shrink-0 rounded-full ${dotBg}`} aria-hidden />
           <span className="truncate text-xs font-medium text-foreground">{w.label}</span>
+          {w.detail && <span className="truncate text-[11px] text-muted-foreground/80 font-normal">({w.detail})</span>}
         </div>
         <div className="flex shrink-0 items-center gap-1 font-mono text-[11px] tabular-nums">
           <span
@@ -181,7 +186,9 @@ function QuotaPill({ window: w }: { window: QuotaWindow }) {
 
   return (
     <span
-      className="group relative inline-flex h-6.5 min-w-20 max-w-44 items-center overflow-hidden rounded-md border border-border/60 bg-muted/20 px-2 text-[11px] font-mono select-none"
+      className={`group relative inline-flex h-6.5 min-w-20 max-w-44 items-center overflow-hidden rounded-md border px-2 text-[11px] font-mono select-none ${
+        state === "danger" ? "border-destructive/40 bg-destructive/10" : "border-border/60 bg-muted/20"
+      }`}
       title={fullTooltip}
     >
       {remaining !== null && (

@@ -58,7 +58,7 @@ const HEADERS = {
   antigravity: {
     Authorization: "Bearer $TOKEN$",
     "Content-Type": "application/json",
-    "User-Agent": "antigravity/cli/1.0.13 (aidev_client; os_type=darwin; arch=arm64)",
+    "User-Agent": "antigravity/hub/2.23.0 darwin/arm64",
   },
   devin: {
     "Content-Type": "application/json",
@@ -208,6 +208,43 @@ export function parseClaude(payload: Json, profile: Json | null): Quota {
       detail: `$${(used / 100).toFixed(2)} / $${(limit / 100).toFixed(2)}`,
     });
   }
+  // 独立美元额度窗口 (如组织自定义额度、充值美元余额等)
+  const dollarKeys = ["limit_dollars", "used_dollars", "remaining_dollars"];
+  for (const [key, val] of Object.entries(payload)) {
+    if (["five_hour", "seven_day", "extra_usage", "limits"].includes(key)) continue;
+    const w = obj(val);
+    if (!w) continue;
+    if (dollarKeys.some((k) => k in w)) {
+      const limit = num(w.limit_dollars);
+      const used = num(w.used_dollars);
+      const remaining = num(w.remaining_dollars);
+      const utilization = num(w.utilization);
+      const calcPercent =
+        utilization !== null
+          ? clampPercent(utilization)
+          : limit !== null && limit > 0 && remaining !== null
+            ? clampPercent(((limit - remaining) / limit) * 100)
+            : limit !== null && limit > 0 && used !== null
+              ? clampPercent((used / limit) * 100)
+              : null;
+      const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      let detail: string | undefined;
+      if (used !== null && limit !== null) {
+        detail = `$${used.toFixed(2)} / $${limit.toFixed(2)}`;
+      } else if (remaining !== null && limit !== null) {
+        detail = `$${(limit - remaining).toFixed(2)} / $${limit.toFixed(2)}`;
+      } else if (remaining !== null) {
+        detail = `剩余 $${remaining.toFixed(2)}`;
+      }
+      windows.push({
+        id: `claude-${key}`,
+        label,
+        usedPercent: calcPercent,
+        resetAt: toMs(w.resets_at),
+        detail,
+      });
+    }
+  }
   const account = obj(profile?.account);
   const tier = str(obj(profile?.organization)?.rate_limit_tier);
   const plan = account?.has_claude_max === true ? "Max" : account?.has_claude_pro === true ? "Pro" : tier;
@@ -311,6 +348,35 @@ export function parseXai(weekly: Json | null, monthly: Json | null): Quota {
   return { plan: null, windows, notes: [] };
 }
 
+const ANTIGRAVITY_GROUP_EXTRAS: Record<string, string[]> = {
+  gemini_models: ["Gemini Argon"],
+};
+
+export function resolveAntigravityGroupDescription(label: string, description?: string): string | undefined {
+  if (!description) return undefined;
+  const match = description.trim().match(/^models within this group:\s*(.+)$/i);
+  if (!match) return description;
+  const models = match[1]
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const norm = label.trim().toLowerCase().replace(/\s+/g, " ");
+  const groupKey = norm.includes("gemini")
+    ? "gemini_models"
+    : norm.includes("claude") || norm.includes("gpt")
+      ? "claude_gpt_models"
+      : norm;
+  const extras = ANTIGRAVITY_GROUP_EXTRAS[groupKey] ?? [];
+  const seen = new Set(models.map((m) => m.toLowerCase()));
+  for (const extra of extras) {
+    if (!seen.has(extra.toLowerCase())) {
+      seen.add(extra.toLowerCase());
+      models.push(extra);
+    }
+  }
+  return `Models within this group: ${models.join(", ")}`;
+}
+
 export function parseAntigravity(payload: Json): Quota {
   const windows: QuotaWindow[] = [];
   const remainingToUsed = (value: unknown) => {
@@ -320,18 +386,38 @@ export function parseAntigravity(payload: Json): Quota {
   const groups = Array.isArray(payload.groups) ? payload.groups : [];
   for (const g of groups) {
     const group = obj(g);
+    if (!group) continue;
     const groupName = str(pick(group, "displayName", "display_name")) ?? "";
-    const buckets = Array.isArray(group?.buckets) ? group.buckets : [];
+    const groupDesc = resolveAntigravityGroupDescription(groupName, str(group.description) ?? undefined);
+    const buckets = Array.isArray(group.buckets) ? group.buckets : [];
+
+    // 同组周限额是否耗尽
+    const weeklyDepleted = buckets.some((b) => {
+      const bucket = obj(b);
+      if (!bucket) return false;
+      const bName = (str(pick(bucket, "displayName", "display_name", "window")) ?? "").toLowerCase();
+      const rem = num(pick(bucket, "remainingFraction", "remaining_fraction"));
+      return /week/.test(bName) && rem !== null && rem <= 0;
+    });
+
     for (const b of buckets) {
       const bucket = obj(b);
       if (!bucket) continue;
       const name = str(pick(bucket, "displayName", "display_name", "window")) ?? "";
+      const remFraction = num(pick(bucket, "remainingFraction", "remaining_fraction"));
+      const usedPercent = remainingToUsed(remFraction);
+      let detail = str(bucket.description) ?? groupDesc ?? undefined;
+      const isFiveHour = /5\s*h|five[-_ ]?hour/.test(name.toLowerCase());
+      if (weeklyDepleted && isFiveHour && remFraction === 1) {
+        detail = detail ? `${detail} · 周限额耗尽` : "周限额耗尽";
+      }
+
       windows.push({
         id: `${groupName}-${name}-${windows.length}`,
         label: [groupName, name].filter(Boolean).join(" ") || i18n.t("quota.label.quota"),
-        usedPercent: remainingToUsed(pick(bucket, "remainingFraction", "remaining_fraction")),
+        usedPercent,
         resetAt: toMs(pick(bucket, "resetTime", "reset_time")),
-        detail: str(bucket.description) ?? undefined,
+        detail,
       });
     }
   }

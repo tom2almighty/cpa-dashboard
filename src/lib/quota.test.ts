@@ -177,6 +177,27 @@ test("claude 窗口与额外用量", () => {
   ]);
   expect(q.windows[2].detail).toBe("$42.00 / $200.00");
 });
+test("claude 独立美元配额窗口解析", () => {
+  const q = parseClaude(
+    {
+      five_hour: { utilization: 50, resets_at: "2026-09-24T05:00:00Z" },
+      seven_day: null,
+      organization_budget: {
+        limit_dollars: 100,
+        used_dollars: 35.5,
+        remaining_dollars: 64.5,
+        utilization: 35.5,
+        resets_at: "2026-10-01T00:00:00Z",
+      },
+    },
+    null,
+  );
+  const orgWindow = q.windows.find((w) => w.id === "claude-organization_budget");
+  expect(orgWindow).toBeDefined();
+  expect(orgWindow?.label).toBe("Organization Budget");
+  expect(orgWindow?.usedPercent).toBe(35.5);
+  expect(orgWindow?.detail).toBe("$35.50 / $100.00");
+});
 
 test("kimi 按时长命名窗口", () => {
   const q = parseKimi(
@@ -222,6 +243,32 @@ test("antigravity 剩余比例换算为已用", () => {
     ],
   });
   expect(q.windows.map((w) => [w.label, w.usedPercent])).toEqual([["Gemini 3 Pro Daily", 25]]);
+});
+test("antigravity 自动追加 Gemini Argon 并识别周限额耗尽", () => {
+  const q = parseAntigravity({
+    groups: [
+      {
+        displayName: "Gemini Models",
+        description: "Models within this group: Gemini Flash, Gemini Pro",
+        buckets: [
+          {
+            displayName: "Weekly Limit",
+            window: "weekly",
+            remainingFraction: 0,
+          },
+          {
+            displayName: "5 Hour Limit",
+            window: "5h",
+            remainingFraction: 1,
+          },
+        ],
+      },
+    ],
+  });
+  expect(q.windows.length).toBe(2);
+  expect(q.windows[0].usedPercent).toBe(100);
+  expect(q.windows[0].detail).toContain("Gemini Argon");
+  expect(q.windows[1].detail).toContain("周限额耗尽");
 });
 
 test("窗口时长命名", () => {
