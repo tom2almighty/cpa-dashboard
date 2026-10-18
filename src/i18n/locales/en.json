@@ -227,7 +227,7 @@
     "model_aliases_hint": "Add upstream models and aliases visually, or switch to text mode to paste in bulk. Fields not edited here are preserved on save.",
     "field_excluded_models": "Excluded models",
     "excluded_models_placeholder": "claude-3-5-haiku-20241022",
-    "excluded_models_hint": "Add and remove excluded rules visually, or switch to text mode to edit in bulk. Supports * wildcards.",
+    "excluded_models_hint": "Add and remove excluded rules visually, or switch to text mode to edit in bulk. Supports * wildcards. A credential's own non-empty list takes priority over the global oauth.excluded-models rules and is not merged with them; leave it empty to inherit the global rules.",
     "inherit_placeholder": "Empty to inherit"
   },
   "oauth": {
@@ -446,7 +446,7 @@
     "th_channel": "Channel",
     "th_alias": "Alias",
     "desc_alias": "Set aliases for models of OAuth accounts by channel.",
-    "desc_excluded": "Exclude specific models by channel from being routed or called.",
+    "desc_excluded": "Exclude specific models by channel from being routed or called. A credential's own non-empty exclusion list overrides these global rules and is not merged with them; credentials with an empty list inherit the global rules.",
     "no_aliases": "No model aliases configured yet",
     "no_excluded": "No exclusion rules configured yet",
     "channel": "Channel",

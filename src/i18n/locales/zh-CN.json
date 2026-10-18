@@ -227,7 +227,7 @@
     "model_aliases_hint": "支持逐行可视化添加上游模型与别名，或切到文本模式批量粘贴；保存时保留条目上未在此编辑的字段。",
     "field_excluded_models": "排除模型",
     "excluded_models_placeholder": "claude-3-5-haiku-20241022",
-    "excluded_models_hint": "支持可视化添加与删除排除规则，或切到文本模式批量编辑；支持 * 通配符。",
+    "excluded_models_hint": "支持可视化添加与删除排除规则，或切到文本模式批量编辑；支持 * 通配符。凭据自身的非空列表优先于全局 oauth.excluded-models，两者不合并；留空则继承全局规则。",
     "inherit_placeholder": "留空继承"
   },
   "oauth": {
@@ -446,7 +446,7 @@
     "th_channel": "渠道",
     "th_alias": "别名",
     "desc_alias": "给 OAuth 账号的模型起别名，按渠道生效。",
-    "desc_excluded": "按渠道屏蔽特定模型，防止被路由或调用。",
+    "desc_excluded": "按渠道屏蔽特定模型，防止被路由或调用。凭据自身设置了非空排除列表时优先使用该列表，不与这里的全局规则合并；留空的凭据继承全局规则。",
     "no_aliases": "还没有模型别名",
     "no_excluded": "还没有排除模型规则",
     "channel": "渠道",
@@ -891,7 +891,7 @@
         }
       },
       "routing/session-affinity": {
-        "label": "会话粘性 (Session Affinity)",
+        "label": "会话亲和性 (Session Affinity)",
         "hint": "将会话固定路由到同一账号以最大化 Prompt Cache 命中率"
       },
       "routing/session-affinity-subagents": {
@@ -899,7 +899,7 @@
         "hint": "子会话继承父级绑定的凭据，优化 Claude、Codex 多 Agent 缓存"
       },
       "routing/session-affinity-ttl": {
-        "label": "会话粘性保留时长 (TTL)",
+        "label": "会话亲和性保留时长 (TTL)",
         "hint": "例如 1h、30m"
       },
       "routing/force-model-prefix": {
