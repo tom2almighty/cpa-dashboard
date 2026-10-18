@@ -14,19 +14,38 @@ import {
 import { useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Pagination, paginate } from "@/components/pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/context";
 import { errorText } from "@/lib/api";
 import { CREDENTIALS_KEY } from "@/lib/credentials";
 import { formatCountdown, formatDateTime, formatRelative } from "@/lib/format";
-import { fetchQuota, type QuotaWindow, resetQuota, supportsQuota } from "@/lib/quota";
+import {
+  claimClaudeResetGrant,
+  consumeCodexResetCredit,
+  fetchQuota,
+  type Quota,
+  type QuotaWindow,
+  resetQuota,
+  supportsQuota,
+} from "@/lib/quota";
 import type { AuthFile } from "@/lib/types";
 
 export function accountName(file: AuthFile): string {
@@ -210,6 +229,129 @@ function QuotaPill({ window: w }: { window: QuotaWindow }) {
         </span>
       </span>
     </span>
+  );
+}
+
+/** 选出当前可用的 Claude 主动重置:优先上游推荐的 next_grant_id,其次按 id 稳定排序 */
+function usableClaudeGrant(quota: Quota, now = Date.now()) {
+  const state = quota.claudeReset;
+  if (!state?.eligible) return undefined;
+  if (state.cooldownUntil && Date.parse(state.cooldownUntil) > now) return undefined;
+  const usable = state.grants
+    .filter(
+      (grant) =>
+        grant.resetsLeft > 0 &&
+        !grant.paused &&
+        grant.usableNow &&
+        (!grant.useRequiresLimit || state.atLimit) &&
+        (!grant.startsAt || Date.parse(grant.startsAt) <= now) &&
+        (!grant.endsAt || Date.parse(grant.endsAt) > now),
+    )
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return usable.find((grant) => grant.id === state.nextGrantId) ?? usable[0];
+}
+
+function hasCodexResetExtras(credits: Quota["codexResetCredits"]): boolean {
+  if (!credits) return false;
+  return (credits.count ?? credits.credits.length) > 0 || credits.credits.length > 0 || Boolean(credits.error);
+}
+
+function hasResetExtras(quota: Quota | undefined): boolean {
+  if (!quota) return false;
+  return Boolean(
+    quota.claudeReset?.grants.some((grant) => grant.resetsLeft > 0) || hasCodexResetExtras(quota.codexResetCredits),
+  );
+}
+
+/** 主动重置区:Claude reset grants 与 Codex reset credits */
+function QuotaResetSection({
+  quota,
+  onClaudeReset,
+  onCodexReset,
+  pending,
+}: {
+  quota: Quota;
+  onClaudeReset: (grantId: string) => void;
+  onCodexReset: () => void;
+  pending: boolean;
+}) {
+  const { t } = useI18n();
+  const claude = quota.claudeReset;
+  const codex = quota.codexResetCredits;
+  const grant = usableClaudeGrant(quota);
+  const claudeGrants = claude?.grants.filter((item) => item.resetsLeft > 0) ?? [];
+  const codexCount = codex ? (codex.count ?? codex.credits.length) : 0;
+  const showClaude = claudeGrants.length > 0;
+  const showCodex = hasCodexResetExtras(codex);
+
+  if (!showClaude && !showCodex) return null;
+
+  return (
+    <div className="mt-3 grid gap-3 rounded-md border border-dashed bg-muted/20 p-2.5 text-xs">
+      {showClaude && (
+        <div className="grid gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium">{t("quota.reset_grant_title")}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 text-xs"
+              disabled={!grant || pending}
+              title={grant ? t("quota.reset_grant_use") : t("quota.reset_grant_unavailable")}
+              onClick={() => grant && onClaudeReset(grant.id)}
+            >
+              {t("quota.reset_grant_use")}
+            </Button>
+          </div>
+          {claudeGrants.map((item) => (
+            <div key={item.id} className="flex items-center justify-between gap-2 text-muted-foreground">
+              <span className="truncate">
+                {item.label || t("quota.reset_grant_title")} ·{" "}
+                {t("quota.reset_grant_left", { left: item.resetsLeft, total: item.resetsTotal })}
+              </span>
+              <span className="shrink-0 tabular-nums">
+                {item.endsAt ? t("quota.reset_grant_expires", { time: formatDateTime(Date.parse(item.endsAt)) }) : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {showCodex && codex && (
+        <div className="grid gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium">
+              {t("quota.codex_reset_title")}
+              {codexCount > 0 && (
+                <span className="ml-1 font-normal text-muted-foreground">
+                  · {t("quota.codex_reset_count", { count: codexCount })}
+                </span>
+              )}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 text-xs"
+              disabled={codexCount <= 0 || pending}
+              onClick={onCodexReset}
+            >
+              {t("quota.codex_reset_use")}
+            </Button>
+          </div>
+          {codex.credits.map((credit) => (
+            <div key={credit.id} className="flex items-center justify-end gap-2 text-muted-foreground">
+              <span className="tabular-nums">
+                {t("quota.codex_reset_expires", { time: formatDateTime(Date.parse(credit.expiresAt)) })}
+              </span>
+            </div>
+          ))}
+          {codex.error && (
+            <p className="text-muted-foreground">{t("quota.codex_reset_error", { message: codex.error })}</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -422,6 +564,43 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
     meta: { quiet: true },
   });
 
+  // 主动重置需要二次确认:每次都会真实消耗一次上游重置机会
+  const [resetConfirm, setResetConfirm] = useState<
+    { kind: "claude"; file: AuthFile; grantId: string } | { kind: "codex"; file: AuthFile } | null
+  >(null);
+
+  const refreshAfterReset = (file: AuthFile) => {
+    queryClient.invalidateQueries({ queryKey: ["quota", file.auth_index] });
+    queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
+  };
+
+  const claudeReset = useMutation({
+    mutationFn: ({ file, grantId }: { file: AuthFile; grantId: string }) => claimClaudeResetGrant(file, grantId),
+    onSuccess: (code, { file }) => {
+      const name = accountName(file);
+      const resultKey = `quota.reset_grant_code_${code}`;
+      const result = t(resultKey, { defaultValue: t("quota.reset_grant_unknown") });
+      if (code === "reset" || code === "already_used") {
+        toast.success(t("quota.reset_grant_result", { name, result }));
+      } else {
+        toast.error(t("quota.reset_grant_result", { name, result }));
+      }
+      refreshAfterReset(file);
+    },
+    onError: (error: Error) => toast.error(t("quota.reset_grant_unknown"), { description: errorText(error) }),
+    meta: { quiet: true },
+  });
+
+  const codexReset = useMutation({
+    mutationFn: (file: AuthFile) => consumeCodexResetCredit(file),
+    onSuccess: (_code, file) => {
+      toast.success(t("quota.codex_reset_success"));
+      refreshAfterReset(file);
+    },
+    onError: (error: Error) => toast.error(errorText(error)),
+    meta: { quiet: true },
+  });
+
   if (targets.length === 0) {
     return (
       <Card className="grid place-items-center py-16 text-center text-sm text-muted-foreground">
@@ -596,6 +775,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                 // 默认展示前 4 项，超过 4 项时可原地自适应展开
                 const visibleWindows = isExpanded ? sortedWindows : sortedWindows.slice(0, 4);
                 const hasMore = sortedWindows.length > 4;
+                const hasReset = hasResetExtras(q?.data);
 
                 return (
                   <Card
@@ -680,15 +860,17 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                             {t("quota.retry")}
                           </Button>
                         </div>
-                      ) : sortedWindows.length === 0 ? (
+                      ) : sortedWindows.length === 0 && !hasReset ? (
                         <p className="py-4 text-center text-xs text-muted-foreground">{t("quota.no_details")}</p>
                       ) : (
                         <div className="space-y-2">
-                          <div className="flex w-full min-w-0 flex-col gap-2">
-                            {visibleWindows.map((w) => (
-                              <MeterRow key={w.id} window={w} />
-                            ))}
-                          </div>
+                          {visibleWindows.length > 0 && (
+                            <div className="flex w-full min-w-0 flex-col gap-2">
+                              {visibleWindows.map((w) => (
+                                <MeterRow key={w.id} window={w} />
+                              ))}
+                            </div>
+                          )}
                           {hasMore && (
                             <div className="pt-1">
                               <Button
@@ -711,6 +893,14 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                                 )}
                               </Button>
                             </div>
+                          )}
+                          {q?.data && hasReset && (
+                            <QuotaResetSection
+                              quota={q.data}
+                              pending={claudeReset.isPending || codexReset.isPending}
+                              onClaudeReset={(grantId) => setResetConfirm({ kind: "claude", file: item.file, grantId })}
+                              onCodexReset={() => setResetConfirm({ kind: "codex", file: item.file })}
+                            />
                           )}
                         </div>
                       )}
@@ -746,6 +936,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                     const lvl = level(item.minRemaining);
                     const isRowExpanded = Boolean(expandedRows[item.file.auth_index ?? ""]);
                     const hasWindows = sortedWindows.length > 0;
+                    const hasDetails = hasWindows || hasResetExtras(q?.data);
 
                     return (
                       <>
@@ -755,7 +946,7 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                         >
                           {/* 行展开箭头 */}
                           <TableCell className="px-2 py-3">
-                            {hasWindows && (
+                            {hasDetails && (
                               <Button
                                 variant="ghost"
                                 size="icon-xs"
@@ -936,6 +1127,16 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
                                     <MeterRow key={w.id} window={w} />
                                   ))}
                                 </div>
+                                {q?.data && hasResetExtras(q.data) && (
+                                  <QuotaResetSection
+                                    quota={q.data}
+                                    pending={claudeReset.isPending || codexReset.isPending}
+                                    onClaudeReset={(grantId) =>
+                                      setResetConfirm({ kind: "claude", file: item.file, grantId })
+                                    }
+                                    onCodexReset={() => setResetConfirm({ kind: "codex", file: item.file })}
+                                  />
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -982,6 +1183,43 @@ export function QuotaPanel({ files }: { files: AuthFile[] }) {
           </div>
         </>
       )}
+
+      <AlertDialog open={resetConfirm !== null} onOpenChange={(open) => !open && setResetConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {resetConfirm?.kind === "codex"
+                ? t("quota.codex_reset_confirm_title")
+                : t("quota.reset_grant_confirm_title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {resetConfirm?.kind === "codex"
+                ? t("quota.codex_reset_confirm_desc", { name: accountName(resetConfirm.file) })
+                : t("quota.reset_grant_confirm_desc", {
+                    name: resetConfirm ? accountName(resetConfirm.file) : "",
+                  })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={claudeReset.isPending || codexReset.isPending}
+              onClick={() => {
+                if (!resetConfirm) return;
+                if (resetConfirm.kind === "claude") {
+                  claudeReset.mutate({ file: resetConfirm.file, grantId: resetConfirm.grantId });
+                } else {
+                  codexReset.mutate(resetConfirm.file);
+                }
+                setResetConfirm(null);
+              }}
+            >
+              {claudeReset.isPending || codexReset.isPending ? <Spinner /> : null}
+              {resetConfirm?.kind === "codex" ? t("quota.codex_reset_use") : t("quota.reset_grant_use")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

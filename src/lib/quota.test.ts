@@ -227,6 +227,98 @@ test("xai 周期与月度", () => {
   ]);
 });
 
+test("xai 按量付费与套餐档位", () => {
+  const q = parseXai(null, {
+    monthly_limit: 15000,
+    used: 20000,
+    on_demand_cap: 10000,
+    billing_period_end: "2026-10-01T00:00:00Z",
+  });
+  expect(q.plan).toBe("SuperGrok");
+  expect(q.windows.map((w) => [w.label, w.usedPercent])).toEqual([
+    ["每月", 100],
+    ["按量付费", 50],
+  ]);
+  expect(q.windows[1].detail).toBe("$50.00 / $100.00");
+});
+
+test("claude reset grants 解析与不可用标记", () => {
+  const q = parseClaude({ five_hour: { utilization: 100 } }, null, {
+    cedar_ember: {
+      eligible: true,
+      at_limit: true,
+      next_grant_id: "g2",
+      cooldown_until: null,
+      grants: [
+        {
+          id: "g1",
+          label: "Weekly reset",
+          resets_total: 2,
+          resets_left: 1,
+          starts_at: "2026-10-01T00:00:00Z",
+          ends_at: "2026-11-01T00:00:00Z",
+          usable_now: true,
+        },
+        { id: "g2", resets_total: 1, resets_left: 1, usable_now: false },
+      ],
+    },
+  });
+  expect(q.claudeReset?.atLimit).toBe(true);
+  expect(q.claudeReset?.nextGrantId).toBe("g2");
+  expect(q.claudeReset?.grants[0]).toMatchObject({
+    id: "g1",
+    resetsLeft: 1,
+    paused: false,
+    usableNow: true,
+    useRequiresLimit: true,
+  });
+  expect(q.claudeReset?.grants[1].usableNow).toBe(false);
+});
+
+test("codex 主动重置卡只保留可用项", () => {
+  const q = parseCodex({ rate_limit: {} }, now, {
+    available_count: 2,
+    credits: [
+      {
+        id: "c1",
+        reset_type: "codex_rate_limits",
+        status: "available",
+        expires_at: "2026-10-20T00:00:00Z",
+      },
+      { id: "c2", reset_type: "codex_rate_limits", status: "used", expires_at: "2026-10-20T00:00:00Z" },
+      { id: "c3", reset_type: "other", status: "available", expires_at: "2026-10-20T00:00:00Z" },
+    ],
+  });
+  expect(q.codexResetCredits).toEqual({
+    count: 2,
+    credits: [{ id: "c1", expiresAt: "2026-10-20T00:00:00Z" }],
+  });
+});
+
+test("antigravity 标签翻译并去掉 Remaining 后缀", () => {
+  const q = parseAntigravity({
+    groups: [
+      {
+        displayName: "Gemini Models",
+        description: "Models within this group: Gemini Flash",
+        buckets: [
+          { displayName: "Weekly Limit Remaining", window: "weekly", remainingFraction: 0 },
+          { displayName: "Five Hour Limit Remaining", window: "5h", remainingFraction: 1 },
+        ],
+      },
+    ],
+  });
+  expect(q.windows.map((w) => w.label)).toEqual(["Gemini 模型 每周额度", "Gemini 模型 5 小时额度"]);
+  expect(q.windows[0].detail).toContain("此分组包含");
+  expect(q.windows[0].detail).toContain("Gemini Argon");
+  expect(q.windows[1].detail).toContain("周限额耗尽");
+});
+
+test("claude Fable 周额度窗口", () => {
+  const q = parseClaude({ iguana_necktie: { utilization: 12 } }, null);
+  expect(q.windows.map((w) => [w.label, w.usedPercent])).toEqual([["每周 Fable", 12]]);
+});
+
 test("antigravity 剩余比例换算为已用", () => {
   const q = parseAntigravity({
     groups: [
@@ -310,9 +402,16 @@ test("meta 窗口与每周额度", () => {
   });
   expect(q.plan).toBe("Pro Tier");
   expect(q.windows.map((w) => [w.label, w.usedPercent, w.detail])).toEqual([
-    ["会话窗口", 35, "180 分钟窗口"],
+    ["会话窗口", 35, "3 小时窗口"],
     ["每周额度", 70, undefined],
   ]);
+});
+
+test("meta 非整小时窗口仍按分钟显示", () => {
+  const q = parseMeta({
+    subs_usage: { window: { used_percent: 10, window_duration_mins: 90 } },
+  });
+  expect(q.windows[0].detail).toBe("90 分钟窗口");
 });
 
 test("插件额度结构:套餐、分组与汇总", () => {
@@ -331,7 +430,7 @@ test("插件额度结构:套餐、分组与汇总", () => {
   });
   expect(q.plan).toBe("Team");
   expect(q.windows.map((w) => [w.label, w.usedPercent, w.resetAt, w.detail])).toEqual([
-    ["Claude 5h", 60, Date.parse("2026-09-24T05:00:00Z"), "40/100"],
+    ["Claude 5 小时额度", 60, Date.parse("2026-09-24T05:00:00Z"), "40/100"],
   ]);
   expect(q.notes[0]).toBe("Credits used 1740.28 credits");
   expect(q.notes[1]).toContain("29.61");

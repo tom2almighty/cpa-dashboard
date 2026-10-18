@@ -11,16 +11,57 @@ export type QuotaWindow = {
   detail?: string;
 };
 
-export type Quota = { plan: string | null; windows: QuotaWindow[]; notes: string[] };
+/** Claude 主动重置机会（cedar_ember） */
+export type ClaudeResetGrant = {
+  id: string;
+  label: string;
+  resetsLeft: number;
+  resetsTotal: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  paused: boolean;
+  usableNow: boolean;
+  useRequiresLimit: boolean;
+};
+
+export type ClaudeResetGrantState = {
+  grants: ClaudeResetGrant[];
+  atLimit: boolean;
+  eligible: boolean;
+  cooldownUntil: string | null;
+  nextGrantId: string | null;
+};
+
+/** Codex 主动重置卡,过期时间来自 rate-limit-reset-credits */
+export type CodexResetCredit = { id: string; expiresAt: string };
+
+export type CodexResetCredits = {
+  count: number | null;
+  credits: CodexResetCredit[];
+  error?: string;
+};
+
+export type Quota = {
+  plan: string | null;
+  windows: QuotaWindow[];
+  notes: string[];
+  claudeReset?: ClaudeResetGrantState;
+  codexResetCredits?: CodexResetCredits;
+};
 
 type Json = Record<string, unknown>;
 
 const HOUR = 3600;
 const DAY = 86_400;
+const XAI_CLIENT_VERSION = "1.0.46";
 
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
+const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
+const CODEX_RESET_CREDITS_CONSUME_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume";
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLAUDE_PROFILE_URL = "https://api.anthropic.com/api/oauth/profile";
+const CLAUDE_RESET_GRANT_STATUS_URL = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1&skip_spend=1";
+const CLAUDE_RESET_GRANT_CLAIM_BASE = "https://api.anthropic.com/api/organizations";
 const KIMI_USAGE_URL = "https://api.kimi.com/coding/v1/usages";
 const KIMI_AI_USAGE_URL = "https://api.kimi.ai/coding/v1/usages";
 const XAI_WEEKLY_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
@@ -51,9 +92,10 @@ const HEADERS = {
   xai: {
     Authorization: "Bearer $TOKEN$",
     "x-xai-token-auth": "xai-grok-cli",
-    "x-grok-client-version": "0.2.101",
+    // Grok 拒绝低于 1.0.13 的客户端版本
+    "x-grok-client-version": XAI_CLIENT_VERSION,
     accept: "*/*",
-    "user-agent": "grok-pager/0.2.101 grok-shell/0.2.101 (macos; aarch64)",
+    "user-agent": `grok-pager/${XAI_CLIENT_VERSION} grok-shell/${XAI_CLIENT_VERSION} (macos; aarch64)`,
   },
   antigravity: {
     Authorization: "Bearer $TOKEN$",
@@ -65,6 +107,13 @@ const HEADERS = {
     "Connect-Protocol-Version": "1",
   },
 } satisfies Record<string, Record<string, string>>;
+
+// 主动重置走 Anthropic 的 OAuth 接口,客户端标识与额度查询略有不同
+const CLAUDE_RESET_HEADERS = {
+  ...HEADERS.claude,
+  "anthropic-beta": "oauth-2025-04-20",
+  "user-agent": "claude-cli/2.1.280 (external, cli)",
+};
 
 const QUOTA_PROVIDERS: Record<string, true> = {
   codex: true,
@@ -100,6 +149,12 @@ function str(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+/** 可解析为时间的字符串,否则返回 null */
+function timestamp(value: unknown): string | null {
+  const text = str(value);
+  return text && !Number.isNaN(Date.parse(text)) ? text : null;
+}
+
 function pick(record: Json | null, ...keys: string[]): unknown {
   if (!record) return undefined;
   for (const key of keys) if (record[key] !== undefined && record[key] !== null) return record[key];
@@ -132,7 +187,25 @@ function clampPercent(value: number | null): number | null {
 
 // ---------- 各家解析 ----------
 
-export function parseCodex(payload: Json, now = Date.now()): Quota {
+/** 只保留可用于 Codex 额度的未过期重置卡 */
+export function parseCodexResetCredits(payload: Json | null): CodexResetCredits | undefined {
+  if (!payload) return undefined;
+  const raw = Array.isArray(payload.credits) ? payload.credits : [];
+  const credits: CodexResetCredit[] = [];
+  for (const item of raw) {
+    const record = obj(item);
+    if (!record) continue;
+    if (str(pick(record, "reset_type", "resetType")) !== "codex_rate_limits") continue;
+    if (str(record.status) !== "available") continue;
+    const expiresAt = timestamp(pick(record, "expires_at", "expiresAt"));
+    if (!expiresAt) continue;
+    credits.push({ id: str(record.id) ?? expiresAt, expiresAt });
+  }
+  const count = num(pick(payload, "available_count", "availableCount")) ?? credits.length;
+  return { count, credits };
+}
+
+export function parseCodex(payload: Json, now = Date.now(), resetCredits?: Json | null): Quota {
   const windows: QuotaWindow[] = [];
   const addLimit = (limit: unknown, prefix: string) => {
     const rate = obj(limit);
@@ -171,7 +244,12 @@ export function parseCodex(payload: Json, now = Date.now()): Quota {
   if (credits?.unlimited === true) notes.push(i18n.t("quota.label.credits_unlimited"));
   else if (num(credits?.balance) !== null)
     notes.push(i18n.t("quota.label.credits_balance", { n: num(credits?.balance) }));
-  return { plan: str(pick(payload, "plan_type", "planType")), windows, notes };
+  const quota: Quota = { plan: str(pick(payload, "plan_type", "planType")), windows, notes };
+  const reset = parseCodexResetCredits(
+    resetCredits ?? obj(pick(payload, "rate_limit_reset_credits", "rateLimitResetCredits")),
+  );
+  if (reset) quota.codexResetCredits = reset;
+  return quota;
 }
 
 const CLAUDE_WINDOWS = [
@@ -181,9 +259,48 @@ const CLAUDE_WINDOWS = [
   "seven_day_sonnet",
   "seven_day_oauth_apps",
   "seven_day_cowork",
+  "iguana_necktie",
 ];
 
-export function parseClaude(payload: Json, profile: Json | null): Quota {
+/** 解析 usage 响应里的 cedar_ember 块;结构不合法时整块忽略 */
+export function parseClaudeResetGrants(payload: Json | null | undefined): ClaudeResetGrantState | undefined {
+  const block = obj(payload?.cedar_ember);
+  if (!block || typeof block.eligible !== "boolean") return undefined;
+  const grants: ClaudeResetGrant[] = [];
+  const seen = new Set<string>();
+  const rawGrants = Array.isArray(block.grants) ? block.grants : [];
+  for (const item of rawGrants) {
+    const record = obj(item);
+    if (!record) continue;
+    const id = str(record.id);
+    const total = num(pick(record, "resets_total", "resetsTotal"));
+    const left = num(pick(record, "resets_left", "resetsLeft"));
+    if (!id || total === null || left === null || left < 0 || left > total || seen.has(id)) continue;
+    seen.add(id);
+    const optionalBoolean = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
+    grants.push({
+      id,
+      label: str(record.label) ?? "",
+      resetsLeft: left,
+      resetsTotal: total,
+      startsAt: timestamp(pick(record, "starts_at", "startsAt")),
+      endsAt: timestamp(pick(record, "ends_at", "endsAt")),
+      paused: optionalBoolean(record.paused, false),
+      // 缺失可用性标记时按不可用处理,避免误消耗
+      usableNow: optionalBoolean(pick(record, "usable_now", "usableNow"), false),
+      useRequiresLimit: optionalBoolean(pick(record, "use_requires_limit", "useRequiresLimit"), true),
+    });
+  }
+  return {
+    grants,
+    atLimit: block.at_limit === true,
+    eligible: block.eligible,
+    cooldownUntil: timestamp(pick(block, "cooldown_until", "cooldownUntil")),
+    nextGrantId: str(pick(block, "next_grant_id", "nextGrantId")),
+  };
+}
+
+export function parseClaude(payload: Json, profile: Json | null, grants?: Json | null): Quota {
   const windows: QuotaWindow[] = [];
   for (const key of CLAUDE_WINDOWS) {
     const w = obj(payload[key]);
@@ -248,7 +365,10 @@ export function parseClaude(payload: Json, profile: Json | null): Quota {
   const account = obj(profile?.account);
   const tier = str(obj(profile?.organization)?.rate_limit_tier);
   const plan = account?.has_claude_max === true ? "Max" : account?.has_claude_pro === true ? "Pro" : tier;
-  return { plan, windows, notes: [] };
+  const quota: Quota = { plan, windows, notes: [] };
+  const reset = parseClaudeResetGrants(grants);
+  if (reset) quota.claudeReset = reset;
+  return quota;
 }
 
 function kimiReset(record: Json, now: number): number | null {
@@ -334,23 +454,96 @@ export function parseXai(weekly: Json | null, monthly: Json | null): Quota {
   }
   const m = obj(monthly?.config) ?? monthly;
   const limit = num(pick(m, "monthlyLimit", "monthly_limit"));
-  const used = num(pick(m, "used"));
-  if (m && limit !== null && limit > 0 && used !== null) {
+  const used = num(m?.used);
+  const includedUsed = used !== null && limit !== null ? Math.min(used, limit) : used;
+  const resetAt = toMs(pick(m, "billingPeriodEnd", "billing_period_end"));
+  if (m && limit !== null && limit > 0 && includedUsed !== null) {
     windows.push({
       id: "monthly",
       label: i18n.t("quota.label.monthly"),
-      usedPercent: clampPercent((used / limit) * 100),
-      resetAt: toMs(pick(m, "billingPeriodEnd", "billing_period_end")),
+      usedPercent: clampPercent((includedUsed / limit) * 100),
+      resetAt,
       // 金额单位是美分
-      detail: `$${(used / 100).toFixed(2)} / $${(limit / 100).toFixed(2)}`,
+      detail: `$${(includedUsed / 100).toFixed(2)} / $${(limit / 100).toFixed(2)}`,
     });
   }
-  return { plan: null, windows, notes: [] };
+  // 按量付费:超过套餐额度后由 on-demand 余额承接
+  const onDemandCap = num(pick(m, "onDemandCap", "on_demand_cap"));
+  const onDemandUsed =
+    num(pick(m, "onDemandUsed", "on_demand_used")) ??
+    (used !== null && limit !== null ? Math.max(0, used - limit) : null);
+  const notes: string[] = [];
+  if (onDemandCap !== null && onDemandCap > 0 && onDemandUsed !== null) {
+    windows.push({
+      id: "on-demand",
+      label: i18n.t("quota.label.pay_as_you_go"),
+      usedPercent: clampPercent((onDemandUsed / onDemandCap) * 100),
+      resetAt,
+      detail: `$${(onDemandUsed / 100).toFixed(2)} / $${(onDemandCap / 100).toFixed(2)}`,
+    });
+  } else if (onDemandCap === 0) {
+    notes.push(i18n.t("quota.label.pay_as_you_go_disabled"));
+  }
+  // 月度额度与官方套餐档位对应(单位:美分)
+  const plan = limit === 15000 ? "SuperGrok" : limit === 150000 ? "SuperGrok Heavy" : null;
+  return { plan, windows, notes };
 }
 
 const ANTIGRAVITY_GROUP_EXTRAS: Record<string, string[]> = {
   gemini_models: ["Gemini Argon"],
 };
+
+const ANTIGRAVITY_GROUP_LABEL_KEYS: Record<string, string> = {
+  "gemini models": "quota.label.antigravity.group_gemini",
+  "claude and gpt models": "quota.label.antigravity.group_claude_gpt",
+};
+
+const ANTIGRAVITY_BUCKET_LABEL_KEYS: Record<string, string> = {
+  "weekly limit": "quota.label.antigravity.weekly_limit",
+  "daily limit": "quota.label.antigravity.daily_limit",
+  "5 hour limit": "quota.label.antigravity.five_hour_limit",
+  "5-hour limit": "quota.label.antigravity.five_hour_limit",
+  "five hour limit": "quota.label.antigravity.five_hour_limit",
+  "five-hour limit": "quota.label.antigravity.five_hour_limit",
+  "monthly limit": "quota.label.antigravity.monthly_limit",
+};
+
+const ANTIGRAVITY_WINDOW_KEYS: Record<string, string> = {
+  "5h": "quota.label.antigravity.five_hour_limit",
+  "five-hour": "quota.label.antigravity.five_hour_limit",
+  five_hour: "quota.label.antigravity.five_hour_limit",
+  "five hour": "quota.label.antigravity.five_hour_limit",
+  daily: "quota.label.antigravity.daily_limit",
+  day: "quota.label.antigravity.daily_limit",
+  weekly: "quota.label.antigravity.weekly_limit",
+  week: "quota.label.antigravity.weekly_limit",
+  monthly: "quota.label.antigravity.monthly_limit",
+  month: "quota.label.antigravity.monthly_limit",
+};
+
+function normalizeAntigravityText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** 去掉上游常见的 "Remaining" 后缀,如 "Weekly Limit Remaining" */
+function stripRemainingSuffix(value: string): string {
+  return value.replace(/\s*(?:-|:)?\s*remaining$/i, "").trim();
+}
+
+/** bucket 的 i18n key;无法识别时返回 null,由调用方显示原文 */
+function antigravityBucketKey(label: string, window?: string): string | null {
+  const normalized = normalizeAntigravityText(label);
+  const byLabel =
+    ANTIGRAVITY_BUCKET_LABEL_KEYS[normalized] ?? ANTIGRAVITY_BUCKET_LABEL_KEYS[stripRemainingSuffix(normalized)];
+  if (byLabel) return byLabel;
+  if (!window) return null;
+  return ANTIGRAVITY_WINDOW_KEYS[normalizeAntigravityText(window)] ?? null;
+}
+
+function antigravityGroupLabel(label: string): string {
+  const key = ANTIGRAVITY_GROUP_LABEL_KEYS[normalizeAntigravityText(label)];
+  return key ? i18n.t(key) : label;
+}
 
 export function resolveAntigravityGroupDescription(label: string, description?: string): string | undefined {
   if (!description) return undefined;
@@ -360,7 +553,7 @@ export function resolveAntigravityGroupDescription(label: string, description?: 
     .split(",")
     .map((m) => m.trim())
     .filter(Boolean);
-  const norm = label.trim().toLowerCase().replace(/\s+/g, " ");
+  const norm = normalizeAntigravityText(label);
   const groupKey = norm.includes("gemini")
     ? "gemini_models"
     : norm.includes("claude") || norm.includes("gpt")
@@ -374,7 +567,7 @@ export function resolveAntigravityGroupDescription(label: string, description?: 
       models.push(extra);
     }
   }
-  return `Models within this group: ${models.join(", ")}`;
+  return i18n.t("quota.label.antigravity.group_models", { models: models.join(", ") });
 }
 
 export function parseAntigravity(payload: Json): Quota {
@@ -395,26 +588,33 @@ export function parseAntigravity(payload: Json): Quota {
     const weeklyDepleted = buckets.some((b) => {
       const bucket = obj(b);
       if (!bucket) return false;
-      const bName = (str(pick(bucket, "displayName", "display_name", "window")) ?? "").toLowerCase();
+      const bName = str(pick(bucket, "displayName", "display_name")) ?? "";
+      const bWindow = str(bucket.window) ?? undefined;
       const rem = num(pick(bucket, "remainingFraction", "remaining_fraction"));
-      return /week/.test(bName) && rem !== null && rem <= 0;
+      return (
+        antigravityBucketKey(bName, bWindow) === "quota.label.antigravity.weekly_limit" && rem !== null && rem <= 0
+      );
     });
 
     for (const b of buckets) {
       const bucket = obj(b);
       if (!bucket) continue;
-      const name = str(pick(bucket, "displayName", "display_name", "window")) ?? "";
+      const name = str(pick(bucket, "displayName", "display_name")) ?? "";
+      const window = str(bucket.window) ?? undefined;
+      const bucketKey = antigravityBucketKey(name, window);
       const remFraction = num(pick(bucket, "remainingFraction", "remaining_fraction"));
       const usedPercent = remainingToUsed(remFraction);
       let detail = str(bucket.description) ?? groupDesc ?? undefined;
-      const isFiveHour = /5\s*h|five[-_ ]?hour/.test(name.toLowerCase());
-      if (weeklyDepleted && isFiveHour && remFraction === 1) {
-        detail = detail ? `${detail} · 周限额耗尽` : "周限额耗尽";
+      if (weeklyDepleted && bucketKey === "quota.label.antigravity.five_hour_limit" && remFraction === 1) {
+        const depleted = i18n.t("quota.label.antigravity.weekly_depleted");
+        detail = detail ? `${detail} · ${depleted}` : depleted;
       }
 
       windows.push({
         id: `${groupName}-${name}-${windows.length}`,
-        label: [groupName, name].filter(Boolean).join(" ") || i18n.t("quota.label.quota"),
+        label:
+          [antigravityGroupLabel(groupName), bucketKey ? i18n.t(bucketKey) : name].filter(Boolean).join(" ") ||
+          i18n.t("quota.label.quota"),
         usedPercent,
         resetAt: toMs(pick(bucket, "resetTime", "reset_time")),
         detail,
@@ -465,7 +665,11 @@ export function parseMeta(payload: Json): Quota {
         label,
         usedPercent: used,
         resetAt,
-        detail: durationMins ? i18n.t("quota.label.minutes_window", { n: durationMins }) : undefined,
+        detail: durationMins
+          ? durationMins % 60 === 0
+            ? i18n.t("quota.label.hours_window", { n: durationMins / 60 })
+            : i18n.t("quota.label.minutes_window", { n: durationMins })
+          : undefined,
       });
     }
   };
@@ -481,30 +685,137 @@ export function parseMeta(payload: Json): Quota {
 
 type ApiCallResponse = { status_code: number; body?: string };
 
+type UpstreamResult = { status: number; body: unknown };
+
+function parseResponseBody(raw: string | undefined): unknown {
+  try {
+    return JSON.parse(String(raw ?? ""));
+  } catch {
+    // 非 JSON 响应保留原文
+    return raw ?? "";
+  }
+}
+
+function upstreamError(status: number, body: unknown): Error {
+  const record = obj(body);
+  const message =
+    str(obj(record?.error)?.message) ?? str(record?.error) ?? str(record?.message) ?? String(body).slice(0, 200);
+  return Object.assign(new Error(i18n.t("quota.error.upstream", { status, message: message ? `: ${message}` : "" })), {
+    status,
+  });
+}
+
 // 通过 CPA 的 /api-call 用该账号的凭据调用上游,$TOKEN$ 会被替换成账号 token
-async function upstream(authIndex: string, method: string, url: string, header: Record<string, string>, data?: string) {
+async function callUpstream(
+  authIndex: string,
+  method: string,
+  url: string,
+  header: Record<string, string>,
+  data?: string,
+): Promise<UpstreamResult> {
   const res = await api<ApiCallResponse>("/v8/management/requests/api-call", {
     method: "POST",
     body: { auth_index: authIndex, method, url, header, ...(data ? { data } : {}) },
   });
-  let body: unknown = res.body ?? "";
+  return { status: res.status_code, body: parseResponseBody(res.body) };
+}
+
+async function upstream(authIndex: string, method: string, url: string, header: Record<string, string>, data?: string) {
+  const res = await callUpstream(authIndex, method, url, header, data);
+  if (res.status < 200 || res.status >= 300) throw upstreamError(res.status, res.body);
+  return obj(res.body) ?? {};
+}
+
+function newRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
+// 结果未知时复用同一个 request_id 重试,避免把一次重置操作重复提交成两次
+const RESET_RETRY_WINDOW_MS = 10 * 60_000;
+const pendingResets = new Map<string, { requestId: string; at: number }>();
+
+function resetRequestId(key: string): string {
+  const existing = pendingResets.get(key);
+  if (existing && Date.now() - existing.at < RESET_RETRY_WINDOW_MS) return existing.requestId;
+  const requestId = newRequestId();
+  pendingResets.set(key, { requestId, at: Date.now() });
+  return requestId;
+}
+
+function clearResetRequest(key: string) {
+  pendingResets.delete(key);
+}
+
+const ORGANIZATION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 领取一次 Claude 主动重置;返回上游终态代码 */
+export async function claimClaudeResetGrant(file: AuthFile, grantId: string): Promise<string> {
+  const authIndex = file.auth_index ?? "";
+  if (!authIndex) throw new Error(i18n.t("quota.error.missing_auth_index"));
+  const profile = await upstream(authIndex, "GET", CLAUDE_PROFILE_URL, CLAUDE_RESET_HEADERS).catch(() => null);
+  const organization = str(obj(profile?.organization)?.uuid);
+  if (!organization || !ORGANIZATION_UUID_RE.test(organization)) {
+    throw new Error(i18n.t("quota.reset_grant.malformed"));
+  }
+  const key = `claude|${authIndex}|${grantId}`;
+  const res = await callUpstream(
+    authIndex,
+    "POST",
+    `${CLAUDE_RESET_GRANT_CLAIM_BASE}/${organization.toLowerCase()}/reset_rate_limits`,
+    CLAUDE_RESET_HEADERS,
+    JSON.stringify({ program: "cedar_ember", grant_id: grantId, request_id: resetRequestId(key) }),
+  );
+  if (res.status === 429) {
+    clearResetRequest(key);
+    return "rate_limited";
+  }
+  if (res.status === 401 || res.status === 403) {
+    clearResetRequest(key);
+    return "auth_error";
+  }
+  const result = str(obj(res.body)?.result);
+  if (res.status >= 200 && res.status < 300 && result) {
+    clearResetRequest(key);
+    return result;
+  }
+  throw new Error(i18n.t("quota.reset_grant.unknown"));
+}
+
+/** 使用一张 Codex 主动重置卡,并清除该凭据的路由额度冷却 */
+export async function consumeCodexResetCredit(file: AuthFile): Promise<string> {
+  const authIndex = file.auth_index ?? "";
+  if (!authIndex) throw new Error(i18n.t("quota.error.missing_auth_index"));
+  const accountId = findField(file, ["chatgpt_account_id", "chatgptAccountId"]);
+  const header = accountId ? { ...HEADERS.codex, "Chatgpt-Account-Id": accountId } : HEADERS.codex;
+  const key = `codex|${authIndex}`;
+  const res = await callUpstream(
+    authIndex,
+    "POST",
+    CODEX_RESET_CREDITS_CONSUME_URL,
+    header,
+    JSON.stringify({ redeem_request_id: resetRequestId(key) }),
+  );
+  if (res.status < 200 || res.status >= 300) {
+    // 4xx 确定未消耗;5xx 结果未知,保留 request_id 供重试复用
+    if (res.status >= 400 && res.status < 500) clearResetRequest(key);
+    throw upstreamError(res.status, res.body);
+  }
+  const code = str(obj(res.body)?.code);
+  if (code !== "reset" && code !== "already_redeemed") {
+    throw new Error(i18n.t("quota.codex_reset.not_confirmed"));
+  }
+  clearResetRequest(key);
   try {
-    body = JSON.parse(String(res.body ?? ""));
+    await api("/v8/management/routing/cooldown/reset", {
+      method: "POST",
+      body: { auth_index: authIndex },
+    });
   } catch {
-    // 非 JSON 响应保留原文
+    // 重置卡已经消耗,冷却清除失败时提示用户手动处理,不要再次消耗
+    throw new Error(i18n.t("quota.codex_reset.cooldown_failed"));
   }
-  if (res.status_code < 200 || res.status_code >= 300) {
-    const record = obj(body);
-    const message =
-      str(obj(record?.error)?.message) ?? str(record?.error) ?? str(record?.message) ?? String(body).slice(0, 200);
-    throw Object.assign(
-      new Error(i18n.t("quota.error.upstream", { status: res.status_code, message: message ? `: ${message}` : "" })),
-      {
-        status: res.status_code,
-      },
-    );
-  }
-  return obj(body) ?? {};
+  return code;
 }
 
 // 在凭据条目或认证文件里找指定字段,JWT 字符串会解码后再找
@@ -705,14 +1016,32 @@ async function fetchQuotaNow(file: AuthFile, authIndex: string): Promise<Quota> 
     case "codex": {
       const accountId = findField(file, ["chatgpt_account_id", "chatgptAccountId"]);
       const header = accountId ? { ...HEADERS.codex, "Chatgpt-Account-Id": accountId } : HEADERS.codex;
-      return parseCodex(await upstream(authIndex, "GET", CODEX_USAGE_URL, header));
+      const [usage, resetCredits] = await Promise.all([
+        upstream(authIndex, "GET", CODEX_USAGE_URL, header),
+        callUpstream(authIndex, "GET", CODEX_RESET_CREDITS_URL, {
+          ...header,
+          Accept: "application/json",
+          "OpenAI-Beta": "codex-1",
+          Originator: "Codex Desktop",
+        })
+          .then((res) => (res.status >= 200 && res.status < 300 ? obj(res.body) : null))
+          .catch(() => null),
+      ]);
+      const quota = parseCodex(usage, Date.now(), resetCredits);
+      quota.codexResetCredits ??= {
+        count: null,
+        credits: [],
+        error: i18n.t("quota.error.reset_credits"),
+      };
+      return quota;
     }
     case "claude": {
-      const [usage, profile] = await Promise.all([
+      const [usage, profile, grants] = await Promise.all([
         upstream(authIndex, "GET", CLAUDE_USAGE_URL, HEADERS.claude),
         upstream(authIndex, "GET", CLAUDE_PROFILE_URL, HEADERS.claude).catch(() => null),
+        upstream(authIndex, "GET", CLAUDE_RESET_GRANT_STATUS_URL, CLAUDE_RESET_HEADERS).catch(() => null),
       ]);
-      return parseClaude(usage, profile);
+      return parseClaude(usage, profile, grants);
     }
     case "kimi": {
       const url = resolveKimiUrl(file);
