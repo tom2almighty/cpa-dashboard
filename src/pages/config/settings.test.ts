@@ -8,6 +8,7 @@ import {
   GROUPS,
   parseAuthRules,
   parseChannelEntries,
+  parseIceServers,
   parseValue,
   readPath,
 } from "./settings";
@@ -48,6 +49,15 @@ const SETTINGS_KEYS = [
   "channel_entry_add",
   "channel_empty",
   "channel_invalid_json",
+  "ice_invalid_json",
+  "ice_server",
+  "ice_urls",
+  "ice_username",
+  "ice_credential",
+  "ice_secret_keep",
+  "ice_add",
+  "ice_empty",
+  "ice_hint",
   ...AUTH_TYPES.map((type) => `auth_type_${type}`),
   ...AUTH_APPLY_TO.map((kind) => `auth_apply_${kind}`),
   ...Object.values(AUTH_TYPE_FIELDS)
@@ -141,6 +151,18 @@ test("parseChannelEntries 只接受「渠道 -> 条目数组」", () => {
   expect(parseChannelEntries('{"codex":{}}')).toBeNull();
   expect(parseChannelEntries('{"codex":["x"]}')).toBeNull();
   expect(parseChannelEntries("{")).toBeNull();
+});
+
+test("parseIceServers 规范化 URL 并保留凭据", () => {
+  expect(parseIceServers("")).toEqual([]);
+  expect(
+    parseIceServers('[{"urls":[" stun:stun.example.com:3478 ",""],"username":" user ","credential":" secret "}]'),
+  ).toEqual([{ urls: ["stun:stun.example.com:3478"], username: "user", credential: " secret " }]);
+  // 没有 URL 的条目被丢弃
+  expect(parseIceServers('[{"urls":[],"username":"user"}]')).toEqual([]);
+  expect(parseIceServers('{"urls":["stun:x"]}')).toBeNull();
+  expect(parseIceServers('[{"urls":"stun:x"}]')).toBeNull();
+  expect(parseIceServers("[")).toBeNull();
 });
 
 test("parseValue 与可视化解析对同一份文本判断一致", () => {

@@ -690,7 +690,16 @@
       "entry_status": "Status code (status)",
       "entry_match": "Match substrings (match)",
       "entry_match-regexr": "Match regex (match-regexr)",
-      "entry_action": "Action (action)"
+      "entry_action": "Action (action)",
+      "ice_invalid_json": "Invalid JSON: expected an array of ICE servers, each with urls",
+      "ice_server": "ICE server {{index}}",
+      "ice_urls": "Server URLs",
+      "ice_username": "Username",
+      "ice_credential": "Credential",
+      "ice_secret_keep": "Leave blank to keep the stored value",
+      "ice_add": "Add ICE server",
+      "ice_empty": "No ICE servers. Direct STUN/TURN connectivity is used when empty",
+      "ice_hint": "Usernames and credentials are never returned by the config API. Blank values are preserved by URL match on save; changing an existing entry's URL requires re-entering its credentials or they will be cleared."
     },
     "payload": {
       "title": "Request Payload Rules",
@@ -1174,6 +1183,10 @@
       "oauth/providers/codex/live-media-relay/udp-port-max": {
         "label": "UDP Port Range End",
         "hint": "Optional upper bound. Set together with the lower bound"
+      },
+      "oauth/providers/codex/live-media-relay/ice-servers": {
+        "label": "ICE Servers",
+        "hint": "Optional STUN/TURN servers for Codex Live WebRTC. Usernames and credentials are never returned by the config API; blank values are preserved by URL match on save"
       },
       "upstream/claude/header-defaults/package-version": {
         "label": "Package Version",

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound, replaceKey } from "@/lib/api";
 
@@ -21,10 +22,11 @@ export type Json = Record<string, unknown>;
 
 // 文案取自 i18n：config.fields.<endpoint>.{label,hint,options.<value>}，config.groups.<id>
 // list 为每行一项的字符串数组，auth-rules 为插件商店认证规则数组，
-// channel-entries 为「渠道 -> 条目数组」对象（如 oauth.settings）
+// channel-entries 为「渠道 -> 条目数组」对象（如 oauth.settings），
+// ice-servers 为 Codex Live 的 STUN/TURN 条目数组
 export type Setting = {
   endpoint: string;
-  type: "bool" | "int" | "text" | "password" | "select" | "list" | "auth-rules" | "channel-entries";
+  type: "bool" | "int" | "text" | "password" | "select" | "list" | "auth-rules" | "channel-entries" | "ice-servers";
   options?: string[];
   fallback?: string | boolean;
   /** channel-entries 可视化编辑时每个条目的字段 */
@@ -46,6 +48,9 @@ export type ConfigGroup = {
 
 /** 一条插件商店认证规则,键名沿用 CPA 的 json tag(snake_case) */
 export type AuthRule = Record<string, unknown>;
+
+/** Codex Live 的 STUN/TURN 服务器;凭据字段不会由配置接口回显 */
+export type IceServer = { urls: string[]; username?: string; credential?: string };
 
 /** channel-entries 里单个条目的字段编辑方式,key 用 CPA 的 json tag */
 export type EntryFieldSpec = {
@@ -318,6 +323,7 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "oauth/providers/codex/live-media-relay/public-ip", type: "text" },
           { endpoint: "oauth/providers/codex/live-media-relay/udp-port-min", type: "int" },
           { endpoint: "oauth/providers/codex/live-media-relay/udp-port-max", type: "int" },
+          { endpoint: "oauth/providers/codex/live-media-relay/ice-servers", type: "ice-servers" },
         ],
       },
       {
@@ -490,7 +496,8 @@ export function parseValue(type: Setting["type"], text: string): unknown {
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
-  if (type === "auth-rules" || type === "channel-entries") {
+  if (type === "auth-rules" || type === "channel-entries" || type === "ice-servers") {
+    if (type === "ice-servers") return parseIceServers(text) ?? undefined;
     try {
       const value: unknown = JSON.parse(text);
       // 认证规则是数组,数组里每项是一个规则对象
@@ -551,7 +558,8 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
       if (setting.type === "bool") return typeof value === "boolean" ? value : setting.fallback === true;
       if (value === undefined) return String(setting.fallback ?? "");
       if (setting.type === "list" && Array.isArray(value)) return value.join("\n");
-      if (setting.type === "auth-rules" || setting.type === "channel-entries") return JSON.stringify(value, null, 2);
+      if (setting.type === "auth-rules" || setting.type === "channel-entries" || setting.type === "ice-servers")
+        return JSON.stringify(value ?? [], null, 2);
       return String(value);
     },
     [config],
@@ -594,7 +602,7 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
         }
         if (setting.type === "password") newKey = String(raw);
         // map 类型 PATCH 会深度合并、删不掉已有键,整体 PUT 替换
-        if (setting.type === "auth-rules" || setting.type === "channel-entries") {
+        if (setting.type === "auth-rules" || setting.type === "channel-entries" || setting.type === "ice-servers") {
           replaced.push([setting.endpoint, value]);
           continue;
         }
@@ -765,6 +773,18 @@ export function SettingField({ setting }: { setting: Setting }) {
         invalidHint={t("config.settings.channel_invalid_json")}
       />
     );
+  } else if (setting.type === "ice-servers") {
+    control = (
+      <DualModeField
+        ariaLabelledBy={labelId}
+        value={text}
+        onChange={(next) => setValue(setting, next)}
+        parse={parseIceServers}
+        format={(servers) => JSON.stringify(servers, null, 2)}
+        render={(servers, write) => <IceServerList servers={servers} write={write} />}
+        invalidHint={t("config.settings.ice_invalid_json")}
+      />
+    );
   } else {
     const isInt = setting.type === "int";
     control = (
@@ -796,7 +816,11 @@ export function SettingField({ setting }: { setting: Setting }) {
   }
 
   // list / 双模式编辑器需要整行宽度,其余保持左右分栏
-  const wide = setting.type === "list" || setting.type === "auth-rules" || setting.type === "channel-entries";
+  const wide =
+    setting.type === "list" ||
+    setting.type === "auth-rules" ||
+    setting.type === "channel-entries" ||
+    setting.type === "ice-servers";
 
   return (
     <div
@@ -896,6 +920,159 @@ function ListField({
         <Plus className="size-3.5" />
         {t("config.settings.list_add")}
       </Button>
+    </div>
+  );
+}
+
+function isIceServer(value: unknown): value is Record<string, unknown> {
+  return isRule(value) && Array.isArray(value.urls) && value.urls.every((url) => typeof url === "string");
+}
+
+/**
+ * 文本 → ICE 服务器数组;空文本视为空数组。
+ * 规范化时去掉空 URL 与空用户名,credential 保持原样不 trim。
+ */
+export function parseIceServers(text: string): IceServer[] | null {
+  if (text.trim() === "") return [];
+  try {
+    const value: unknown = JSON.parse(text);
+    if (!Array.isArray(value)) return null;
+    const servers: IceServer[] = [];
+    for (const item of value) {
+      if (!isIceServer(item)) return null;
+      const urls = (item.urls as string[]).map((url) => url.trim()).filter(Boolean);
+      if (urls.length === 0) continue;
+      const server: IceServer = { urls };
+      if (typeof item.username === "string" && item.username.trim()) server.username = item.username.trim();
+      if (typeof item.credential === "string" && item.credential) server.credential = item.credential;
+      servers.push(server);
+    }
+    return servers;
+  } catch {
+    return null;
+  }
+}
+
+/** ICE 服务器可视化编辑:URL 每行一个,用户名/凭据可留空以保留服务端已存值 */
+function IceServerList({ servers, write }: { servers: IceServer[]; write: (next: IceServer[]) => void }) {
+  const { t } = useI18n();
+  const serverKeys = useRef<string[]>([]);
+  const keySeq = useRef(0);
+  while (serverKeys.current.length < servers.length) serverKeys.current.push(`ice-${keySeq.current++}`);
+  if (serverKeys.current.length > servers.length) serverKeys.current.length = servers.length;
+
+  const update = (index: number, patch: Partial<IceServer>) =>
+    write(servers.map((server, i) => (i === index ? { ...server, ...patch } : server)));
+
+  return (
+    <div className="grid gap-2">
+      {servers.length === 0 && <p className="text-xs text-muted-foreground">{t("config.settings.ice_empty")}</p>}
+      {servers.map((server, index) => (
+        <IceServerRow
+          key={serverKeys.current[index]}
+          index={index}
+          server={server}
+          onUpdate={(patch) => update(index, patch)}
+          onRemove={() => {
+            serverKeys.current.splice(index, 1);
+            write(servers.filter((_, i) => i !== index));
+          }}
+        />
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 w-fit gap-1 text-xs"
+        onClick={() => write([...servers, { urls: [] }])}
+      >
+        <Plus className="size-3.5" />
+        {t("config.settings.ice_add")}
+      </Button>
+      <p className="text-xs text-muted-foreground">{t("config.settings.ice_hint")}</p>
+    </div>
+  );
+}
+
+/** 单条 ICE 服务器;URL 文本保留本地原始输入,避免输入换行时被立即过滤 */
+function IceServerRow({
+  index,
+  server,
+  onUpdate,
+  onRemove,
+}: {
+  index: number;
+  server: IceServer;
+  onUpdate: (patch: Partial<IceServer>) => void;
+  onRemove: () => void;
+}) {
+  const { t } = useI18n();
+  const uid = useId();
+  const [urlsText, setUrlsText] = useState(server.urls.join("\n"));
+
+  const writeUrls = (text: string) => {
+    setUrlsText(text);
+    onUpdate({
+      urls: text
+        .split("\n")
+        .map((url) => url.trim())
+        .filter(Boolean),
+    });
+  };
+
+  return (
+    <div className="grid gap-2 rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">
+          {t("config.settings.ice_server", { index: index + 1 })}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-destructive"
+          title={t("config.settings.list_remove")}
+          aria-label={t("config.settings.list_remove")}
+          onClick={onRemove}
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${uid}-urls`}>{t("config.settings.ice_urls")}</Label>
+        <Textarea
+          id={`${uid}-urls`}
+          value={urlsText}
+          onChange={(event) => writeUrls(event.target.value)}
+          placeholder={"stun:stun.example.com:3478\nturn:turn.example.com:3478?transport=udp"}
+          className="min-h-16 font-mono text-xs"
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${uid}-username`}>{t("config.settings.ice_username")}</Label>
+          <Input
+            id={`${uid}-username`}
+            value={server.username ?? ""}
+            autoComplete="off"
+            onChange={(event) => onUpdate({ username: event.target.value })}
+            placeholder={t("config.settings.ice_secret_keep")}
+            className="font-mono text-xs"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${uid}-credential`}>{t("config.settings.ice_credential")}</Label>
+          <Input
+            id={`${uid}-credential`}
+            type="password"
+            value={server.credential ?? ""}
+            autoComplete="new-password"
+            onChange={(event) => onUpdate({ credential: event.target.value })}
+            placeholder={t("config.settings.ice_secret_keep")}
+            className="font-mono text-xs"
+          />
+        </div>
+      </div>
     </div>
   );
 }

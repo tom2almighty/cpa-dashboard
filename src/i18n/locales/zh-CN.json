@@ -690,7 +690,16 @@
       "entry_status": "状态码 (status)",
       "entry_match": "匹配子串 (match)",
       "entry_match-regexr": "匹配正则 (match-regexr)",
-      "entry_action": "处理动作 (action)"
+      "entry_action": "处理动作 (action)",
+      "ice_invalid_json": "JSON 格式不正确：需要 ICE 服务器数组（每项包含 urls）",
+      "ice_server": "ICE 服务器 {{index}}",
+      "ice_urls": "服务器 URL",
+      "ice_username": "用户名",
+      "ice_credential": "凭据",
+      "ice_secret_keep": "留空保留原值",
+      "ice_add": "添加 ICE 服务器",
+      "ice_empty": "暂无 ICE 服务器，未配置时使用直连 STUN/TURN",
+      "ice_hint": "用户名与凭据不会从配置接口回显；留空提交时按 URL 匹配保留原值。修改已有条目的 URL 后需要重新填写凭据，否则会被清除。"
     },
     "payload": {
       "title": "请求 Payload 参数规则可视化",
@@ -1174,6 +1183,10 @@
       "oauth/providers/codex/live-media-relay/udp-port-max": {
         "label": "UDP 端口范围上限",
         "hint": "可选的 UDP 分配范围上限，必须与下限同时设置"
+      },
+      "oauth/providers/codex/live-media-relay/ice-servers": {
+        "label": "ICE 服务器",
+        "hint": "可选的 STUN/TURN 服务器列表，用于 Codex Live WebRTC。用户名与凭据不会从配置接口回显，留空提交时按 URL 匹配保留原值"
       },
       "upstream/claude/header-defaults/package-version": {
         "label": "包版本 (package-version)",
