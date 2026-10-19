@@ -533,7 +533,7 @@ function EditDialog({
         </DialogHeader>
         <form key={kind.endpoint} id={`form-${p}`} onSubmit={submit} className="flex min-h-0 flex-1 flex-col gap-3">
           <Tabs value={tab} onValueChange={(value) => value && setTab(value as typeof tab)} className="min-h-0 flex-1">
-            <TabsList className="self-start">
+            <TabsList className="self-start" aria-label={t("providers.tab_group_label")}>
               <TabsTrigger value="connection" className="gap-1.5">
                 <Cable className="size-3.5" />
                 {t("providers.tab_connection")}
