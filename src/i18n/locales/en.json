@@ -429,12 +429,13 @@
     "batch_add_desc": "Enter one key per line, or separate with commas or semicolons. Existing or duplicate keys will be skipped automatically.",
     "batch_add_placeholder": "sk-...\nsk-...\nsk-...",
     "batch_generate": "Batch Generate",
-    "batch_generate_5": "Generate 5",
-    "batch_generate_10": "Generate 10",
     "batch_stat": "{{valid}} new key(s) detected (skipping {{duplicate}} duplicate/existing)",
     "batch_submit": "Add {{count}} Key(s)",
     "batch_add_none": "No valid and unique new keys found to add",
-    "batch_add_success": "Successfully added {{count}} key(s)"
+    "batch_add_success": "Successfully added {{count}} key(s)",
+    "batch_count_label": "Number to generate",
+    "batch_generate_btn": "Generate",
+    "batch_count_invalid": "Enter an integer between 1 and 100"
   },
   "models": {
     "title": "Model Management",

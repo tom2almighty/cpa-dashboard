@@ -429,12 +429,13 @@
     "batch_add_desc": "支持每行一个 Key，或使用逗号、分号分隔。自动去重并跳过已存在的 Key。",
     "batch_add_placeholder": "sk-...\nsk-...\nsk-...",
     "batch_generate": "批量生成",
-    "batch_generate_5": "生成 5 个",
-    "batch_generate_10": "生成 10 个",
     "batch_stat": "解析出 {{valid}} 个新 Key（跳过 {{duplicate}} 个重复/已存在）",
     "batch_submit": "添加 {{count}} 个 Key",
     "batch_add_none": "未输入任何有效且不重复的新 Key",
-    "batch_add_success": "成功批量添加 {{count}} 个 Key"
+    "batch_add_success": "成功批量添加 {{count}} 个 Key",
+    "batch_count_label": "生成数量",
+    "batch_generate_btn": "生成",
+    "batch_count_invalid": "请输入 1 到 100 之间的整数"
   },
   "models": {
     "title": "模型管理",

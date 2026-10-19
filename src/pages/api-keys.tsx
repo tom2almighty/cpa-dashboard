@@ -4,6 +4,7 @@ import type React from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
+import { Pagination, paginate } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,6 +70,9 @@ export function ApiKeysPage() {
   const [editingNoteValue, setEditingNoteValue] = useState("");
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchText, setBatchText] = useState("");
+  const [batchCount, setBatchCount] = useState("5");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const toggleVisible = (k: string) => {
     setVisibleKeys((prev) => ({ ...prev, [k]: !prev[k] }));
@@ -127,7 +131,12 @@ export function ApiKeysPage() {
   const newBatchKeys = parsedBatchKeys.filter((k) => !keys.includes(k));
   const duplicateBatchCount = parsedBatchKeys.length - newBatchKeys.length;
 
-  const handleBatchGenerate = (count: number) => {
+  const handleBatchGenerate = () => {
+    const count = Number(batchCount.trim());
+    if (!Number.isInteger(count) || count < 1 || count > 100) {
+      toast.error(t("api_keys.batch_count_invalid"));
+      return;
+    }
     const generated: string[] = [];
     const existingSet = new Set([...keys, ...parsedBatchKeys]);
     for (let i = 0; i < count; i++) {
@@ -168,6 +177,7 @@ export function ApiKeysPage() {
   };
 
   const cpaBaseUrl = getClientApiUrl();
+  const { pageItems, current, pageCount } = paginate(keys, page, pageSize);
 
   return (
     <>
@@ -212,7 +222,7 @@ export function ApiKeysPage() {
           </p>
         ) : (
           <ul className="divide-y rounded-lg border min-w-0 overflow-hidden">
-            {keys.map((key) => {
+            {pageItems.map((key) => {
               const testCmd = `curl ${cpaBaseUrl}/models \\\n  -H "Authorization: Bearer ${key}"`;
               return (
                 <li
@@ -316,6 +326,16 @@ export function ApiKeysPage() {
               <li className="py-8 text-center text-sm text-muted-foreground">{t("api_keys.empty_keys")}</li>
             )}
           </ul>
+        )}
+        {!isPending && !isError && keys.length > 0 && (
+          <Pagination
+            page={current}
+            pageCount={pageCount}
+            total={keys.length}
+            onChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+          />
         )}
 
         <form
@@ -434,11 +454,15 @@ export function ApiKeysPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="text-muted-foreground">{t("api_keys.batch_generate")}:</span>
-                    <Button type="button" variant="secondary" size="xs" onClick={() => handleBatchGenerate(5)}>
-                      {t("api_keys.batch_generate_5")}
-                    </Button>
-                    <Button type="button" variant="secondary" size="xs" onClick={() => handleBatchGenerate(10)}>
-                      {t("api_keys.batch_generate_10")}
+                    <Input
+                      value={batchCount}
+                      onChange={(e) => setBatchCount(e.target.value)}
+                      inputMode="numeric"
+                      className="h-7 w-16 text-xs"
+                      aria-label={t("api_keys.batch_count_label")}
+                    />
+                    <Button type="button" variant="secondary" size="xs" onClick={handleBatchGenerate}>
+                      {t("api_keys.batch_generate_btn")}
                     </Button>
                   </div>
                   {parsedBatchKeys.length > 0 && (
