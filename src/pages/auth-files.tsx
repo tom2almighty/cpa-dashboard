@@ -60,7 +60,7 @@ import { formatDateTime, formatInteger, formatRelative } from "@/lib/format";
 import { type AuthFile, authState } from "@/lib/types";
 
 const file = (name: string) => encodeURIComponent(name);
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
 
 type BatchResult = { files?: string[]; failed?: { name: string; error: string }[] };
 
@@ -514,11 +514,12 @@ export function AuthFilesPage() {
   const [keyword, setKeyword] = useState("");
   const [provider, setProvider] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cooldown" | "error" | "disabled">("all");
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialogs>(null);
   const deferredKeyword = useDeferredValue(keyword);
   // 页码跟筛选条件绑定,条件一变自动回到第一页
-  const filterKey = `${deferredKeyword}|${provider}|${statusFilter}`;
+  const filterKey = `${deferredKeyword}|${provider}|${statusFilter}|${pageSize}`;
   const [pager, setPager] = useState({ filterKey, page: 1 });
   const page = pager.filterKey === filterKey ? pager.page : 1;
   const setPage = (next: number) => setPager({ filterKey, page: next });
@@ -688,7 +689,7 @@ export function AuthFilesPage() {
     });
   }, [data, deferredKeyword, provider, statusFilter]);
 
-  const { pageItems, current, pageCount } = paginate(files, page, PAGE_SIZE);
+  const { pageItems, current, pageCount } = paginate(files, page, pageSize);
   const allSelected = pageItems.length > 0 && pageItems.every((f) => selected.includes(f.name));
   const toggleAll = () => {
     const names = pageItems.map((f) => f.name);
@@ -999,7 +1000,14 @@ export function AuthFilesPage() {
               )}
             </TableBody>
           </Table>
-          <Pagination page={current} pageCount={pageCount} total={files.length} onChange={setPage} />
+          <Pagination
+            page={current}
+            pageCount={pageCount}
+            total={files.length}
+            onChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+          />
         </>
       )}
 

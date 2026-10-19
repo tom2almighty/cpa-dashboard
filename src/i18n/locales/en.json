@@ -1321,7 +1321,9 @@
     "first": "First page",
     "prev": "Previous page",
     "next": "Next page",
-    "last": "Last page"
+    "last": "Last page",
+    "per_page": "{{count}} per page",
+    "page_size_label": "Rows per page"
   },
   "sparkline": {
     "aria": "{{label}} last {{minutes}} min: {{success}} succeeded, {{failed}} failed",

@@ -1321,7 +1321,9 @@
     "first": "首页",
     "prev": "上一页",
     "next": "下一页",
-    "last": "末页"
+    "last": "末页",
+    "per_page": "{{count}} 条/页",
+    "page_size_label": "每页条数"
   },
   "sparkline": {
     "aria": "{{label}}最近 {{minutes}} 分钟：成功 {{success}}，失败 {{failed}}",
