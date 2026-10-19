@@ -361,7 +361,6 @@
     "th_proxy_or_enabled": "Proxy / Enabled",
     "th_recent": "Last 200 min",
     "empty_all": "No providers configured yet",
-    "pick_kind_title": "Choose provider type",
     "unnamed_group": "Unnamed group",
     "official_url": "Official",
     "excluded_count": ", {{count}} excluded",
@@ -383,7 +382,8 @@
     "header_name_named": "Name of header {{n}}",
     "header_value_named": "Value of header {{n}}",
     "remove_header_named": "Remove header {{n}}",
-    "add_header": "Add header"
+    "add_header": "Add header",
+    "type": "Provider type"
   },
   "api_keys": {
     "title": "Client API Keys",

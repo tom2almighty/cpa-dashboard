@@ -361,7 +361,6 @@
     "th_proxy_or_enabled": "代理 / 启用",
     "th_recent": "最近 200 分钟",
     "empty_all": "还没有配置任何提供商",
-    "pick_kind_title": "选择提供商类型",
     "unnamed_group": "未命名分组",
     "official_url": "官方地址",
     "excluded_count": "，排除 {{count}}",
@@ -383,7 +382,8 @@
     "header_name_named": "第 {{n}} 个请求头的名称",
     "header_value_named": "第 {{n}} 个请求头的值",
     "remove_header_named": "删除第 {{n}} 个请求头",
-    "add_header": "添加请求头"
+    "add_header": "添加请求头",
+    "type": "供应商类型"
   },
   "api_keys": {
     "title": "客户端 API Key",

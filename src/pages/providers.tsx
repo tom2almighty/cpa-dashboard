@@ -452,7 +452,7 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
 }
 
 function EditDialog({
-  kind,
+  kind: initialKind,
   target,
   onClose,
 }: {
@@ -463,11 +463,20 @@ function EditDialog({
 }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
+  // 新增时类型是表单第一项，切换类型会重置为该类型的空表单
+  const [kind, setKind] = useState(initialKind);
   const [form, setForm] = useState<Form>(() => toForm(target ?? {}));
   const [error, setError] = useState<string | null>(null);
   const update = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const changeKind = (next: Kind) => {
+    if (next.endpoint === kind.endpoint) return;
+    setKind(next);
+    setForm(toForm({}));
+    setError(null);
+    setTestResult(null);
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -511,11 +520,32 @@ function EditDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>
-            {target ? t("providers.edit") : t("providers.add")} {kind.label}
-          </DialogTitle>
+          <DialogTitle>{target ? `${t("providers.edit")} ${kind.label}` : t("providers.add")}</DialogTitle>
         </DialogHeader>
-        <form id={`form-${p}`} onSubmit={submit} className="grid gap-4">
+        <form key={kind.endpoint} id={`form-${p}`} onSubmit={submit} className="grid gap-4">
+          {!target && (
+            <Field id={`${p}-type`} label={t("providers.type")}>
+              <Select
+                items={KINDS.map((item) => ({ value: item.endpoint, label: item.label }))}
+                value={kind.endpoint}
+                onValueChange={(value) => {
+                  const next = KINDS.find((item) => item.endpoint === value);
+                  if (next) changeKind(next);
+                }}
+              >
+                <SelectTrigger id={`${p}-type`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {KINDS.map((item) => (
+                    <SelectItem key={item.endpoint} value={item.endpoint}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
           <Field
             id={`${p}-name`}
             label={t("common.name")}
@@ -855,64 +885,16 @@ function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: bo
   );
 }
 
-/**
- * 新增提供商第一步：先选类型。各类型的表单字段差异很大（OpenAI 兼容要名称、
- * Vertex 要别名、Codex 要 WebSocket），所以把类型选择独立成一步，
- * 顶部的「添加提供商」按钮文案也就不再随当前标签变化。
- */
-function KindPickerDialog({
-  counts,
-  onPick,
-  onClose,
-}: {
-  counts: Record<string, number>;
-  onPick: (kind: Kind) => void;
-  onClose: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t("providers.pick_kind_title")}</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-2 py-2 sm:grid-cols-2">
-          {KINDS.map((kind) => (
-            <Button
-              key={kind.endpoint}
-              variant="outline"
-              className="h-auto justify-between gap-2 py-2.5"
-              onClick={() => onPick(kind)}
-            >
-              <span className="font-medium">{kind.label}</span>
-              {counts[kind.endpoint] > 0 && (
-                <span className="text-xs text-muted-foreground tabular-nums">{counts[kind.endpoint]}</span>
-              )}
-            </Button>
-          ))}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export function ProvidersPage() {
   const { t } = useI18n();
   const { data, isPending, isError, error } = useQuery({
     ...configQuery,
     select: (c) => (c["api-keys"] ?? {}) as Record<string, unknown>,
   });
-  const [picking, setPicking] = useState(false);
-  const [adding, setAdding] = useState<Kind | null>(null);
+  const [adding, setAdding] = useState(false);
 
   // 按 KINDS 的顺序展开，同类型的行自然相邻，类型徽标之外也能一眼看出分组
   const rows: ProviderRow[] = KINDS.flatMap((kind) => list(data?.[kind.endpoint]).map((item) => ({ kind, item })));
-  const counts = Object.fromEntries(KINDS.map((kind) => [kind.endpoint, list(data?.[kind.endpoint]).length]));
 
   return (
     <>
@@ -920,7 +902,7 @@ export function ProvidersPage() {
         title={t("providers.title")}
         description={t("providers.desc")}
         actions={
-          <Button onClick={() => setPicking(true)} disabled={isPending}>
+          <Button onClick={() => setAdding(true)} disabled={isPending}>
             <Plus />
             {t("providers.add")}
           </Button>
@@ -934,17 +916,7 @@ export function ProvidersPage() {
         <ProvidersList rows={rows} isPending={isPending} />
       )}
 
-      {picking && (
-        <KindPickerDialog
-          counts={counts}
-          onPick={(kind) => {
-            setPicking(false);
-            setAdding(kind);
-          }}
-          onClose={() => setPicking(false)}
-        />
-      )}
-      {adding && <EditDialog kind={adding} target={null} onClose={() => setAdding(null)} />}
+      {adding && <EditDialog kind={KINDS[0]} target={null} onClose={() => setAdding(false)} />}
     </>
   );
 }
