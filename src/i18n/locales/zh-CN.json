@@ -336,11 +336,12 @@
     "native_tool_search_named": "第 {{n}} 个密钥启用原生工具搜索",
     "remove_key_named": "删除第 {{n}} 个密钥",
     "cloak_mode": "伪装模式",
-    "cloak_hint": "按密钥覆盖 Claude 请求伪装：auto 仅伪装非 Claude Code 客户端，always 始终伪装，never 关闭；留空继承默认行为",
+    "cloak_hint": "按密钥覆盖 Claude 请求伪装：auto 仅伪装非 Claude Code 客户端，always 始终伪装，never 关闭，uncloak 关闭并剥离入站请求里的 Claude Code 身份与计费标识；留空继承默认行为",
     "cloak_inherit": "继承",
     "cloak_auto": "auto",
     "cloak_always": "always",
     "cloak_never": "never",
+    "cloak_uncloak": "uncloak",
     "inherit": "继承",
     "disabled": "关闭",
     "disable_cooling": "禁用冷却",
@@ -1358,7 +1359,6 @@
     "headers_format": "请求头每行格式为 名称: 值",
     "test_ok": "成功响应 ({{ms}}ms)",
     "upstream_http": "上游返回 HTTP {{status}}",
-    "request_failed": "请求失败",
-    "vertex_alias_required": "Vertex 模型必须设置别名，没有别名的模型会被 CPA 忽略"
+    "request_failed": "请求失败"
   }
 }

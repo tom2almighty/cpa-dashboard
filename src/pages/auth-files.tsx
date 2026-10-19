@@ -217,7 +217,8 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90svh] flex-col sm:max-w-xl">
+      {/* 固定高度：切换页签时内容高度不同，居中弹窗会上下跳动 */}
+      <DialogContent className="flex h-[85svh] flex-col sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("auth_files.save_properties", { name: accountName(target) })}</DialogTitle>
         </DialogHeader>

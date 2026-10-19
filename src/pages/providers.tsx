@@ -732,6 +732,13 @@ function rowKey(row: ProviderRow): string {
   return `${row.kind.endpoint}:${identity(row.item)}`;
 }
 
+// 代理地址可能很长（含账号密码、路径或查询参数），列表里只展示前缀，完整值放在 title
+function shortProxy(value: string): string {
+  const url = value.trim();
+  if (!url) return "—";
+  return url.length > 30 ? `${url.slice(0, 29)}…` : url;
+}
+
 function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: boolean }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
@@ -793,7 +800,7 @@ function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: bo
             <TableHead>Base URL</TableHead>
             <TableHead className="text-right">{t("providers.th_key_count")}</TableHead>
             <TableHead className="text-right">{t("providers.th_model_count")}</TableHead>
-            <TableHead>{t("providers.th_proxy")}</TableHead>
+            <TableHead className="w-40">{t("providers.th_proxy")}</TableHead>
             <TableHead>{t("providers.th_status")}</TableHead>
             <TableHead>{t("providers.th_recent")}</TableHead>
             <TableHead className="w-28">
@@ -838,12 +845,12 @@ function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: bo
                     )}
                   </TableCell>
                   {/* 分组代理与启用状态是两回事：OpenAI 兼容只有密钥级代理，启用开关也只对它有效 */}
-                  <TableCell className="max-w-48 text-muted-foreground">
+                  <TableCell className="w-40 max-w-40 text-muted-foreground">
                     <span
                       className="block truncate"
                       title={row.kind.openai ? t("providers.proxy_per_key") : str(item["proxy-url"])}
                     >
-                      {row.kind.openai ? t("providers.proxy_per_key") : str(item["proxy-url"]) || "—"}
+                      {row.kind.openai ? t("providers.proxy_per_key") : shortProxy(str(item["proxy-url"]))}
                     </span>
                   </TableCell>
                   <TableCell>

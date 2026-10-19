@@ -169,9 +169,10 @@ test("校验必填项", () => {
   expect(validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), keys: rows({ key: "k", weight: "1.5" }) })).toBe(
     "密钥权重必须是整数",
   );
+  // Vertex 兼容模型只要求名称，别名可留空（上游 SanitizeVertexCompatKeys 已放宽）
   const vertexForm = toForm({ keys: [{ "api-key": "k" }], models: [{ name: "gemini-pro", alias: "gemini-pro" }] });
   expect(validate(vertex, vertexForm)).toBeNull();
-  expect(validate(vertex, { ...vertexForm, models: "gemini-pro" })).not.toBeNull();
+  expect(validate(vertex, { ...vertexForm, models: "gemini-pro" })).toBeNull();
 });
 
 test("解析与格式化模型行", () => {

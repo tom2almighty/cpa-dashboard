@@ -82,7 +82,7 @@ export type Form = {
 export type Model = { name: string; alias?: string } & Json;
 
 // 按渠道可选的键级 cloak.mode,空串表示继承
-export const CLOAK_MODES = ["", "auto", "always", "never"] as const;
+export const CLOAK_MODES = ["", "auto", "always", "never", "uncloak"] as const;
 
 export function newKeyRow(): KeyRow {
   return {
@@ -128,7 +128,7 @@ export function formatModelRows(rows: ModelRow[]): string {
     .map((r) => {
       const name = r.name.trim();
       const alias = r.alias.trim();
-      // 别名与原名相同也保留(Vertex 模型必须有别名)
+      // 别名与原名相同也保留，避免吞掉用户显式写的映射
       return alias ? `${name} => ${alias}` : name;
     })
     .join("\n");
@@ -405,9 +405,6 @@ export function validate(kind: Kind, form: Form): string | null {
   // 请求头必须写成 "名称: 值",名称不能为空(值可以为空)
   if (lines(form.headers).some((l) => !l.includes(":") || !l.slice(0, l.indexOf(":")).trim()))
     return i18n.t("provider_form.headers_format");
-  // CPA 会丢弃没有别名的 Vertex 模型
-  if (kind.endpoint === "vertex" && parseModelRows(form.models).some((r) => !r.alias))
-    return i18n.t("provider_form.vertex_alias_required");
   return null;
 }
 

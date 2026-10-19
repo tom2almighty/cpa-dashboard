@@ -13,6 +13,9 @@ import { CREDENTIALS_KEY } from "@/lib/credentials";
 
 type Provider = { id: string; name: string; hintKey: string; plugin?: boolean };
 
+// 与官方面板一致：只有浏览器回调流程需要后端在 CPA 主机上监听回调端口。
+const WEBUI_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin"]);
+
 // 回调还是设备码流程由 auth-url 返回的 flow 决定
 const PROVIDERS: Provider[] = [
   { id: "codex", name: "Codex", hintKey: "oauth.hints.codex" },
@@ -60,9 +63,11 @@ function ProviderCard({ provider }: { provider: Provider }) {
 
   const start = useMutation({
     mutationFn: () =>
-      // is_webui 让 CPA 在本机监听回调端口;插件会把额外参数当作登录元数据,不带
+      // is_webui 让 CPA 在本机监听回调端口;设备码流程不需要,插件会把额外参数当作登录元数据
       api<Session>(
-        `/v8/management/oauth/auth-url?provider=${encodeURIComponent(provider.id)}${provider.plugin ? "" : "&is_webui=true"}`,
+        `/v8/management/oauth/auth-url?provider=${encodeURIComponent(provider.id)}${
+          !provider.plugin && WEBUI_SUPPORTED.has(provider.id) ? "&is_webui=true" : ""
+        }`,
       ),
     onSuccess: (data) => {
       setNow(Date.now());
