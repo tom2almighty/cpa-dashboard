@@ -22,8 +22,6 @@ export type Plugin = {
   effective_enabled?: boolean;
   supports_oauth?: boolean;
   oauth_provider?: string;
-  supports_quota?: boolean;
-  quota_provider?: string;
   logo?: string;
   config_fields?: ConfigField[] | null;
   menus?: PluginMenu[] | null;

@@ -21,7 +21,6 @@ import { HeadersEditor } from "@/components/headers-editor";
 import { ModelAliasesEditor } from "@/components/model-aliases-editor";
 import { PageHeader } from "@/components/page-header";
 import { Pagination, paginate } from "@/components/pagination";
-import { accountName, QuotaPanel } from "@/components/quota-panel";
 import { RequestSparkline } from "@/components/sparkline";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import {
@@ -52,12 +51,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { api, download, errorText, fetchBlob, saveBlob } from "@/lib/api";
 import { diffFields, type Fields, NUMBER_FIELDS, readFields } from "@/lib/auth-file-fields";
-import { CREDENTIALS_KEY, useCredentials } from "@/lib/credentials";
+import { accountName, CREDENTIALS_KEY, useCredentials } from "@/lib/credentials";
 import { formatDateTime, formatInteger, formatRelative } from "@/lib/format";
 import { type AuthFile, authState } from "@/lib/types";
 
@@ -515,7 +513,6 @@ export function AuthFilesPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [keyword, setKeyword] = useState("");
   const [provider, setProvider] = useState("");
-  const [tab, setTab] = useState<"list" | "quota">("list");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cooldown" | "error" | "disabled">("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialogs>(null);
@@ -576,7 +573,6 @@ export function AuthFilesPage() {
         }),
       );
       refresh();
-      queryClient.invalidateQueries({ queryKey: ["quota", f.auth_index] });
     },
   });
   const manualRefresh = useMutation({
@@ -588,7 +584,6 @@ export function AuthFilesPage() {
     onSuccess: (_, f) => {
       toast.success(t("auth_files.refreshed", { name: accountName(f) }));
       refresh();
-      queryClient.invalidateQueries({ queryKey: ["quota", f.auth_index] });
     },
     onError: (err: Error) => {
       toast.error(t("auth_files.refresh_failed", { message: errorText(err) }));
@@ -760,271 +755,252 @@ export function AuthFilesPage() {
           {t("auth_files.load_accounts_failed", { message: errorText(error) })}
         </p>
       ) : (
-        <Tabs value={tab} onValueChange={(v) => setTab((v as typeof tab) ?? "list")}>
+        <>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <TabsList>
-              <TabsTrigger value="list">{t("auth_files.tab_list")}</TabsTrigger>
-              <TabsTrigger value="quota">{t("auth_files.tab_quota")}</TabsTrigger>
-            </TabsList>
-            {tab === "list" && (
-              <div className="flex flex-wrap gap-2">
-                <Select
-                  value={statusFilter}
-                  onValueChange={(v) => setStatusFilter((v as typeof statusFilter) ?? "all")}
-                >
-                  <SelectTrigger className="w-28" aria-label={t("auth_files.filter_status_label")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("auth_files.status_all")}</SelectItem>
-                    <SelectItem value="active">{t("auth_files.status_active")}</SelectItem>
-                    <SelectItem value="cooldown">{t("auth_files.status_cooldown")}</SelectItem>
-                    <SelectItem value="error">{t("auth_files.status_auth_error")}</SelectItem>
-                    <SelectItem value="disabled">{t("auth_files.status_disabled")}</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  items={[
-                    { value: "", label: t("auth_files.filter_provider") },
-                    ...providers.map((p) => ({ value: p, label: p })),
-                  ]}
-                  value={provider}
-                  onValueChange={(v) => setProvider(v ?? "")}
-                >
-                  <SelectTrigger className="w-36" aria-label={t("auth_files.filter_provider_label")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">{t("auth_files.filter_provider")}</SelectItem>
-                    {providers.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder={t("auth_files.search_short_placeholder")}
-                    aria-label={t("auth_files.search_label")}
-                    value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
-                    className="w-56 pl-8"
-                  />
-                </div>
+            <div className="flex flex-wrap gap-2">
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter((v as typeof statusFilter) ?? "all")}>
+                <SelectTrigger className="w-28" aria-label={t("auth_files.filter_status_label")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("auth_files.status_all")}</SelectItem>
+                  <SelectItem value="active">{t("auth_files.status_active")}</SelectItem>
+                  <SelectItem value="cooldown">{t("auth_files.status_cooldown")}</SelectItem>
+                  <SelectItem value="error">{t("auth_files.status_auth_error")}</SelectItem>
+                  <SelectItem value="disabled">{t("auth_files.status_disabled")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                items={[
+                  { value: "", label: t("auth_files.filter_provider") },
+                  ...providers.map((p) => ({ value: p, label: p })),
+                ]}
+                value={provider}
+                onValueChange={(v) => setProvider(v ?? "")}
+              >
+                <SelectTrigger className="w-36" aria-label={t("auth_files.filter_provider_label")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t("auth_files.filter_provider")}</SelectItem>
+                  {providers.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder={t("auth_files.search_short_placeholder")}
+                  aria-label={t("auth_files.search_label")}
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  className="w-56 pl-8"
+                />
               </div>
-            )}
+            </div>
           </div>
-          <TabsContent value="quota">
-            <QuotaPanel files={data} />
-          </TabsContent>
-          <TabsContent value="list">
-            {!isComplete && (
-              <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Spinner className="size-3" />
-                {t("common.loading_progress", { loaded: formatInteger(data.length), total: formatInteger(total) })}
-              </p>
-            )}
-            {selected.length > 0 && (
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-xs">
-                <span>{t("auth_files.selected_count", { count: selected.length })}</span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={batchToggle.isPending}
-                    onClick={() => batchToggle.mutate(false)}
-                  >
-                    {batchToggle.isPending && !batchToggle.variables ? <Spinner className="size-3" /> : null}
-                    {t("auth_files.batch_enable")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={batchToggle.isPending}
-                    onClick={() => batchToggle.mutate(true)}
-                  >
-                    {batchToggle.isPending && batchToggle.variables ? <Spinner className="size-3" /> : null}
-                    {t("auth_files.batch_disable")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={batchDownload.isPending}
-                    onClick={() => batchDownload.mutate(selected)}
-                  >
-                    {batchDownload.isPending ? <Spinner className="size-3" /> : <Download className="size-3" />}
-                    {t("auth_files.batch_download")}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setDialog({ kind: "batch-delete" })}
-                  >
-                    <Trash2 className="size-3" />
-                    {t("auth_files.batch_delete")}
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelected([])}>
-                    {t("auth_files.clear_selection")}
-                  </Button>
-                </div>
+          {!isComplete && (
+            <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Spinner className="size-3" />
+              {t("common.loading_progress", { loaded: formatInteger(data.length), total: formatInteger(total) })}
+            </p>
+          )}
+          {selected.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-xs">
+              <span>{t("auth_files.selected_count", { count: selected.length })}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={batchToggle.isPending}
+                  onClick={() => batchToggle.mutate(false)}
+                >
+                  {batchToggle.isPending && !batchToggle.variables ? <Spinner className="size-3" /> : null}
+                  {t("auth_files.batch_enable")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={batchToggle.isPending}
+                  onClick={() => batchToggle.mutate(true)}
+                >
+                  {batchToggle.isPending && batchToggle.variables ? <Spinner className="size-3" /> : null}
+                  {t("auth_files.batch_disable")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={batchDownload.isPending}
+                  onClick={() => batchDownload.mutate(selected)}
+                >
+                  {batchDownload.isPending ? <Spinner className="size-3" /> : <Download className="size-3" />}
+                  {t("auth_files.batch_download")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setDialog({ kind: "batch-delete" })}
+                >
+                  <Trash2 className="size-3" />
+                  {t("auth_files.batch_delete")}
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelected([])}>
+                  {t("auth_files.clear_selection")}
+                </Button>
               </div>
-            )}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={toggleAll}
-                      aria-label={t("auth_files.select_page")}
-                    />
-                  </TableHead>
-                  <TableHead>{t("auth_files.th_account")}</TableHead>
-                  <TableHead>{t("auth_files.th_provider")}</TableHead>
-                  <TableHead>{t("auth_files.th_status")}</TableHead>
-                  <TableHead>{t("auth_files.th_recent")}</TableHead>
-                  <TableHead className="text-right">{t("auth_files.th_requests")}</TableHead>
-                  <TableHead>{t("auth_files.th_last_refresh")}</TableHead>
-                  <TableHead className="w-16">{t("common.enabled")}</TableHead>
-                  <TableHead className="w-12">
-                    <span className="sr-only">{t("common.actions")}</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isPending ? (
-                  <SkeletonRows columns={9} />
-                ) : files.length === 0 ? (
-                  <EmptyRow columns={9}>
-                    {keyword || provider || statusFilter !== "all" ? t("auth_files.no_match") : t("auth_files.empty")}
-                  </EmptyRow>
-                ) : (
-                  pageItems.map((f) => (
-                    <TableRow key={f.id || f.name} className={f.disabled ? "text-muted-foreground" : undefined}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selected.includes(f.name)}
-                          onCheckedChange={() => toggleOne(f.name)}
-                          aria-label={t("auth_files.select_item", { name: accountName(f) })}
-                        />
-                      </TableCell>
-                      <TableCell className="max-w-72">
-                        <div className="truncate font-medium" title={accountName(f)}>
-                          {accountName(f)}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground" title={f.note || f.name}>
-                          {f.note || (accountName(f) !== f.name ? f.name : "")}
-                        </div>
-                      </TableCell>
-                      <TableCell>{f.provider ? <Badge variant="secondary">{f.provider}</Badge> : "—"}</TableCell>
-                      <TableCell>
-                        <StatusCell file={f} />
-                      </TableCell>
-                      <TableCell>
-                        <RequestSparkline buckets={f.recent_requests ?? []} label={accountName(f)} />
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatInteger(f.success ?? 0)}
-                        <span className="text-muted-foreground"> / </span>
-                        <span className={f.failed ? "text-destructive" : undefined}>
-                          {formatInteger(f.failed ?? 0)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {f.last_refresh ? formatRelative(Date.parse(f.last_refresh)) : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={!f.disabled}
-                          disabled={toggle.isPending && toggle.variables?.id === f.id}
-                          onCheckedChange={() => toggle.mutate(f)}
-                          aria-label={t(f.disabled ? "auth_files.enable_item" : "auth_files.disable_item", {
-                            name: accountName(f),
-                          })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={t("auth_files.item_actions", { name: accountName(f) })}
-                              />
-                            }
+            </div>
+          )}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={toggleAll}
+                    aria-label={t("auth_files.select_page")}
+                  />
+                </TableHead>
+                <TableHead>{t("auth_files.th_account")}</TableHead>
+                <TableHead>{t("auth_files.th_provider")}</TableHead>
+                <TableHead>{t("auth_files.th_status")}</TableHead>
+                <TableHead>{t("auth_files.th_recent")}</TableHead>
+                <TableHead className="text-right">{t("auth_files.th_requests")}</TableHead>
+                <TableHead>{t("auth_files.th_last_refresh")}</TableHead>
+                <TableHead className="w-16">{t("common.enabled")}</TableHead>
+                <TableHead className="w-12">
+                  <span className="sr-only">{t("common.actions")}</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isPending ? (
+                <SkeletonRows columns={9} />
+              ) : files.length === 0 ? (
+                <EmptyRow columns={9}>
+                  {keyword || provider || statusFilter !== "all" ? t("auth_files.no_match") : t("auth_files.empty")}
+                </EmptyRow>
+              ) : (
+                pageItems.map((f) => (
+                  <TableRow key={f.id || f.name} className={f.disabled ? "text-muted-foreground" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.includes(f.name)}
+                        onCheckedChange={() => toggleOne(f.name)}
+                        aria-label={t("auth_files.select_item", { name: accountName(f) })}
+                      />
+                    </TableCell>
+                    <TableCell className="max-w-72">
+                      <div className="truncate font-medium" title={accountName(f)}>
+                        {accountName(f)}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground" title={f.note || f.name}>
+                        {f.note || (accountName(f) !== f.name ? f.name : "")}
+                      </div>
+                    </TableCell>
+                    <TableCell>{f.provider ? <Badge variant="secondary">{f.provider}</Badge> : "—"}</TableCell>
+                    <TableCell>
+                      <StatusCell file={f} />
+                    </TableCell>
+                    <TableCell>
+                      <RequestSparkline buckets={f.recent_requests ?? []} label={accountName(f)} />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatInteger(f.success ?? 0)}
+                      <span className="text-muted-foreground"> / </span>
+                      <span className={f.failed ? "text-destructive" : undefined}>{formatInteger(f.failed ?? 0)}</span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {f.last_refresh ? formatRelative(Date.parse(f.last_refresh)) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={!f.disabled}
+                        disabled={toggle.isPending && toggle.variables?.id === f.id}
+                        onCheckedChange={() => toggle.mutate(f)}
+                        aria-label={t(f.disabled ? "auth_files.enable_item" : "auth_files.disable_item", {
+                          name: accountName(f),
+                        })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={t("auth_files.item_actions", { name: accountName(f) })}
+                            />
+                          }
+                        >
+                          <Ellipsis />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-40">
+                          <DropdownMenuItem onClick={() => setDialog({ kind: "details", target: f })}>
+                            <Info />
+                            {t("auth_files.view_details")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem disabled={manualRefresh.isPending} onClick={() => manualRefresh.mutate(f)}>
+                            <RefreshCw className={manualRefresh.isPending ? "animate-spin" : undefined} />
+                            {t("auth_files.refresh_credential")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDialog({ kind: "models", target: f })}>
+                            <Boxes />
+                            {t("auth_files.view_models")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={f.runtime_only}
+                            onClick={() => setDialog({ kind: "fields", target: f })}
                           >
-                            <Ellipsis />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="min-w-40">
-                            <DropdownMenuItem onClick={() => setDialog({ kind: "details", target: f })}>
-                              <Info />
-                              {t("auth_files.view_details")}
+                            <PencilLine />
+                            {t("auth_files.edit_properties")}
+                          </DropdownMenuItem>
+                          {f.auth_index && (
+                            <DropdownMenuItem onClick={() => resetQuota.mutate(f)}>
+                              <RotateCcw />
+                              {t("auth_files.cooldown_reset")}
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              disabled={manualRefresh.isPending}
-                              onClick={() => manualRefresh.mutate(f)}
-                            >
-                              <RefreshCw className={manualRefresh.isPending ? "animate-spin" : undefined} />
-                              {t("auth_files.refresh_credential")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setDialog({ kind: "models", target: f })}>
-                              <Boxes />
-                              {t("auth_files.view_models")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              disabled={f.runtime_only}
-                              onClick={() => setDialog({ kind: "fields", target: f })}
-                            >
-                              <PencilLine />
-                              {t("auth_files.edit_properties")}
-                            </DropdownMenuItem>
-                            {f.auth_index && (
-                              <DropdownMenuItem onClick={() => resetQuota.mutate(f)}>
-                                <RotateCcw />
-                                {t("auth_files.cooldown_reset")}
+                          )}
+                          {!f.runtime_only && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  download(`/v8/management/credentials/download?name=${file(f.name)}`, f.name).catch(
+                                    (e: Error) => toast.error(errorText(e)),
+                                  )
+                                }
+                              >
+                                <Download />
+                                {t("auth_files.download_file")}
                               </DropdownMenuItem>
-                            )}
-                            {!f.runtime_only && (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    download(`/v8/management/credentials/download?name=${file(f.name)}`, f.name).catch(
-                                      (e: Error) => toast.error(errorText(e)),
-                                    )
-                                  }
-                                >
-                                  <Download />
-                                  {t("auth_files.download_file")}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onClick={() => setDialog({ kind: "delete", target: f })}
-                                >
-                                  <Trash2 />
-                                  {t("common.delete")}
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-            <Pagination page={current} pageCount={pageCount} total={files.length} onChange={setPage} />
-          </TabsContent>
-        </Tabs>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => setDialog({ kind: "delete", target: f })}
+                              >
+                                <Trash2 />
+                                {t("common.delete")}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <Pagination page={current} pageCount={pageCount} total={files.length} onChange={setPage} />
+        </>
       )}
 
       {dialog?.kind === "models" && <ModelsDialog target={dialog.target} onClose={() => setDialog(null)} />}
