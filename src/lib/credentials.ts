@@ -38,10 +38,19 @@ export async function fetchCredentialsPage(page: number): Promise<CredentialsPag
 }
 
 /**
- * 凭据列表:首屏只等第一页,剩余分页在后台顺序补齐。
- * 补齐过程中 files 会增长,页面按"已加载"的部分渲染;isComplete 为 true 时才是完整集合。
+ * 凭据列表。
+ *
+ * loadAll 为 false（默认）时只拉第一页，服务端分页、筛选只作用于当前页，凭据再多
+ * 也只发一个请求；为 true 时按服务端游标把后续页全部补齐，页面据此改用客户端分页
+ * 与全局筛选，代价是内存与请求数随凭据数量增长。
  */
-export function useCredentials({ refetchInterval }: { refetchInterval?: number } = {}) {
+export function useCredentials({
+  refetchInterval,
+  loadAll = false,
+}: {
+  refetchInterval?: number;
+  loadAll?: boolean;
+} = {}) {
   const query = useInfiniteQuery({
     queryKey: CREDENTIALS_KEY,
     queryFn: ({ pageParam }) => fetchCredentialsPage(pageParam),
@@ -52,9 +61,9 @@ export function useCredentials({ refetchInterval }: { refetchInterval?: number }
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = query;
 
   useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+    if (loadAll && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, loadAll]);
 
   const pages = query.data?.pages ?? [];
-  return { ...query, ...mergePages(pages), isComplete: !hasNextPage };
+  return { ...query, ...mergePages(pages), loadAll, isComplete: !hasNextPage };
 }

@@ -16,13 +16,13 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useDeferredValue, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ExcludedModelsEditor } from "@/components/excluded-models-editor";
 import { HeadersEditor } from "@/components/headers-editor";
 import { ModelAliasesEditor } from "@/components/model-aliases-editor";
 import { PageHeader } from "@/components/page-header";
-import { Pagination, paginate } from "@/components/pagination";
+import { Pagination } from "@/components/pagination";
 import { RequestSparkline } from "@/components/sparkline";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
 import {
@@ -238,7 +238,7 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
               }}
               className="min-h-0 flex-1"
             >
-              <TabsList className="self-start">
+              <TabsList className="self-start" aria-label={t("auth_files.tab_group_label")}>
                 <TabsTrigger value="connection" className="gap-1.5">
                   <Cable className="size-3.5" />
                   {t("auth_files.tab_connection")}
@@ -554,16 +554,18 @@ export function AuthFilesPage() {
   const [provider, setProvider] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cooldown" | "error" | "disabled">("all");
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  // 默认只加载第一页,筛选作用于本页;开启后补齐全部凭据,筛选作用于整个凭据集合
+  const [loadAll, setLoadAll] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialogs>(null);
   const deferredKeyword = useDeferredValue(keyword);
   // 页码跟筛选条件绑定,条件一变自动回到第一页
-  const filterKey = `${deferredKeyword}|${provider}|${statusFilter}|${pageSize}`;
+  const filterKey = `${deferredKeyword}|${provider}|${statusFilter}|${pageSize}|${loadAll}`;
   const [pager, setPager] = useState({ filterKey, page: 1 });
   const page = pager.filterKey === filterKey ? pager.page : 1;
   const setPage = (next: number) => setPager({ filterKey, page: next });
 
-  const { files: data, total, isPending, isError, error, isComplete } = useCredentials();
+  const { files: data, total, isPending, isError, error, isComplete } = useCredentials({ loadAll: loadAll });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
 
@@ -714,10 +716,10 @@ export function AuthFilesPage() {
 
   const providers = useMemo(() => [...new Set(data.map((f) => f.provider ?? "").filter(Boolean))].sort(), [data]);
 
-  const files = useMemo(() => {
-    const k = deferredKeyword.trim().toLowerCase();
-    const wanted = statusFilter === "active" ? "ok" : statusFilter;
-    return data.filter((f) => {
+  const matchFilters = useCallback(
+    (f: AuthFile) => {
+      const k = deferredKeyword.trim().toLowerCase();
+      const wanted = statusFilter === "active" ? "ok" : statusFilter;
       if (provider && f.provider !== provider) return false;
       if (wanted !== "all" && authState(f) !== wanted) return false;
       if (k) {
@@ -725,10 +727,22 @@ export function AuthFilesPage() {
         if (!match) return false;
       }
       return true;
-    });
-  }, [data, deferredKeyword, provider, statusFilter]);
+    },
+    [deferredKeyword, provider, statusFilter],
+  );
 
-  const { pageItems, current, pageCount } = paginate(files, page, pageSize);
+  const files = useMemo(() => data.filter(matchFilters), [data, matchFilters]);
+
+  // 关闭“加载全部”时服务端已经分好页,筛选只作用于本页;开启后才用客户端分页与全局筛选
+  const serverPage = Math.min(page, Math.max(1, Math.ceil((total ?? 1) / pageSize)));
+  const filtered = useMemo(
+    () => data.slice((serverPage - 1) * pageSize, serverPage * pageSize).filter(matchFilters),
+    [data, matchFilters, serverPage, pageSize],
+  );
+  const listTotal = loadAll ? files.length : (total ?? data.length);
+  const pageCount = Math.max(1, Math.ceil(listTotal / pageSize));
+  const current = Math.min(page, pageCount);
+  const pageItems = loadAll ? files.slice((current - 1) * pageSize, current * pageSize) : filtered;
   const allSelected = pageItems.length > 0 && pageItems.every((f) => selected.includes(f.name));
   const toggleAll = () => {
     const names = pageItems.map((f) => f.name);
@@ -842,8 +856,24 @@ export function AuthFilesPage() {
                 />
               </div>
             </div>
+            <label
+              htmlFor="load-all-credentials"
+              className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+            >
+              <Switch
+                id="load-all-credentials"
+                checked={loadAll}
+                onCheckedChange={setLoadAll}
+                aria-label={t("auth_files.load_all_label")}
+                aria-describedby="load-all-hint"
+              />
+              {t("auth_files.load_all_label")}
+            </label>
           </div>
-          {!isComplete && (
+          <p id="load-all-hint" className="mb-3 text-xs text-muted-foreground">
+            {loadAll ? t("auth_files.filter_scope_all") : t("auth_files.filter_scope_page")}
+          </p>
+          {loadAll && !isComplete && (
             <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
               <Spinner className="size-3" />
               {t("common.loading_progress", { loaded: formatInteger(data.length), total: formatInteger(total) })}
@@ -1042,7 +1072,7 @@ export function AuthFilesPage() {
           <Pagination
             page={current}
             pageCount={pageCount}
-            total={files.length}
+            total={listTotal}
             onChange={setPage}
             pageSize={pageSize}
             onPageSizeChange={setPageSize}

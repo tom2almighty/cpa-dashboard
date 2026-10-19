@@ -21,7 +21,8 @@
     "request_failed_status": "Request failed ({{status}})",
     "visual_mode": "Visual edit",
     "text_mode": "Text edit",
-    "back_to_top": "Back to top"
+    "back_to_top": "Back to top",
+    "close": "Close"
   },
   "theme": {
     "title": "Theme",
@@ -229,7 +230,11 @@
     "inherit_placeholder": "Empty to inherit",
     "tab_connection": "Connection",
     "tab_models": "Models",
-    "tab_headers": "Headers"
+    "tab_headers": "Headers",
+    "load_all_label": "Load all credentials",
+    "filter_scope_page": "Filters apply to the current page. Turn on \"Load all credentials\" to filter the whole set.",
+    "filter_scope_all": "All credentials are loaded; filters apply to the whole set.",
+    "tab_group_label": "Credential property groups"
   },
   "oauth": {
     "title": "OAuth Login",
@@ -389,7 +394,8 @@
     "type": "Provider type",
     "tab_connection": "Connection",
     "tab_models": "Models",
-    "tab_request": "Routing & requests"
+    "tab_request": "Routing & requests",
+    "tab_group_label": "Provider settings groups"
   },
   "api_keys": {
     "title": "Client API Keys",

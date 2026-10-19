@@ -21,7 +21,8 @@
     "request_failed_status": "请求失败（{{status}}）",
     "visual_mode": "可视化编辑",
     "text_mode": "文本编辑",
-    "back_to_top": "返回顶部"
+    "back_to_top": "返回顶部",
+    "close": "关闭"
   },
   "theme": {
     "title": "主题",
@@ -229,7 +230,11 @@
     "inherit_placeholder": "留空继承",
     "tab_connection": "接入",
     "tab_models": "模型",
-    "tab_headers": "请求头"
+    "tab_headers": "请求头",
+    "load_all_label": "加载全部凭据",
+    "filter_scope_page": "筛选仅作用于当前页；开启“加载全部凭据”后可筛选整个凭据集合。",
+    "filter_scope_all": "已加载全部凭据，筛选作用于整个集合。",
+    "tab_group_label": "凭据属性分组"
   },
   "oauth": {
     "title": "OAuth 登录",
@@ -389,7 +394,8 @@
     "type": "供应商类型",
     "tab_connection": "接入",
     "tab_models": "模型",
-    "tab_request": "路由与请求"
+    "tab_request": "路由与请求",
+    "tab_group_label": "供应商设置分组"
   },
   "api_keys": {
     "title": "客户端 API Key",
