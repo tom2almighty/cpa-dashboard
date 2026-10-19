@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Activity, Boxes, Cable, Pencil, Plus, RefreshCw, Route, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { type EditorMode, ModeTabs } from "@/components/dual-mode-field";
@@ -473,7 +473,7 @@ function EditDialog({
   }, []);
   const [form, setForm] = useState<Form>(() => (target ? toForm(target) : emptyForm()));
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"basic" | "advanced">("basic");
+  const [tab, setTab] = useState<"connection" | "models" | "routing">("connection");
   const scrollRef = useRef<HTMLDivElement>(null);
   const update = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
   const [testing, setTesting] = useState(false);
@@ -482,7 +482,7 @@ function EditDialog({
     if (next.endpoint === kind.endpoint) return;
     setKind(next);
     setForm(emptyForm());
-    setTab("basic");
+    setTab("connection");
     setError(null);
     setTestResult(null);
   };
@@ -534,11 +534,21 @@ function EditDialog({
         <form key={kind.endpoint} id={`form-${p}`} onSubmit={submit} className="flex min-h-0 flex-1 flex-col gap-3">
           <Tabs value={tab} onValueChange={(value) => value && setTab(value as typeof tab)} className="min-h-0 flex-1">
             <TabsList className="self-start">
-              <TabsTrigger value="basic">{t("providers.tab_basic")}</TabsTrigger>
-              <TabsTrigger value="advanced">{t("providers.tab_advanced")}</TabsTrigger>
+              <TabsTrigger value="connection" className="gap-1.5">
+                <Cable className="size-3.5" />
+                {t("providers.tab_connection")}
+              </TabsTrigger>
+              <TabsTrigger value="models" className="gap-1.5">
+                <Boxes className="size-3.5" />
+                {t("providers.tab_models")}
+              </TabsTrigger>
+              <TabsTrigger value="routing" className="gap-1.5">
+                <Route className="size-3.5" />
+                {t("providers.tab_request")}
+              </TabsTrigger>
             </TabsList>
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <TabsContent value="basic" className="grid gap-4">
+              <TabsContent value="connection" className="grid gap-4">
                 {!target && (
                   <Field id={`${p}-type`} label={t("providers.type")}>
                     <Select
@@ -577,19 +587,27 @@ function EditDialog({
                 >
                   <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
                 </Field>
-                {!kind.perKeyProxyOnly && (
-                  <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
-                    <Input
-                      id={`${p}-proxy`}
-                      value={form.proxyUrl}
-                      onChange={(e) => update({ proxyUrl: e.target.value })}
-                      placeholder="socks5://127.0.0.1:1080"
+              </TabsContent>
+
+              <TabsContent value="models" className="grid gap-4">
+                <ModelMappingEditor kind={kind} form={form} update={update} />
+                {!kind.openai && (
+                  <Field
+                    id={`${p}-excluded`}
+                    label={t("providers.excluded_models")}
+                    hint={t("providers.excluded_hint")}
+                  >
+                    <Textarea
+                      id={`${p}-excluded`}
+                      value={form.excluded}
+                      onChange={(e) => update({ excluded: e.target.value })}
+                      className="min-h-16 font-mono text-sm"
                     />
                   </Field>
                 )}
               </TabsContent>
 
-              <TabsContent value="advanced" className="grid gap-4">
+              <TabsContent value="routing" className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field id={`${p}-prefix`} label={t("providers.prefix")} hint={t("providers.prefix_hint")}>
                     <Input
@@ -648,18 +666,13 @@ function EditDialog({
                     </Field>
                   </div>
                 )}
-                <ModelMappingEditor kind={kind} form={form} update={update} />
-                {!kind.openai && (
-                  <Field
-                    id={`${p}-excluded`}
-                    label={t("providers.excluded_models")}
-                    hint={t("providers.excluded_hint")}
-                  >
-                    <Textarea
-                      id={`${p}-excluded`}
-                      value={form.excluded}
-                      onChange={(e) => update({ excluded: e.target.value })}
-                      className="min-h-16 font-mono text-sm"
+                {!kind.perKeyProxyOnly && (
+                  <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
+                    <Input
+                      id={`${p}-proxy`}
+                      value={form.proxyUrl}
+                      onChange={(e) => update({ proxyUrl: e.target.value })}
+                      placeholder="socks5://127.0.0.1:1080"
                     />
                   </Field>
                 )}

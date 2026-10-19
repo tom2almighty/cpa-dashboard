@@ -384,8 +384,9 @@
     "remove_header_named": "Remove header {{n}}",
     "add_header": "Add header",
     "type": "Provider type",
-    "tab_basic": "Basic",
-    "tab_advanced": "Advanced"
+    "tab_connection": "Connection",
+    "tab_models": "Models",
+    "tab_request": "Routing & requests"
   },
   "api_keys": {
     "title": "Client API Keys",
