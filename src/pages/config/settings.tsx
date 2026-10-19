@@ -598,7 +598,9 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
         }
         const value = typeof raw === "boolean" ? raw : parseValue(setting.type, raw);
         if (value === undefined) {
-          throw new Error(t("config.settings.invalid_value", { field: t(`config.fields.${setting.endpoint}.label`) }));
+          throw new Error(
+            t("config.settings.invalid_value", { field: t(`config.fields.${setting.endpoint}.label` as never) }),
+          );
         }
         if (setting.type === "password") newKey = String(raw);
         // map 类型 PATCH 会深度合并、删不掉已有键,整体 PUT 替换
@@ -694,7 +696,7 @@ export function SettingField({ setting }: { setting: Setting }) {
   } else if (setting.type === "select") {
     const options = setting.options?.map((option) => ({
       value: option,
-      label: t(`config.fields.${setting.endpoint}.options.${option}`),
+      label: t(`config.fields.${setting.endpoint}.options.${option}` as never),
     }));
     control = (
       <Select items={options} value={text || null} onValueChange={(val) => val && setValue(setting, val)}>
@@ -832,7 +834,7 @@ export function SettingField({ setting }: { setting: Setting }) {
         <div className="flex items-center gap-2">
           {/* 这里刻意不用 htmlFor（点标题不该改值），所以也放开文本选中：Label 基础样式带 select-none */}
           <Label id={labelId} className="font-medium text-sm select-text">
-            {t(`config.fields.${setting.endpoint}.label`)}
+            {t(`config.fields.${setting.endpoint}.label` as never)}
           </Label>
           {isModified && (
             <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 text-primary border-primary/30 font-normal">
@@ -841,7 +843,7 @@ export function SettingField({ setting }: { setting: Setting }) {
           )}
         </div>
         <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-          {t(`config.fields.${setting.endpoint}.hint`)}
+          {t(`config.fields.${setting.endpoint}.hint` as never)}
         </p>
       </div>
       <div className={wide ? "w-full" : "shrink-0"}>{control}</div>
@@ -1271,7 +1273,7 @@ function AuthRuleCard({
 
       {(AUTH_TYPE_FIELDS[type] ?? []).map((key) => (
         <div key={key} className="grid gap-1.5">
-          <Label htmlFor={`${uid}-${key}`}>{t(`config.settings.auth_field_${key}`)}</Label>
+          <Label htmlFor={`${uid}-${key}`}>{t(`config.settings.auth_field_${key}` as never)}</Label>
           <Input
             id={`${uid}-${key}`}
             value={textField(key)}
@@ -1463,7 +1465,7 @@ function EntryField({
     setText(external);
   }
 
-  const label = t(`config.settings.entry_${field.key}`);
+  const label = t(`config.settings.entry_${field.key}` as never);
 
   if (field.kind === "list") {
     const lines = Array.isArray(value)
@@ -1577,7 +1579,7 @@ function SettingsSection({ groupId, section }: { groupId: string; section: Confi
   const { t } = useI18n();
   return (
     <section className="space-y-2">
-      <h3 className="text-sm font-medium">{t(`config.sections.${groupId}.${section.id}`)}</h3>
+      <h3 className="text-sm font-medium">{t(`config.sections.${groupId}.${section.id}` as never)}</h3>
       <SettingList items={section.items} />
     </section>
   );
@@ -1594,7 +1596,7 @@ export function SettingsGroup({ groupId }: { groupId: string }) {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">{t(`config.groups.${group.id}`)}</p>
+      <p className="text-sm text-muted-foreground">{t(`config.groups.${group.id}` as never)}</p>
       <SettingsState>
         {nested ? (
           <Tabs defaultValue={sections[0].id} className="gap-4">
@@ -1602,7 +1604,7 @@ export function SettingsGroup({ groupId }: { groupId: string }) {
               <TabsList variant="line" className="h-8">
                 {sections.map((section) => (
                   <TabsTrigger key={section.id} value={section.id} className="h-8 px-2.5 text-xs sm:text-sm shrink-0">
-                    {t(`config.sections.${group.id}.${section.id}`)}
+                    {t(`config.sections.${group.id}.${section.id}` as never)}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -1626,7 +1628,7 @@ export function SettingsGroup({ groupId }: { groupId: string }) {
           to={group.link.to}
           className="inline-block text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
         >
-          {t(group.link.labelKey)}
+          {t(group.link.labelKey as never)}
         </Link>
       )}
     </div>

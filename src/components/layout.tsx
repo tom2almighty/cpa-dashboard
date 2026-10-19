@@ -83,12 +83,12 @@ function NavGroup({ label, items }: { label: string; items: NavItemDef[] }) {
             <SidebarMenuItem key={item.to}>
               <SidebarMenuButton
                 isActive={item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)}
-                tooltip={t(item.labelKey)}
+                tooltip={t(item.labelKey as never)}
                 onClick={handleNavClick}
                 render={<NavLink to={item.to} end={item.to === "/"} />}
               >
                 <item.icon />
-                <span>{t(item.labelKey)}</span>
+                <span>{t(item.labelKey as never)}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

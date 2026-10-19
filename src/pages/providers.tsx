@@ -411,7 +411,7 @@ function KeyRowsEditor({ kind, form, update }: { kind: Kind; form: Form; update:
                       <SelectItem value="">{t("providers.cloak_inherit")}</SelectItem>
                       {CLOAK_MODES.filter(Boolean).map((mode) => (
                         <SelectItem key={mode} value={mode}>
-                          {t(`providers.cloak_${mode}`)}
+                          {t(`providers.cloak_${mode}` as never)}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -153,7 +153,7 @@ const ERROR_KEYS: Record<string, string> = {
 export function errorText(error: unknown): string {
   if (!(error instanceof ApiError)) return error instanceof Error ? error.message : String(error);
   const key = ERROR_KEYS[error.code];
-  return key ? i18n.t(key, { message: error.message }) : error.message;
+  return key ? i18n.t(key as never, { message: error.message }) : error.message;
 }
 
 // 读取可能不存在的配置节点:只有 404 视为空值,其它错误照常抛出,避免读失败后整体覆盖写

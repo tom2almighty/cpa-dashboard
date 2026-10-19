@@ -128,7 +128,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
           <h2 id={`oauth-${provider.id}`} className="font-medium">
             {provider.name}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t(provider.hintKey)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t(provider.hintKey as never)}</p>
         </div>
         {session ? (
           <Button variant="ghost" size="sm" onClick={() => cancel.mutate()} disabled={cancel.isPending}>

@@ -94,7 +94,7 @@ export function ExcludedModelsEditor({ id, value, onChange, label, hint, placeho
 
           {rules.length === 0 ? (
             <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
-              {t("models.no_rules_short") || t("models.no_rules")}
+              {t("models.no_rules")}
             </div>
           ) : (
             <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto rounded-lg border bg-muted/20 p-2.5">
