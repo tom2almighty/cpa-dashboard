@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { type EditorMode, ModeTabs } from "@/components/dual-mode-field";
 import { HeadersEditor } from "@/components/headers-editor";
@@ -34,6 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
@@ -465,15 +466,23 @@ function EditDialog({
   const queryClient = useQueryClient();
   // 新增时类型是表单第一项，切换类型会重置为该类型的空表单
   const [kind, setKind] = useState(initialKind);
-  const [form, setForm] = useState<Form>(() => toForm(target ?? {}));
+  const emptyForm = useCallback((): Form => {
+    const next = toForm({});
+    next.keys = [newKeyRow()];
+    return next;
+  }, []);
+  const [form, setForm] = useState<Form>(() => (target ? toForm(target) : emptyForm()));
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"basic" | "advanced">("basic");
+  const scrollRef = useRef<HTMLDivElement>(null);
   const update = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const changeKind = (next: Kind) => {
     if (next.endpoint === kind.endpoint) return;
     setKind(next);
-    setForm(toForm({}));
+    setForm(emptyForm());
+    setTab("basic");
     setError(null);
     setTestResult(null);
   };
@@ -518,130 +527,152 @@ function EditDialog({
   const p = kind.endpoint;
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="flex max-h-[90svh] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{target ? `${t("providers.edit")} ${kind.label}` : t("providers.add")}</DialogTitle>
         </DialogHeader>
-        <form key={kind.endpoint} id={`form-${p}`} onSubmit={submit} className="grid gap-4">
-          {!target && (
-            <Field id={`${p}-type`} label={t("providers.type")}>
-              <Select
-                items={KINDS.map((item) => ({ value: item.endpoint, label: item.label }))}
-                value={kind.endpoint}
-                onValueChange={(value) => {
-                  const next = KINDS.find((item) => item.endpoint === value);
-                  if (next) changeKind(next);
-                }}
-              >
-                <SelectTrigger id={`${p}-type`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {KINDS.map((item) => (
-                    <SelectItem key={item.endpoint} value={item.endpoint}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-          <Field
-            id={`${p}-name`}
-            label={t("common.name")}
-            hint={kind.openai ? t("providers.name_hint") : t("providers.group_name_hint")}
-          >
-            <Input id={`${p}-name`} value={form.name} onChange={(e) => update({ name: e.target.value })} />
-          </Field>
-          <KeyRowsEditor kind={kind} form={form} update={update} />
-          <Field
-            id={`${p}-base`}
-            label="Base URL"
-            hint={kind.openai || kind.baseUrlRequired ? undefined : t("providers.base_url_hint")}
-          >
-            <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
-          </Field>
-          <Field
-            id={`${p}-proxy`}
-            label={t("providers.proxy")}
-            hint={kind.perKeyProxyOnly ? t("providers.proxy_key_only_hint") : t("providers.proxy_hint")}
-          >
-            <Input
-              id={`${p}-proxy`}
-              value={form.proxyUrl}
-              onChange={(e) => update({ proxyUrl: e.target.value })}
-              placeholder="socks5://127.0.0.1:1080"
-              disabled={kind.perKeyProxyOnly}
-            />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id={`${p}-prefix`} label={t("providers.prefix")} hint={t("providers.prefix_hint")}>
-              <Input id={`${p}-prefix`} value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
-            </Field>
-            <Field id={`${p}-priority`} label={t("providers.priority")} hint={t("providers.priority_hint")}>
-              <Input
-                id={`${p}-priority`}
-                inputMode="numeric"
-                value={form.priority}
-                onChange={(e) => update({ priority: e.target.value })}
-              />
-            </Field>
-          </div>
-          {!kind.openai && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                id={`${p}-cooling`}
-                label={t("providers.disable_cooling")}
-                hint={t("providers.disable_cooling_hint")}
-              >
-                <Select
-                  items={[
-                    { value: "", label: t("providers.inherit") },
-                    { value: "true", label: t("common.enabled") },
-                    { value: "false", label: t("providers.disabled") },
-                  ]}
-                  value={form.disableCooling || null}
-                  onValueChange={(value) => update({ disableCooling: (value ?? "") as Form["disableCooling"] })}
+        <form key={kind.endpoint} id={`form-${p}`} onSubmit={submit} className="flex min-h-0 flex-1 flex-col gap-3">
+          <Tabs value={tab} onValueChange={(value) => value && setTab(value as typeof tab)} className="min-h-0 flex-1">
+            <TabsList className="self-start">
+              <TabsTrigger value="basic">{t("providers.tab_basic")}</TabsTrigger>
+              <TabsTrigger value="advanced">{t("providers.tab_advanced")}</TabsTrigger>
+            </TabsList>
+            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <TabsContent value="basic" className="grid gap-4">
+                {!target && (
+                  <Field id={`${p}-type`} label={t("providers.type")}>
+                    <Select
+                      items={KINDS.map((item) => ({ value: item.endpoint, label: item.label }))}
+                      value={kind.endpoint}
+                      onValueChange={(value) => {
+                        const next = KINDS.find((item) => item.endpoint === value);
+                        if (next) changeKind(next);
+                      }}
+                    >
+                      <SelectTrigger id={`${p}-type`} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {KINDS.map((item) => (
+                          <SelectItem key={item.endpoint} value={item.endpoint}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
+                <Field
+                  id={`${p}-name`}
+                  label={t("common.name")}
+                  hint={kind.openai ? t("providers.name_hint") : t("providers.group_name_hint")}
                 >
-                  <SelectTrigger id={`${p}-cooling`} className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">{t("providers.inherit")}</SelectItem>
-                    <SelectItem value="true">{t("common.enabled")}</SelectItem>
-                    <SelectItem value="false">{t("providers.disabled")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field id={`${p}-retry`} label={t("providers.request_retry")} hint={t("providers.request_retry_hint")}>
-                <Input
-                  id={`${p}-retry`}
-                  inputMode="numeric"
-                  value={form.requestRetry}
-                  placeholder={t("providers.inherit")}
-                  onChange={(e) => update({ requestRetry: e.target.value })}
+                  <Input id={`${p}-name`} value={form.name} onChange={(e) => update({ name: e.target.value })} />
+                </Field>
+                <KeyRowsEditor kind={kind} form={form} update={update} />
+                <Field
+                  id={`${p}-base`}
+                  label="Base URL"
+                  hint={kind.openai || kind.baseUrlRequired ? undefined : t("providers.base_url_hint")}
+                >
+                  <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
+                </Field>
+                {!kind.perKeyProxyOnly && (
+                  <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
+                    <Input
+                      id={`${p}-proxy`}
+                      value={form.proxyUrl}
+                      onChange={(e) => update({ proxyUrl: e.target.value })}
+                      placeholder="socks5://127.0.0.1:1080"
+                    />
+                  </Field>
+                )}
+              </TabsContent>
+
+              <TabsContent value="advanced" className="grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field id={`${p}-prefix`} label={t("providers.prefix")} hint={t("providers.prefix_hint")}>
+                    <Input
+                      id={`${p}-prefix`}
+                      value={form.prefix}
+                      onChange={(e) => update({ prefix: e.target.value })}
+                    />
+                  </Field>
+                  <Field id={`${p}-priority`} label={t("providers.priority")} hint={t("providers.priority_hint")}>
+                    <Input
+                      id={`${p}-priority`}
+                      inputMode="numeric"
+                      value={form.priority}
+                      onChange={(e) => update({ priority: e.target.value })}
+                    />
+                  </Field>
+                </div>
+                {!kind.openai && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field
+                      id={`${p}-cooling`}
+                      label={t("providers.disable_cooling")}
+                      hint={t("providers.disable_cooling_hint")}
+                    >
+                      <Select
+                        items={[
+                          { value: "", label: t("providers.inherit") },
+                          { value: "true", label: t("common.enabled") },
+                          { value: "false", label: t("providers.disabled") },
+                        ]}
+                        value={form.disableCooling || null}
+                        onValueChange={(value) => update({ disableCooling: (value ?? "") as Form["disableCooling"] })}
+                      >
+                        <SelectTrigger id={`${p}-cooling`} className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">{t("providers.inherit")}</SelectItem>
+                          <SelectItem value="true">{t("common.enabled")}</SelectItem>
+                          <SelectItem value="false">{t("providers.disabled")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field
+                      id={`${p}-retry`}
+                      label={t("providers.request_retry")}
+                      hint={t("providers.request_retry_hint")}
+                    >
+                      <Input
+                        id={`${p}-retry`}
+                        inputMode="numeric"
+                        value={form.requestRetry}
+                        placeholder={t("providers.inherit")}
+                        onChange={(e) => update({ requestRetry: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                )}
+                <ModelMappingEditor kind={kind} form={form} update={update} />
+                {!kind.openai && (
+                  <Field
+                    id={`${p}-excluded`}
+                    label={t("providers.excluded_models")}
+                    hint={t("providers.excluded_hint")}
+                  >
+                    <Textarea
+                      id={`${p}-excluded`}
+                      value={form.excluded}
+                      onChange={(e) => update({ excluded: e.target.value })}
+                      className="min-h-16 font-mono text-sm"
+                    />
+                  </Field>
+                )}
+                <HeadersEditor
+                  id={`${p}-headers`}
+                  value={form.headers}
+                  onChange={(text) => update({ headers: text })}
+                  label={t("providers.extra_headers")}
+                  hint={t("providers.headers_hint")}
                 />
-              </Field>
+              </TabsContent>
             </div>
-          )}
-          <ModelMappingEditor kind={kind} form={form} update={update} />
-          {!kind.openai && (
-            <Field id={`${p}-excluded`} label={t("providers.excluded_models")} hint={t("providers.excluded_hint")}>
-              <Textarea
-                id={`${p}-excluded`}
-                value={form.excluded}
-                onChange={(e) => update({ excluded: e.target.value })}
-                className="min-h-16 font-mono text-sm"
-              />
-            </Field>
-          )}
-          <HeadersEditor
-            id={`${p}-headers`}
-            value={form.headers}
-            onChange={(text) => update({ headers: text })}
-            label={t("providers.extra_headers")}
-            hint={t("providers.headers_hint")}
-          />
+          </Tabs>
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}

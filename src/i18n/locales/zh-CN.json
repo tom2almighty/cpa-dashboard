@@ -383,7 +383,9 @@
     "header_value_named": "第 {{n}} 个请求头的值",
     "remove_header_named": "删除第 {{n}} 个请求头",
     "add_header": "添加请求头",
-    "type": "供应商类型"
+    "type": "供应商类型",
+    "tab_basic": "基础设置",
+    "tab_advanced": "高级设置"
   },
   "api_keys": {
     "title": "客户端 API Key",

@@ -383,7 +383,9 @@
     "header_value_named": "Value of header {{n}}",
     "remove_header_named": "Remove header {{n}}",
     "add_header": "Add header",
-    "type": "Provider type"
+    "type": "Provider type",
+    "tab_basic": "Basic",
+    "tab_advanced": "Advanced"
   },
   "api_keys": {
     "title": "Client API Keys",
