@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Boxes, Cable, Pencil, Plus, RefreshCw, Route, Trash2 } from "lucide-react";
-import { type FormEvent, useCallback, useRef, useState } from "react";
+import { Activity, Pencil, Plus, RefreshCw, Settings2, SlidersHorizontal, Trash2 } from "lucide-react";
+import { type FormEvent, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { type EditorMode, ModeTabs } from "@/components/dual-mode-field";
 import { HeadersEditor } from "@/components/headers-editor";
@@ -473,8 +473,7 @@ function EditDialog({
   }, []);
   const [form, setForm] = useState<Form>(() => (target ? toForm(target) : emptyForm()));
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"connection" | "models" | "routing">("connection");
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<"basic" | "advanced">("basic");
   const update = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -482,7 +481,7 @@ function EditDialog({
     if (next.endpoint === kind.endpoint) return;
     setKind(next);
     setForm(emptyForm());
-    setTab("connection");
+    setTab("basic");
     setError(null);
     setTestResult(null);
   };
@@ -527,28 +526,25 @@ function EditDialog({
   const p = kind.endpoint;
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90svh] flex-col sm:max-w-2xl">
+      {/* 固定高度：切换页签时内容高度不同，居中弹窗会上下跳动 */}
+      <DialogContent className="flex h-[85svh] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{target ? `${t("providers.edit")} ${kind.label}` : t("providers.add")}</DialogTitle>
         </DialogHeader>
         <form key={kind.endpoint} id={`form-${p}`} onSubmit={submit} className="flex min-h-0 flex-1 flex-col gap-3">
           <Tabs value={tab} onValueChange={(value) => value && setTab(value as typeof tab)} className="min-h-0 flex-1">
             <TabsList className="self-start" aria-label={t("providers.tab_group_label")}>
-              <TabsTrigger value="connection" className="gap-1.5">
-                <Cable className="size-3.5" />
-                {t("providers.tab_connection")}
+              <TabsTrigger value="basic" className="gap-1.5">
+                <Settings2 className="size-3.5" />
+                {t("providers.tab_basic")}
               </TabsTrigger>
-              <TabsTrigger value="models" className="gap-1.5">
-                <Boxes className="size-3.5" />
-                {t("providers.tab_models")}
-              </TabsTrigger>
-              <TabsTrigger value="routing" className="gap-1.5">
-                <Route className="size-3.5" />
-                {t("providers.tab_request")}
+              <TabsTrigger value="advanced" className="gap-1.5">
+                <SlidersHorizontal className="size-3.5" />
+                {t("providers.tab_advanced")}
               </TabsTrigger>
             </TabsList>
-            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <TabsContent value="connection" className="grid gap-4">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <TabsContent value="basic" className="grid gap-4">
                 {!target && (
                   <Field id={`${p}-type`} label={t("providers.type")}>
                     <Select
@@ -579,7 +575,6 @@ function EditDialog({
                 >
                   <Input id={`${p}-name`} value={form.name} onChange={(e) => update({ name: e.target.value })} />
                 </Field>
-                <KeyRowsEditor kind={kind} form={form} update={update} />
                 <Field
                   id={`${p}-base`}
                   label="Base URL"
@@ -587,27 +582,21 @@ function EditDialog({
                 >
                   <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
                 </Field>
-              </TabsContent>
-
-              <TabsContent value="models" className="grid gap-4">
-                <ModelMappingEditor kind={kind} form={form} update={update} />
-                {!kind.openai && (
-                  <Field
-                    id={`${p}-excluded`}
-                    label={t("providers.excluded_models")}
-                    hint={t("providers.excluded_hint")}
-                  >
-                    <Textarea
-                      id={`${p}-excluded`}
-                      value={form.excluded}
-                      onChange={(e) => update({ excluded: e.target.value })}
-                      className="min-h-16 font-mono text-sm"
+                <KeyRowsEditor kind={kind} form={form} update={update} />
+                {!kind.perKeyProxyOnly && (
+                  <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
+                    <Input
+                      id={`${p}-proxy`}
+                      value={form.proxyUrl}
+                      onChange={(e) => update({ proxyUrl: e.target.value })}
+                      placeholder="socks5://127.0.0.1:1080"
                     />
                   </Field>
                 )}
+                <ModelMappingEditor kind={kind} form={form} update={update} />
               </TabsContent>
 
-              <TabsContent value="routing" className="grid gap-4">
+              <TabsContent value="advanced" className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field id={`${p}-prefix`} label={t("providers.prefix")} hint={t("providers.prefix_hint")}>
                     <Input
@@ -666,13 +655,17 @@ function EditDialog({
                     </Field>
                   </div>
                 )}
-                {!kind.perKeyProxyOnly && (
-                  <Field id={`${p}-proxy`} label={t("providers.proxy")} hint={t("providers.proxy_hint")}>
-                    <Input
-                      id={`${p}-proxy`}
-                      value={form.proxyUrl}
-                      onChange={(e) => update({ proxyUrl: e.target.value })}
-                      placeholder="socks5://127.0.0.1:1080"
+                {!kind.openai && (
+                  <Field
+                    id={`${p}-excluded`}
+                    label={t("providers.excluded_models")}
+                    hint={t("providers.excluded_hint")}
+                  >
+                    <Textarea
+                      id={`${p}-excluded`}
+                      value={form.excluded}
+                      onChange={(e) => update({ excluded: e.target.value })}
+                      className="min-h-16 font-mono text-sm"
                     />
                   </Field>
                 )}
@@ -789,7 +782,7 @@ function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: bo
     onSuccess: refresh,
   });
 
-  const columns = 8;
+  const columns = 9;
   return (
     <>
       <Table>
@@ -800,7 +793,8 @@ function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: bo
             <TableHead>Base URL</TableHead>
             <TableHead className="text-right">{t("providers.th_key_count")}</TableHead>
             <TableHead className="text-right">{t("providers.th_model_count")}</TableHead>
-            <TableHead>{t("providers.th_proxy_or_enabled")}</TableHead>
+            <TableHead>{t("providers.th_proxy")}</TableHead>
+            <TableHead>{t("providers.th_status")}</TableHead>
             <TableHead>{t("providers.th_recent")}</TableHead>
             <TableHead className="w-28">
               <span className="sr-only">{t("common.actions")}</span>
@@ -843,8 +837,16 @@ function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: bo
                       </span>
                     )}
                   </TableCell>
-                  {/* 分组代理只对非 OpenAI 兼容有意义，启用开关只对 OpenAI 兼容有意义，两列合成一列 */}
+                  {/* 分组代理与启用状态是两回事：OpenAI 兼容只有密钥级代理，启用开关也只对它有效 */}
                   <TableCell className="max-w-48 text-muted-foreground">
+                    <span
+                      className="block truncate"
+                      title={row.kind.openai ? t("providers.proxy_per_key") : str(item["proxy-url"])}
+                    >
+                      {row.kind.openai ? t("providers.proxy_per_key") : str(item["proxy-url"]) || "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
                     {row.kind.openai ? (
                       <Switch
                         checked={!item.disabled}
@@ -855,9 +857,7 @@ function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: bo
                         })}
                       />
                     ) : (
-                      <span className="block truncate" title={str(item["proxy-url"])}>
-                        {str(item["proxy-url"]) || "—"}
-                      </span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell>

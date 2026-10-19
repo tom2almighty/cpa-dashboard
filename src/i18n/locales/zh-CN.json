@@ -366,7 +366,9 @@
     "th_kind": "类型",
     "th_key_count": "密钥数",
     "th_model_count": "模型",
-    "th_proxy_or_enabled": "代理 / 启用",
+    "th_proxy": "代理",
+    "th_status": "启用",
+    "proxy_per_key": "密钥级",
     "th_recent": "最近 200 分钟",
     "empty_all": "还没有配置任何提供商",
     "unnamed_group": "未命名分组",
@@ -392,10 +394,9 @@
     "remove_header_named": "删除第 {{n}} 个请求头",
     "add_header": "添加请求头",
     "type": "供应商类型",
-    "tab_connection": "接入",
-    "tab_models": "模型",
-    "tab_request": "路由与请求",
-    "tab_group_label": "供应商设置分组"
+    "tab_basic": "基础设置",
+    "tab_advanced": "高级设置",
+    "tab_group_label": "供应商设置"
   },
   "api_keys": {
     "title": "客户端 API Key",

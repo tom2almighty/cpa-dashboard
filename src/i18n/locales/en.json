@@ -366,7 +366,9 @@
     "th_kind": "Type",
     "th_key_count": "Keys",
     "th_model_count": "Models",
-    "th_proxy_or_enabled": "Proxy / Enabled",
+    "th_proxy": "Proxy",
+    "th_status": "Enabled",
+    "proxy_per_key": "Per key",
     "th_recent": "Last 200 min",
     "empty_all": "No providers configured yet",
     "unnamed_group": "Unnamed group",
@@ -392,10 +394,9 @@
     "remove_header_named": "Remove header {{n}}",
     "add_header": "Add header",
     "type": "Provider type",
-    "tab_connection": "Connection",
-    "tab_models": "Models",
-    "tab_request": "Routing & requests",
-    "tab_group_label": "Provider settings groups"
+    "tab_basic": "Basic",
+    "tab_advanced": "Advanced",
+    "tab_group_label": "Provider settings"
   },
   "api_keys": {
     "title": "Client API Keys",
