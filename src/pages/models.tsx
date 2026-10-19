@@ -26,10 +26,14 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound } from "@/lib/api";
 
 // 静态模型目录支持的渠道(routing/model-definitions/:channel),别名 kimi.ai / x-ai 等由 CPA 内部归一
+// 排除模型列表最多直接展示的条目数,其余折叠为 +N 悬浮查看
+const EXCLUDED_VISIBLE = 8;
+
 const CHANNELS = [
   "codex",
   "claude",
@@ -756,12 +760,32 @@ function Excluded() {
               <TableRow key={provider}>
                 <TableCell className="font-medium">{provider}</TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap gap-1.5">
-                    {models.map((m) => (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {models.slice(0, EXCLUDED_VISIBLE).map((m) => (
                       <Badge key={m} variant="secondary" className="font-mono">
                         {m}
                       </Badge>
                     ))}
+                    {models.length > EXCLUDED_VISIBLE && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Badge variant="outline" className="cursor-help font-mono">
+                              +{models.length - EXCLUDED_VISIBLE}
+                            </Badge>
+                          }
+                        />
+                        <TooltipContent side="top" className="max-w-md">
+                          <div className="flex max-h-64 flex-wrap gap-1 overflow-auto">
+                            {models.slice(EXCLUDED_VISIBLE).map((m) => (
+                              <Badge key={m} variant="secondary" className="font-mono">
+                                {m}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
