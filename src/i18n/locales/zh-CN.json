@@ -617,7 +617,9 @@
     "th_size": "大小",
     "th_modified": "修改时间",
     "no_error_logs": "没有失败请求日志",
-    "download_file": "下载 {{name}}"
+    "download_file": "下载 {{name}}",
+    "hidden_earlier": "已隐藏更早的 {{count}} 条日志",
+    "show_earlier": "显示更早的 {{count}} 条"
   },
   "config": {
     "title": "系统配置",

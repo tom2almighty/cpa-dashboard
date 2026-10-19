@@ -33,6 +33,8 @@ type LogsResponse = { lines: string[]; "next-cursor"?: string; "cursor-reset"?: 
 const POLL_MS = 3000;
 // ponytail: 只保留最近的条目,行渲染靠 content-visibility 跳过屏幕外的布局,量再大需要虚拟列表
 const MAX_ENTRIES = 3000;
+// 单次最多渲染的日志行数;更早的行按需展开,避免 3000 行 DOM 一次性渲染
+const RENDER_STEP = 500;
 
 // CPA 未开启 logging-to-file 时读日志返回 400,error 字段就是这句话
 function fileLoggingDisabled(error: unknown): boolean {
@@ -144,6 +146,7 @@ function LiveLogs() {
   const [keyword, setKeyword] = useState("");
   const [generation, setGeneration] = useState(0);
   const [behind, setBehind] = useState(false);
+  const [renderLimit, setRenderLimit] = useState(RENDER_STEP);
   const cursor = useRef<string | undefined>(undefined);
   const nextId = useRef(1);
   const box = useRef<HTMLDivElement>(null);
@@ -202,6 +205,14 @@ function LiveLogs() {
         (!k || e.message.toLowerCase().includes(k) || e.requestId?.includes(k) || e.caller.includes(k)),
     );
   }, [entries, level, deferredKeyword]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 筛选条件变化时重置渲染窗口
+  useEffect(() => {
+    setRenderLimit(RENDER_STEP);
+  }, [generation, level, deferredKeyword]);
+
+  const visible = shown.length > renderLimit ? shown.slice(shown.length - renderLimit) : shown;
+  const hiddenCount = shown.length - visible.length;
 
   // 停在底部时跟随新日志;往上翻了就只提示有新内容
   // biome-ignore lint/correctness/useExhaustiveDependencies: 条目变化时处理滚动
@@ -275,7 +286,7 @@ function LiveLogs() {
         >
           {LEVELS.map((l) => (
             <ToggleGroupItem key={l.value} value={l.value} className="gap-1.5 px-2.5">
-              {t(l.labelKey)}
+              {t(l.labelKey as never)}
               {l.value !== "all" && counts[l.value] > 0 && (
                 <span className={`tabular-nums ${LEVEL_TEXT[l.value]}`}>{formatInteger(counts[l.value])}</span>
               )}
@@ -340,7 +351,25 @@ function LiveLogs() {
               {entries.length === 0 ? t("logs.empty") : t("logs.no_match")}
             </p>
           ) : (
-            shown.map((entry) => <LogRow key={entry.id} entry={entry} />)
+            <>
+              {hiddenCount > 0 && (
+                <div className="flex items-center justify-center gap-2 py-2 font-sans text-xs text-muted-foreground">
+                  <span>{t("logs.hidden_earlier", { count: formatInteger(hiddenCount) })}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => setRenderLimit((value) => value + RENDER_STEP)}
+                  >
+                    {t("logs.show_earlier", { count: formatInteger(RENDER_STEP) })}
+                  </Button>
+                </div>
+              )}
+              {visible.map((entry) => (
+                <LogRow key={entry.id} entry={entry} />
+              ))}
+            </>
           )}
         </div>
         {behind && (

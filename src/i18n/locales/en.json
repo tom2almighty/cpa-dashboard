@@ -617,7 +617,9 @@
     "th_size": "Size",
     "th_modified": "Modified",
     "no_error_logs": "No failed request logs",
-    "download_file": "Download {{name}}"
+    "download_file": "Download {{name}}",
+    "hidden_earlier": "{{count}} older log lines hidden",
+    "show_earlier": "Show {{count}} older lines"
   },
   "config": {
     "title": "System Configuration",
