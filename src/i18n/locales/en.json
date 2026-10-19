@@ -226,7 +226,10 @@
     "field_excluded_models": "Excluded models",
     "excluded_models_placeholder": "claude-3-5-haiku-20241022",
     "excluded_models_hint": "Add and remove excluded rules visually, or switch to text mode to edit in bulk. Supports * wildcards. A credential's own non-empty list takes priority over the global oauth.excluded-models rules and is not merged with them; leave it empty to inherit the global rules.",
-    "inherit_placeholder": "Empty to inherit"
+    "inherit_placeholder": "Empty to inherit",
+    "tab_connection": "Connection",
+    "tab_models": "Models",
+    "tab_headers": "Headers"
   },
   "oauth": {
     "title": "OAuth Login",

@@ -226,7 +226,10 @@
     "field_excluded_models": "排除模型",
     "excluded_models_placeholder": "claude-3-5-haiku-20241022",
     "excluded_models_hint": "支持可视化添加与删除排除规则，或切到文本模式批量编辑；支持 * 通配符。凭据自身的非空列表优先于全局 oauth.excluded-models，两者不合并；留空则继承全局规则。",
-    "inherit_placeholder": "留空继承"
+    "inherit_placeholder": "留空继承",
+    "tab_connection": "接入",
+    "tab_models": "模型",
+    "tab_headers": "请求头"
   },
   "oauth": {
     "title": "OAuth 登录",

@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zipSync } from "fflate";
 import {
   Boxes,
+  Braces,
+  Cable,
   ChevronDown,
   Download,
   Ellipsis,
@@ -51,6 +53,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { api, download, errorText, fetchBlob, saveBlob } from "@/lib/api";
@@ -182,6 +185,8 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
   const source = useQuery({ ...contentQuery(target), select: readFields });
   const [draft, setDraft] = useState<Fields | null>(null);
   const form = draft ?? source.data;
+  const [tab, setTab] = useState<"connection" | "models" | "headers">("connection");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const save = useMutation({
     // 服务端先按 ID 查找,同一文件展开的多个凭据用 ID 才能定位到这一个
@@ -212,94 +217,128 @@ function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: () => vo
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85svh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-xl">
+      <DialogContent className="flex max-h-[90svh] flex-col sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("auth_files.save_properties", { name: accountName(target) })}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 overflow-y-auto pr-1">
-          {source.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {t("overview.load_failed", { message: errorText(source.error) })}
-            </p>
-          ) : !form ? (
-            <Skeleton className="h-72" />
-          ) : (
-            <form id="fields-form" onSubmit={submit} className="grid gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-note">{t("auth_files.field_note")}</Label>
-                <Input id="f-note" value={form.note} onChange={(e) => update({ note: e.target.value })} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-prefix">{t("auth_files.field_prefix")}</Label>
-                <Input id="f-prefix" value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {NUMBER_FIELDS.map(([key, label]) => (
-                  <div key={key} className="grid gap-1.5">
-                    <Label htmlFor={`f-${key}`}>{t(label)}</Label>
-                    <Input
-                      id={`f-${key}`}
-                      inputMode="numeric"
-                      value={form[key]}
-                      placeholder={t("auth_files.inherit_placeholder")}
-                      onChange={(e) => update({ [key]: e.target.value })}
+        {source.isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {t("overview.load_failed", { message: errorText(source.error) })}
+          </p>
+        ) : !form ? (
+          <Skeleton className="h-72" />
+        ) : (
+          <form id="fields-form" onSubmit={submit} className="flex min-h-0 flex-1 flex-col gap-3">
+            <Tabs
+              value={tab}
+              onValueChange={(value) => {
+                if (!value) return;
+                setTab(value as typeof tab);
+                scrollRef.current?.scrollTo({ top: 0 });
+              }}
+              className="min-h-0 flex-1"
+            >
+              <TabsList className="self-start">
+                <TabsTrigger value="connection" className="gap-1.5">
+                  <Cable className="size-3.5" />
+                  {t("auth_files.tab_connection")}
+                </TabsTrigger>
+                <TabsTrigger value="models" className="gap-1.5">
+                  <Boxes className="size-3.5" />
+                  {t("auth_files.tab_models")}
+                </TabsTrigger>
+                <TabsTrigger value="headers" className="gap-1.5">
+                  <Braces className="size-3.5" />
+                  {t("auth_files.tab_headers")}
+                </TabsTrigger>
+              </TabsList>
+              <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <TabsContent value="connection" className="grid gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="f-note">{t("auth_files.field_note")}</Label>
+                      <Input id="f-note" value={form.note} onChange={(e) => update({ note: e.target.value })} />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="f-prefix">{t("auth_files.field_prefix")}</Label>
+                      <Input id="f-prefix" value={form.prefix} onChange={(e) => update({ prefix: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {NUMBER_FIELDS.map(([key, label]) => (
+                      <div key={key} className="grid gap-1.5">
+                        <Label htmlFor={`f-${key}`}>{t(label)}</Label>
+                        <Input
+                          id={`f-${key}`}
+                          inputMode="numeric"
+                          value={form[key]}
+                          placeholder={t("auth_files.inherit_placeholder")}
+                          onChange={(e) => update({ [key]: e.target.value })}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="f-proxy">{t("auth_files.field_proxy")}</Label>
+                      <Input
+                        id="f-proxy"
+                        value={form.proxy_url}
+                        placeholder={t("auth_files.proxy_placeholder")}
+                        onChange={(e) => update({ proxy_url: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="f-timezone">{t("auth_files.field_timezone")}</Label>
+                      <Input
+                        id="f-timezone"
+                        value={form.timezone}
+                        placeholder={t("auth_files.timezone_placeholder")}
+                        onChange={(e) => update({ timezone: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground">{t("auth_files.timezone_hint")}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="f-websockets">{t("auth_files.field_websockets")}</Label>
+                    <Switch
+                      id="f-websockets"
+                      checked={form.websockets}
+                      onCheckedChange={(checked) => update({ websockets: checked })}
                     />
                   </div>
-                ))}
+                </TabsContent>
+                <TabsContent value="models" className="grid gap-4">
+                  <ModelAliasesEditor
+                    id="f-aliases"
+                    value={form.model_aliases}
+                    placeholder={t("auth_files.model_aliases_placeholder")}
+                    onChange={(model_aliases) => update({ model_aliases })}
+                    label={t("auth_files.field_model_aliases")}
+                    hint={t("auth_files.model_aliases_hint")}
+                  />
+                  <ExcludedModelsEditor
+                    id="f-excluded"
+                    value={form.excluded_models}
+                    placeholder={t("auth_files.excluded_models_placeholder")}
+                    onChange={(excluded_models) => update({ excluded_models })}
+                    label={t("auth_files.field_excluded_models")}
+                    hint={t("auth_files.excluded_models_hint")}
+                  />
+                </TabsContent>
+                <TabsContent value="headers" className="grid gap-4">
+                  <HeadersEditor
+                    id="f-headers"
+                    value={form.headers}
+                    onChange={(headers) => update({ headers })}
+                    label={t("auth_files.extra_headers")}
+                    hint={t("auth_files.headers_hint")}
+                  />
+                </TabsContent>
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-proxy">{t("auth_files.field_proxy")}</Label>
-                <Input
-                  id="f-proxy"
-                  value={form.proxy_url}
-                  placeholder={t("auth_files.proxy_placeholder")}
-                  onChange={(e) => update({ proxy_url: e.target.value })}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="f-websockets">{t("auth_files.field_websockets")}</Label>
-                <Switch
-                  id="f-websockets"
-                  checked={form.websockets}
-                  onCheckedChange={(checked) => update({ websockets: checked })}
-                />
-              </div>
-              <HeadersEditor
-                id="f-headers"
-                value={form.headers}
-                onChange={(headers) => update({ headers })}
-                label={t("auth_files.extra_headers")}
-                hint={t("auth_files.headers_hint")}
-              />
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-timezone">{t("auth_files.field_timezone")}</Label>
-                <Input
-                  id="f-timezone"
-                  value={form.timezone}
-                  placeholder={t("auth_files.timezone_placeholder")}
-                  onChange={(e) => update({ timezone: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">{t("auth_files.timezone_hint")}</p>
-              </div>
-              <ModelAliasesEditor
-                id="f-aliases"
-                value={form.model_aliases}
-                placeholder={t("auth_files.model_aliases_placeholder")}
-                onChange={(model_aliases) => update({ model_aliases })}
-                label={t("auth_files.field_model_aliases")}
-                hint={t("auth_files.model_aliases_hint")}
-              />
-              <ExcludedModelsEditor
-                id="f-excluded"
-                value={form.excluded_models}
-                placeholder={t("auth_files.excluded_models_placeholder")}
-                onChange={(excluded_models) => update({ excluded_models })}
-                label={t("auth_files.field_excluded_models")}
-                hint={t("auth_files.excluded_models_hint")}
-              />
-            </form>
-          )}
-        </div>
+            </Tabs>
+          </form>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t("common.cancel")}
