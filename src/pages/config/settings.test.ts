@@ -6,6 +6,7 @@ import {
   AUTH_TYPE_FIELDS,
   AUTH_TYPES,
   GROUPS,
+  managementKeyFromPatch,
   parseAuthRules,
   parseChannelEntries,
   parseIceServers,
@@ -234,4 +235,12 @@ test("readPath 支持新版 canonical 路径以及历史别名回退", () => {
   expect(readPath(legacyConfig, "upstream/codex/disable-codex-cloaking")).toBe(true);
   expect(readPath(legacyConfig, "upstream/claude/disable-claude-cloak-mode")).toBe(true);
   expect(readPath(legacyConfig, "client/codex/optimize-multi-agent-v2")).toBe(true);
+});
+
+test("只有管理密钥字段会替换本地管理密钥", () => {
+  expect(managementKeyFromPatch({ "management/secret-key": "new-secret" })).toBe("new-secret");
+  expect(managementKeyFromPatch({ "server/github-token": "ghp_xxx" })).toBe("");
+  expect(managementKeyFromPatch({ "server/github-token": "ghp_xxx", "management/secret-key": "new-secret" })).toBe(
+    "new-secret",
+  );
 });
