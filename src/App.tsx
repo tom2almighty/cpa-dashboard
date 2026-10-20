@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy } from "react";
-import { Navigate, Route, Routes } from "react-router";
+import { createHashRouter, Navigate, Outlet } from "react-router";
 import { Layout } from "@/components/layout";
 import { Spinner } from "@/components/ui/spinner";
 import { api, isUnauthorized, storedKey } from "@/lib/api";
@@ -16,6 +16,7 @@ const PluginsPage = lazy(() => import("@/pages/plugins").then((m) => ({ default:
 const LogsPage = lazy(() => import("@/pages/logs").then((m) => ({ default: m.LogsPage })));
 const ApiKeysPage = lazy(() => import("@/pages/api-keys").then((m) => ({ default: m.ApiKeysPage })));
 const PluginViewPage = lazy(() => import("@/pages/plugin-view").then((m) => ({ default: m.PluginViewPage })));
+
 // 用保存的管理密钥试探一次 CPA
 async function checkSession(): Promise<boolean> {
   if (!storedKey()) return false;
@@ -28,7 +29,7 @@ async function checkSession(): Promise<boolean> {
   }
 }
 
-export function App() {
+function SessionGate() {
   const session = useQuery({ queryKey: ["session"], queryFn: checkSession, staleTime: Number.POSITIVE_INFINITY });
 
   if (session.isPending) {
@@ -40,22 +41,30 @@ export function App() {
   }
 
   if (session.data !== true) return <LoginPage />;
-
-  return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<StatusPage />} />
-        <Route path="auth-files" element={<AuthFilesPage />} />
-        <Route path="oauth" element={<OAuthPage />} />
-        <Route path="providers" element={<ProvidersPage />} />
-        <Route path="api-keys" element={<ApiKeysPage />} />
-        <Route path="models" element={<ModelsPage />} />
-        <Route path="plugins" element={<PluginsPage />} />
-        <Route path="logs" element={<LogsPage />} />
-        <Route path="plugins/view/:pluginId" element={<PluginViewPage />} />
-        <Route path="config" element={<ConfigPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
-  );
+  return <Outlet />;
 }
+
+// 使用 data router,配置页的 useBlocker 才能拦截站内导航
+export const router = createHashRouter([
+  {
+    element: <SessionGate />,
+    children: [
+      {
+        element: <Layout />,
+        children: [
+          { index: true, element: <StatusPage /> },
+          { path: "auth-files", element: <AuthFilesPage /> },
+          { path: "oauth", element: <OAuthPage /> },
+          { path: "providers", element: <ProvidersPage /> },
+          { path: "api-keys", element: <ApiKeysPage /> },
+          { path: "models", element: <ModelsPage /> },
+          { path: "plugins", element: <PluginsPage /> },
+          { path: "logs", element: <LogsPage /> },
+          { path: "plugins/view/:pluginId", element: <PluginViewPage /> },
+          { path: "config", element: <ConfigPage /> },
+          { path: "*", element: <Navigate to="/" replace /> },
+        ],
+      },
+    ],
+  },
+]);
