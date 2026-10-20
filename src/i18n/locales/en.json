@@ -17,12 +17,15 @@
     "actions": "Actions",
     "name": "Name",
     "download": "Download",
-    "loading_progress": "Loaded {{loaded}} / {{total}}",
     "request_failed_status": "Request failed ({{status}})",
     "visual_mode": "Visual edit",
     "text_mode": "Text edit",
     "back_to_top": "Back to top",
-    "close": "Close"
+    "close": "Close",
+    "unsaved_title": "Unsaved changes",
+    "unsaved_desc": "Leaving this page will discard your changes.",
+    "keep_editing": "Keep editing",
+    "discard_and_leave": "Discard and leave"
   },
   "theme": {
     "title": "Theme",
@@ -66,6 +69,7 @@
     "custom_base_placeholder": "e.g. http://localhost:8317",
     "clear_custom_base": "Reset to default",
     "remote_hint": "For decoupled deployments, specify the remote CPA server URL (e.g. https://cpa.example.com).",
+    "insecure_http_warning": "The remote CPA is using HTTP; the management key travels in plaintext. Prefer HTTPS or a trusted private network.",
     "secret_key": "Management Secret Key / Password",
     "secret_key_placeholder": "management.secret-key or MANAGEMENT_PASSWORD",
     "show_key": "Show key",
@@ -231,9 +235,6 @@
     "tab_connection": "Connection",
     "tab_models": "Models",
     "tab_headers": "Headers",
-    "load_all_label": "Load all credentials",
-    "filter_scope_page": "Filters apply to the current page. Turn on \"Load all credentials\" to filter the whole set.",
-    "filter_scope_all": "All credentials are loaded; filters apply to the whole set.",
     "siwc_bind": "Bind SIWC",
     "siwc_rebind": "Rebind SIWC",
     "siwc_desc": "Bind a separate Sign in with ChatGPT credential partition to this existing Codex credential; no new auth file is created.",
@@ -393,6 +394,7 @@
     "headers_hint": "Add rows visually, or switch to text mode to paste in bulk. A value starting with $ copies the same header from the downstream request.",
     "th_group": "Name / Key",
     "th_kind": "Type",
+    "th_base_url": "Base URL",
     "th_key_count": "Keys",
     "th_model_count": "Models",
     "th_proxy": "Proxy",
@@ -678,6 +680,9 @@
     "tab_yaml_editor": "YAML Editor",
     "save_changes": "Save Changes",
     "pending_save": "unsaved changes",
+    "search_placeholder": "Search settings...",
+    "search_empty": "No matching settings",
+    "only_modified": "Modified only",
     "discard": "Discard Changes",
     "save_success": "Configuration saved. CPA will reload it automatically",
     "save_failed": "Save failed: {{message}}",
@@ -789,8 +794,7 @@
       "clear_search": "Clear search",
       "prev_match": "Previous match",
       "next_match": "Next match",
-      "save_hint": "Ctrl/⌘ + S to save",
-      "conflict": "The config file was changed elsewhere, nothing was saved. Copy your edits, then click \"Discard\" to load the latest version"
+      "save_hint": "Ctrl/⌘ + S to save"
     },
     "groups": {
       "plugins": "Dynamic binary plugin discovery, store sources and store auth (the plugins section)",

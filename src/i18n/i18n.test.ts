@@ -2,16 +2,15 @@ import { expect, test } from "vitest";
 import en from "./locales/en.json";
 import zhCN from "./locales/zh-CN.json";
 
-test("i18n keys parity between zh-CN and en", () => {
-  const zhKeys = Object.keys(zhCN) as (keyof typeof zhCN)[];
-  const enKeys = Object.keys(en) as (keyof typeof en)[];
-  expect(zhKeys.sort()).toEqual(enKeys.sort());
+function flattenKeys(value: object, prefix = ""): string[] {
+  return Object.entries(value).flatMap(([key, child]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    return child && typeof child === "object" ? flattenKeys(child, path) : [path];
+  });
+}
 
-  for (const moduleKey of zhKeys) {
-    const zhModule = zhCN[moduleKey];
-    const enModule = en[moduleKey];
-    expect(Object.keys(zhModule).sort()).toEqual(Object.keys(enModule).sort());
-  }
+test("i18n keys parity between zh-CN and en", () => {
+  expect(flattenKeys(zhCN).sort()).toEqual(flattenKeys(en).sort());
 });
 
 test("common terms match official CPA terminology", () => {

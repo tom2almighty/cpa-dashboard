@@ -17,12 +17,15 @@
     "actions": "操作",
     "name": "名称",
     "download": "下载",
-    "loading_progress": "已加载 {{loaded}} / {{total}}",
     "request_failed_status": "请求失败（{{status}}）",
     "visual_mode": "可视化编辑",
     "text_mode": "文本编辑",
     "back_to_top": "返回顶部",
-    "close": "关闭"
+    "close": "关闭",
+    "unsaved_title": "有未保存的修改",
+    "unsaved_desc": "离开当前页面会丢失这些修改。",
+    "keep_editing": "继续编辑",
+    "discard_and_leave": "放弃并离开"
   },
   "theme": {
     "title": "主题",
@@ -66,6 +69,7 @@
     "custom_base_placeholder": "例如 http://localhost:8317",
     "clear_custom_base": "清空（使用默认）",
     "remote_hint": "前后端分离部署时，在此指定远程 CPA 服务地址（如 https://cpa.example.com）。",
+    "insecure_http_warning": "当前使用 HTTP 连接远程 CPA，管理密钥会以明文经过网络，建议改用 HTTPS 或仅在可信内网使用。",
     "secret_key": "管理密钥 / 访问密码",
     "secret_key_placeholder": "management.secret-key 或 MANAGEMENT_PASSWORD",
     "show_key": "显示密钥",
@@ -231,9 +235,6 @@
     "tab_connection": "接入",
     "tab_models": "模型",
     "tab_headers": "请求头",
-    "load_all_label": "加载全部凭据",
-    "filter_scope_page": "筛选仅作用于当前页；开启“加载全部凭据”后可筛选整个凭据集合。",
-    "filter_scope_all": "已加载全部凭据，筛选作用于整个集合。",
     "siwc_bind": "绑定 SIWC",
     "siwc_rebind": "重新绑定 SIWC",
     "siwc_desc": "为现有 Codex 凭据绑定独立的 Sign in with ChatGPT 凭据分区，不会创建新的认证文件。",
@@ -393,6 +394,7 @@
     "headers_hint": "支持逐行可视化添加，或切到文本模式批量粘贴；值以 $ 开头时会复制下游请求的同名头。",
     "th_group": "分组名称 / 密钥",
     "th_kind": "类型",
+    "th_base_url": "Base URL",
     "th_key_count": "密钥数",
     "th_model_count": "模型",
     "th_proxy": "代理",
@@ -678,6 +680,9 @@
     "tab_yaml_editor": "YAML 编辑器",
     "save_changes": "保存更改",
     "pending_save": "项待保存",
+    "search_placeholder": "搜索配置项...",
+    "search_empty": "没有匹配的配置项",
+    "only_modified": "只看已修改",
     "discard": "放弃修改",
     "save_success": "配置已保存，CPA 会自动重新加载生效",
     "save_failed": "保存失败：{{message}}",
@@ -789,8 +794,7 @@
       "clear_search": "清空搜索",
       "prev_match": "上一个匹配项",
       "next_match": "下一个匹配项",
-      "save_hint": "Ctrl/⌘ + S 保存配置",
-      "conflict": "配置文件已在别处被修改，未保存。请先复制你的改动，再点击“放弃修改”加载最新版本"
+      "save_hint": "Ctrl/⌘ + S 保存配置"
     },
     "groups": {
       "plugins": "动态二进制插件发现、商店源与商店认证（对应 plugins 节）",

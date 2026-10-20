@@ -4,7 +4,6 @@ import { Link } from "react-router";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n/context";
 import { configQuery } from "@/lib/api";
 import { accountName, useCredentials } from "@/lib/credentials";
@@ -30,7 +29,7 @@ function Stat({ label, value, detail }: { label: string; value: string; detail?:
 
 export function StatusPage() {
   const { t } = useI18n();
-  const { files: data, total, isPending, isError, error, isComplete } = useCredentials({ refetchInterval: 30_000 });
+  const { files: data, isPending, isError, error } = useCredentials({ refetchInterval: 30_000 });
   // 提供商分组数与客户端密钥数都从共用的配置缓存里取
   const config = useQuery({
     ...configQuery,
@@ -77,13 +76,6 @@ export function StatusPage() {
   return (
     <>
       <PageHeader title={t("overview.title")} />
-
-      {!isComplete && (
-        <p className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Spinner className="size-3" />
-          {t("common.loading_progress", { loaded: formatInteger(accounts.length), total: formatInteger(total) })}
-        </p>
-      )}
 
       <section
         aria-label={t("overview.summary_label")}
