@@ -21,6 +21,9 @@ jobs:
           node-version: "24"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # tag 推送不会触发 ci.yml(只监听 main),发布前在这里把关
+      - run: pnpm run check
+      - run: pnpm run test
       # 构建纯前端单文件面板: CPA 配置 panel-github-repository 后会自动拉取最新 Release 里名为 management.html 的资产
       - run: pnpm run build
         env:

@@ -9,9 +9,29 @@
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CPA Dashboard</title>
+    <script>
+      // 在应用脚本执行前应用主题,避免暗色模式先闪白
+      (() => {
+        try {
+          const theme = localStorage.getItem("theme") || "system";
+          const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 单文件面板体积较大,应用挂载前先显示一个静态加载态 -->
+      <div class="grid min-h-svh place-items-center">
+        <div
+          class="size-5 animate-spin rounded-full border-2 border-muted border-t-primary"
+          role="status"
+          aria-label="Loading"
+        ></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

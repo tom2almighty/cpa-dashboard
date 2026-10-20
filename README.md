@@ -1,12 +1,37 @@
 # CPA Dashboard
 
-[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)（CPA 8.0+）的管理面板，基于 Management API v8 接口构建。支持作为 CPA 内置页面运行，或作为前后端分离的静态站点独立部署。
+[English](README.en.md)
 
-## 部署方式
+## 项目简介
 
-### 方式一：CPA 内置托管
+CLIProxyAPI 8.x 的 Web 管理面板，覆盖认证文件、OAuth、提供商、客户端密钥、模型、插件、日志与 v8 配置管理。构建产物为单个 `management.html`，既可交给 CPA 内置托管，也可作为独立静态站点部署。
 
-在 CPA 的 `config.yaml` 中配置管理面板仓库，CPA 会自动下载并托管面板页面：
+## 开发环境配置
+
+依赖 Node.js 24+ 与 pnpm 12.10.1（版本记录在 `package.json` 的 `packageManager` 字段）。
+
+```bash
+pnpm install
+pnpm run dev
+```
+
+开发服务器默认运行在 `http://localhost:5173`。需要代理到本地 CPA 时：
+
+```bash
+CPA_URL=http://127.0.0.1:8317 pnpm run dev
+```
+
+## 构建与部署
+
+```bash
+pnpm run check     # Biome + TypeScript
+pnpm run test      # 单元测试
+pnpm run build     # 生成 dist/management.html
+```
+
+### CPA 内置托管
+
+在 CPA 的 `config.yaml` 中配置面板仓库，CPA 会自动下载 Release 中的 `management.html`：
 
 ```yaml
 config-version: 8
@@ -16,44 +41,16 @@ management:
   panel-github-repository: "https://github.com/tom2almighty/cpa-dashboard"
 ```
 
-访问 `http://<CPA 地址>/management.html` 即可使用。
+访问 `http://<CPA 地址>/management.html`。也可以从 Releases 下载 `management.html`，放入 CPA 的静态文件目录（或 `MANAGEMENT_STATIC_PATH`）。
 
-亦可从 [Releases](https://github.com/tom2almighty/cpa-dashboard/releases) 下载编译产物 `management.html`，放入 CPA 的静态文件目录（或 `MANAGEMENT_STATIC_PATH`）。
+### 独立静态站点
 
-### 方式二：独立静态站点部署
+1. 将 `dist/management.html` 重命名为 `index.html` 并部署到任意静态托管平台。
+2. 在 CPA 服务端设置环境变量 `MANAGEMENT_PASSWORD`。
+3. 打开页面，在登录界面填写 CPA 地址与管理密钥。
 
-面板为纯前端单文件架构，可直接部署在任意静态托管平台（Vercel、Cloudflare Pages、Nginx 等）。
+构建结果是未压缩的单文件，约 1.8MB（gzip 后约 580KB）。建议在反向代理层开启 gzip 或 brotli；CPA 本身不压缩静态文件。
 
-1. 部署打包产物（`dist/management.html` 重命名为 `index.html`）。
-2. 在 CPA 服务端设置环境变量 `MANAGEMENT_PASSWORD=你的访问密码`。
-3. 打开前端页面，在登录界面填写 CPA 远程服务地址及访问密码即可连接。
-
-## 本地开发
-
-本项目使用 [pnpm](https://pnpm.io/)。
-
-```bash
-pnpm install
-pnpm run dev
-```
-
-开发服务器启动后访问 `http://localhost:5173`。
-
-可选环境变量：
-- `CPA_URL`：指定本地开发反向代理的后端 CPA 地址，例如 `CPA_URL=http://127.0.0.1:8317 pnpm run dev`。
-
-## 构建与校验
-
-```bash
-pnpm run check     # Biome 检查与 TypeScript 类型校验
-pnpm run test      # 运行测试用例
-pnpm run build     # 编译生成单文件 dist/management.html
-```
-
-## 致谢
-
-[LINUX DO](https://linux.do/)
-
-## LICENSE
+## 开源许可证
 
 [AGPL-3.0](LICENSE)

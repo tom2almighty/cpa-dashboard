@@ -14,3 +14,6 @@ refer
 .codex
 .claude
 .vscode
+
+# build artifact
+/management.html
