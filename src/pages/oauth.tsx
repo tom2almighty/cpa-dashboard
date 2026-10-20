@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { useCopiedState } from "@/hooks/use-copied-state";
 import { useI18n } from "@/i18n/context";
 import { api } from "@/lib/api";
 import { CREDENTIALS_KEY } from "@/lib/credentials";
@@ -36,15 +37,14 @@ type PluginList = {
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
+  const { copied, mark } = useCopiedState(1500);
   return (
     <Button
       variant="outline"
       size="sm"
       onClick={async () => {
         await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        mark(text);
       }}
     >
       {copied ? <Check /> : <Copy />}

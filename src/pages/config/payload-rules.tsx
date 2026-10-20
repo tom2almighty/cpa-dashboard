@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, orNotFound } from "@/lib/api";
+import { showErrorToast } from "@/lib/toast";
 import type { Json } from "./settings";
 
 // 规则里还可能有 headers、from-protocol、match、exist 等字段,编辑时合并到原对象上保留
@@ -420,7 +421,7 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
       toast.success(t("config.payload.deleted"));
       queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
     } catch (e) {
-      toast.error(t("config.payload.delete_failed", { message: (e as Error).message }));
+      showErrorToast(t("config.payload.delete_failed", { message: (e as Error).message }));
     }
   };
 

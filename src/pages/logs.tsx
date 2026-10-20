@@ -27,6 +27,7 @@ import { i18n, useI18n } from "@/i18n/context";
 import { ApiError, api, CONFIG_KEY, configPath, configQuery, download, errorText } from "@/lib/api";
 import { formatDateTime, formatInteger } from "@/lib/format";
 import { appendLines, type Level, type LogEntry } from "@/lib/log-parse";
+import { showErrorToast } from "@/lib/toast";
 
 type LogsResponse = { lines: string[]; "next-cursor"?: string; "cursor-reset"?: boolean };
 
@@ -67,7 +68,7 @@ async function downloadRequestLog(id: string) {
   try {
     await download(`/v8/management/observability/logs/requests/${encodeURIComponent(id)}`, `request-${id}.log`);
   } catch (error) {
-    toast.error(
+    showErrorToast(
       error instanceof ApiError && error.status === 404
         ? i18n.t("logs.request_log_not_found")
         : (error as Error).message,

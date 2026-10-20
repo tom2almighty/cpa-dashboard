@@ -577,7 +577,7 @@ function EditDialog({
                 </Field>
                 <Field
                   id={`${p}-base`}
-                  label="Base URL"
+                  label={t("providers.th_base_url")}
                   hint={kind.openai || kind.baseUrlRequired ? undefined : t("providers.base_url_hint")}
                 >
                   <Input id={`${p}-base`} value={form.baseUrl} onChange={(e) => update({ baseUrl: e.target.value })} />
@@ -700,7 +700,7 @@ function EditDialog({
             </Button>
             {testResult && (
               <span
-                className={`max-w-44 truncate text-[11px] ${testResult.ok ? "text-success" : "text-destructive"}`}
+                className={`max-w-44 truncate text-xs ${testResult.ok ? "text-success" : "text-destructive"}`}
                 title={testResult.message}
               >
                 {testResult.message}
@@ -797,7 +797,7 @@ function ProvidersList({ rows, isPending }: { rows: ProviderRow[]; isPending: bo
           <TableRow>
             <TableHead className="w-24">{t("providers.th_kind")}</TableHead>
             <TableHead>{t("providers.th_group")}</TableHead>
-            <TableHead>Base URL</TableHead>
+            <TableHead>{t("providers.th_base_url")}</TableHead>
             <TableHead className="text-right">{t("providers.th_key_count")}</TableHead>
             <TableHead className="text-right">{t("providers.th_model_count")}</TableHead>
             <TableHead className="w-40">{t("providers.th_proxy")}</TableHead>

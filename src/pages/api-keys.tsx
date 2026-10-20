@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useCopiedState } from "@/hooks/use-copied-state";
 import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, errorText, storedBaseUrl } from "@/lib/api";
 
@@ -62,7 +63,7 @@ export function ApiKeysPage() {
   const [adding, setAdding] = useState("");
   const [addingNote, setAddingNote] = useState("");
   // 记录刚复制的内容,用于把对应按钮切换成对勾
-  const [copied, setCopied] = useState<string | null>(null);
+  const { copied, mark } = useCopiedState();
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [showAll, setShowAll] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>(() => loadNotes());
@@ -168,9 +169,8 @@ export function ApiKeysPage() {
   const copy = (text: string, message: string) => {
     navigator.clipboard.writeText(text).then(
       () => {
-        setCopied(text);
+        mark(text);
         toast.success(message);
-        setTimeout(() => setCopied(null), 2000);
       },
       () => toast.error(t("api_keys.copy_failed")),
     );
