@@ -11,7 +11,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n/context";
-import { ApiError, api, clearBaseUrl, clearKey, saveBaseUrl, saveKey, storedBaseUrl, storedKey } from "@/lib/api";
+import {
+  ApiError,
+  api,
+  clearBaseUrl,
+  clearKey,
+  keyIsRemembered,
+  saveBaseUrl,
+  saveKey,
+  storedBaseUrl,
+  storedKey,
+} from "@/lib/api";
 
 function detectDefaultBase(): string {
   try {
@@ -59,9 +69,12 @@ export function LoginPage() {
   const [showCustomBase, setShowCustomBase] = useState(() => Boolean(storedBaseUrl()));
   const [key, setKey] = useState(() => storedKey());
   const [showKey, setShowKey] = useState(false);
-  const [remember, setRemember] = useState(true);
+  const [remember, setRemember] = useState(keyIsRemembered);
 
   const activeBase = showCustomBase ? customBase.trim() : "";
+  const insecureRemote =
+    (activeBase || detectedBase).startsWith("http://") &&
+    !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(activeBase || detectedBase);
 
   const mutation = useMutation({
     mutationFn: () => login(activeBase, key.trim(), remember, t),
@@ -129,7 +142,7 @@ export function LoginPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setCustomBase("http://localhost:8317")}
-                  className="h-6 px-2 text-[11px]"
+                  className="h-6 px-2 text-xs"
                 >
                   <Globe className="mr-1 size-3" />
                   localhost:8317
@@ -139,7 +152,7 @@ export function LoginPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setCustomBase("http://127.0.0.1:8317")}
-                  className="h-6 px-2 text-[11px]"
+                  className="h-6 px-2 text-xs"
                 >
                   127.0.0.1:8317
                 </Button>
@@ -148,13 +161,18 @@ export function LoginPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setCustomBase("")}
-                  className="h-6 px-2 text-[11px] text-muted-foreground"
+                  className="h-6 px-2 text-xs text-muted-foreground"
                 >
                   {t("login.clear_custom_base")}
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">{t("login.remote_hint")}</p>
+              <p className="text-xs text-muted-foreground">{t("login.remote_hint")}</p>
             </div>
+          )}
+          {insecureRemote && (
+            <p role="alert" className="mt-3 border-t pt-2.5 text-xs text-warning">
+              {t("login.insecure_http_warning")}
+            </p>
           )}
         </div>
 
