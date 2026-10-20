@@ -1,13 +1,25 @@
-import { RotateCcw, Save } from "lucide-react";
-import { useState } from "react";
+import { RotateCcw, Save, Search } from "lucide-react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UnsavedChangesDialog } from "@/components/unsaved-changes-dialog";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useI18n } from "@/i18n/context";
 import { PayloadRules } from "./payload-rules";
-import { ConfigSettingsProvider, GROUPS, SettingsGroup, useConfigSettings } from "./settings";
+import {
+  type ConfigGroup,
+  type ConfigSection,
+  ConfigSettingsProvider,
+  GROUPS,
+  type Setting,
+  SettingField,
+  SettingsGroup,
+  useConfigSettings,
+} from "./settings";
 import { YamlEditor } from "./yaml-editor";
 
 function ConfigHeaderActions() {
@@ -32,47 +44,142 @@ function ConfigHeaderActions() {
   );
 }
 
+type SearchMatch = { group: ConfigGroup; section: ConfigSection; items: Setting[] };
+
+function ConfigSearchResults({ matches }: { matches: SearchMatch[] }) {
+  const { t } = useI18n();
+  if (matches.length === 0) {
+    return <p className="py-12 text-center text-sm text-muted-foreground">{t("config.search_empty")}</p>;
+  }
+  return (
+    <div className="grid gap-8">
+      {matches.map(({ group, section, items }) => (
+        <section key={`${group.id}-${section.id}`}>
+          <h2 className="mb-1 text-sm font-medium">
+            {t(`config.groups.${group.id}` as never)}
+            <span className="mx-1.5 text-muted-foreground">/</span>
+            <span className="text-muted-foreground">{t(`config.sections.${group.id}.${section.id}` as never)}</span>
+          </h2>
+          <div className="divide-y">
+            {items.map((setting) => (
+              <SettingField key={setting.endpoint} setting={setting} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function ConfigPageInner() {
   const { t } = useI18n();
+  const { dirtyCount, patch } = useConfigSettings();
   const [tab, setTab] = useState(GROUPS[0].id);
+  const [query, setQuery] = useState("");
+  const [onlyDirty, setOnlyDirty] = useState(false);
+  const [yamlDirty, setYamlDirty] = useState(false);
+  const deferredQuery = useDeferredValue(query);
+  const blocker = useUnsavedChanges(dirtyCount > 0 || yamlDirty);
+
+  const searching = deferredQuery.trim() !== "" || onlyDirty;
+  const matches = useMemo<SearchMatch[]>(() => {
+    if (!searching) return [];
+    const keyword = deferredQuery.trim().toLowerCase();
+    const out: SearchMatch[] = [];
+    for (const group of GROUPS) {
+      for (const section of group.sections) {
+        const items = section.items.filter((setting) => {
+          if (onlyDirty && !Object.hasOwn(patch, setting.endpoint)) return false;
+          if (!keyword) return true;
+          const label = t(`config.fields.${setting.endpoint}.label` as never);
+          const hint = t(`config.fields.${setting.endpoint}.hint` as never);
+          return [setting.endpoint, label, hint].some((value) => String(value).toLowerCase().includes(keyword));
+        });
+        if (items.length > 0) out.push({ group, section, items });
+      }
+    }
+    return out;
+  }, [deferredQuery, onlyDirty, patch, searching, t]);
 
   return (
     <>
-      <PageHeader title={t("config.title")} description={t("config.desc")} actions={<ConfigHeaderActions />} />
+      <PageHeader title={t("config.title")} description={t("config.desc")} />
 
-      <Tabs value={tab} onValueChange={(v) => v && setTab(v)}>
-        {/* 配置项多,tab 栏吸顶;移动端让开顶部 48px 的 sticky 头部 */}
-        <div className="sticky top-12 z-10 -mx-4 mb-4 overflow-x-auto bg-background px-4 py-2 no-scrollbar md:top-0 md:-mx-8 md:px-8">
-          <TabsList className="h-9 gap-1">
-            {GROUPS.map((g) => (
-              <TabsTrigger key={g.id} value={g.id} className="px-2.5 py-1 text-xs sm:text-sm">
-                {t(`config.tabs.${g.id}` as never)}
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          if (!value) return;
+          setTab(value);
+          setQuery("");
+          setOnlyDirty(false);
+        }}
+      >
+        {/* 配置项多,tab 栏和保存操作一起吸顶;移动端让开顶部 48px 的 sticky 头部 */}
+        <div className="sticky top-12 z-10 -mx-4 mb-4 flex flex-wrap items-center gap-2 bg-background px-4 py-2 md:top-0 md:-mx-8 md:px-8">
+          <div className="min-w-0 flex-1 overflow-x-auto no-scrollbar">
+            <TabsList className="h-9 gap-1">
+              {GROUPS.map((g) => (
+                <TabsTrigger key={g.id} value={g.id} className="px-2.5 py-1 text-xs sm:text-sm">
+                  {t(`config.tabs.${g.id}` as never)}
+                </TabsTrigger>
+              ))}
+              <div className="h-4 w-px bg-border my-auto mx-1 shrink-0" aria-hidden />
+              <TabsTrigger value="payload" className="px-2.5 py-1 text-xs sm:text-sm">
+                {t("config.tab_payload_rules")}
               </TabsTrigger>
-            ))}
-            <div className="h-4 w-px bg-border my-auto mx-1 shrink-0" aria-hidden />
-            <TabsTrigger value="payload" className="px-2.5 py-1 text-xs sm:text-sm">
-              {t("config.tab_payload_rules")}
-            </TabsTrigger>
-            <TabsTrigger value="yaml" className="px-2.5 py-1 text-xs sm:text-sm">
-              {t("config.tab_yaml_editor")}
-            </TabsTrigger>
-          </TabsList>
+              <TabsTrigger value="yaml" className="px-2.5 py-1 text-xs sm:text-sm">
+                {t("config.tab_yaml_editor")}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("config.search_placeholder")}
+                aria-label={t("config.search_placeholder")}
+                className="h-8 w-40 pl-8 text-xs sm:w-52"
+              />
+            </div>
+            <Button
+              variant={onlyDirty ? "secondary" : "outline"}
+              size="sm"
+              className="h-8 text-xs"
+              aria-pressed={onlyDirty}
+              onClick={() => setOnlyDirty((value) => !value)}
+            >
+              {t("config.only_modified")}
+              {dirtyCount > 0 && (
+                <Badge variant="secondary" className="ml-1 px-1.5 text-xs tabular-nums">
+                  {dirtyCount}
+                </Badge>
+              )}
+            </Button>
+            <ConfigHeaderActions />
+          </div>
         </div>
 
+        {searching && <ConfigSearchResults matches={matches} />}
+
         {GROUPS.map((g) => (
-          <TabsContent key={g.id} value={g.id}>
+          <TabsContent key={g.id} value={g.id} className={searching ? "hidden" : undefined}>
             <SettingsGroup groupId={g.id} />
           </TabsContent>
         ))}
 
-        <TabsContent value="payload">
+        <TabsContent value="payload" className={searching ? "hidden" : undefined}>
           <PayloadRules onGoYaml={() => setTab("yaml")} />
         </TabsContent>
 
-        <TabsContent value="yaml">
-          <YamlEditor />
+        <TabsContent value="yaml" keepMounted className={searching ? "hidden" : undefined}>
+          <YamlEditor onDirtyChange={setYamlDirty} />
         </TabsContent>
       </Tabs>
+
+      <UnsavedChangesDialog blocker={blocker} />
     </>
   );
 }
