@@ -17,6 +17,24 @@ export class ApiError extends Error {
 const KEY_STORAGE = "cpa-dashboard.management-key";
 const BASE_STORAGE = "cpa-dashboard.api-base";
 
+// 配置写入的乐观并发令牌。CPA 的 GET /config* 返回 ETag(配置原文的 SHA-256),
+// 写请求带上 If-Match 后,其它会话先写入会得到 412,避免用旧快照覆盖新配置。
+let configEtag: string | null = null;
+
+function isConfigPath(url: string): boolean {
+  return /\/v8\/management\/config(?:\.yaml|\/|$|\?)/.test(url);
+}
+
+// 反代压缩响应时可能把强 ETag 改成弱 ETag(W/"...")。CPA 只接受强校验,
+// 这里去掉 W/ 后回传;如果反代连内容哈希也改了,服务端会返回 412(失败关闭)。
+function ifMatchValue(etag: string): string {
+  return etag.startsWith("W/") ? etag.slice(2) : etag;
+}
+
+export function clearConfigEtag() {
+  configEtag = null;
+}
+
 export function normalizeBaseUrl(input: string): string {
   let base = (input || "").trim().replace(/\/+$/, "");
   if (!base) return "";
@@ -34,6 +52,7 @@ export function storedBaseUrl(): string {
 
 export function saveBaseUrl(base: string, remember = true) {
   const normalized = normalizeBaseUrl(base);
+  clearConfigEtag();
   if (normalized) {
     (remember ? localStorage : sessionStorage).setItem(BASE_STORAGE, normalized);
   } else {
@@ -43,6 +62,7 @@ export function saveBaseUrl(base: string, remember = true) {
 }
 
 export function clearBaseUrl() {
+  clearConfigEtag();
   sessionStorage.removeItem(BASE_STORAGE);
   localStorage.removeItem(BASE_STORAGE);
 }
@@ -57,6 +77,10 @@ export function resolveUrl(path: string): string {
 
 export function storedKey(): string {
   return sessionStorage.getItem(KEY_STORAGE) ?? localStorage.getItem(KEY_STORAGE) ?? "";
+}
+
+export function keyIsRemembered(): boolean {
+  return localStorage.getItem(KEY_STORAGE) !== null;
 }
 
 // 默认只保存在当前标签页,勾选记住后才写入 localStorage(明文)
@@ -88,13 +112,21 @@ type Init = Omit<RequestInit, "body"> & { body?: unknown; raw?: boolean };
 export async function request(path: string, { body, raw, headers, ...init }: Init = {}): Promise<Response> {
   const isJson = body !== undefined && !raw;
   const url = resolveUrl(path);
+  const method = (init.method ?? "GET").toUpperCase();
   const h = withAuth(url, headers);
   if (isJson) h.set("Content-Type", "application/json");
-  return fetch(url, {
+  if (isConfigPath(url) && method !== "GET" && method !== "HEAD" && configEtag && !h.has("If-Match")) {
+    h.set("If-Match", ifMatchValue(configEtag));
+  }
+  const res = await fetch(url, {
     ...init,
     headers: h,
     body: isJson ? JSON.stringify(body) : (body as BodyInit | undefined),
   });
+  // 读取和写入都会返回最新的配置 ETag,写失败(412)时也带当前值,便于重试;
+  // 反代去掉 ETag 时同步清空,避免继续拿旧值发 If-Match 而一直 412
+  if (isConfigPath(url)) configEtag = res.headers.get("etag");
+  return res;
 }
 
 // CPA 的错误格式是 {error, message?}
@@ -170,7 +202,8 @@ export function orNotFound<T>(fallback: T) {
 export const CONFIG_KEY = ["config"] as const;
 export const configQuery = {
   queryKey: CONFIG_KEY,
-  queryFn: () => api<Record<string, unknown>>("/v8/management/config"),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api<Record<string, unknown>>("/v8/management/config", { signal }),
+  staleTime: 30_000,
 };
 
 // 配置路径段是 YAML 键,逐段编码

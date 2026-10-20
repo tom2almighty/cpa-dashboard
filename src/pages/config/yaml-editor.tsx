@@ -15,7 +15,7 @@ import { api, CONFIG_KEY, errorText } from "@/lib/api";
 const YAML_KEY = [...CONFIG_KEY, "yaml"];
 const fetchYaml = () => api<string>("/v8/management/config.yaml");
 
-export function YamlEditor() {
+export function YamlEditor({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
@@ -32,6 +32,7 @@ export function YamlEditor() {
   const [draft, setDraft] = useState("");
   const [seen, setSeen] = useState<string>();
   const dirty = base !== undefined && draft !== base;
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
   if (data !== undefined && data !== seen) {
     setSeen(data);
     if (!dirty) {
@@ -54,12 +55,7 @@ export function YamlEditor() {
 
   const save = useMutation({
     mutationFn: async () => {
-      // 服务端没有 ETag,保存前比对一次,文件已被别处修改就放弃,避免覆盖
-      const current = await fetchYaml();
-      if (current !== base) {
-        queryClient.setQueryData(YAML_KEY, current);
-        throw new Error(t("config.yaml.conflict"));
-      }
+      // 配置写入由 api.ts 自动带 If-Match;并发修改会得到 412,不会覆盖别人的改动
       const body = draft;
       await api("/v8/management/config.yaml", {
         method: "PUT",
@@ -199,7 +195,7 @@ export function YamlEditor() {
             />
             {searchQuery && (
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <span className="text-[11px] tabular-nums text-muted-foreground font-mono">
+                <span className="text-xs tabular-nums text-muted-foreground font-mono">
                   {searchResults.total > 0
                     ? `${searchResults.current}/${searchResults.total}`
                     : t("config.yaml.no_match")}
