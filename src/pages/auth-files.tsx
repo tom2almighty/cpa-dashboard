@@ -4,11 +4,15 @@ import {
   Boxes,
   Braces,
   Cable,
+  Check,
   ChevronDown,
+  Copy,
   Download,
   Ellipsis,
+  ExternalLink,
   FileKey,
   Info,
+  Link2,
   PencilLine,
   RefreshCw,
   RotateCcw,
@@ -16,7 +20,16 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { ExcludedModelsEditor } from "@/components/excluded-models-editor";
 import { HeadersEditor } from "@/components/headers-editor";
@@ -38,7 +51,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -471,6 +491,27 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
             </div>
           </div>
 
+          {target.provider?.toLowerCase() === "codex" && target.siwc_bind_supported !== undefined && (
+            <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
+              <div>
+                <span className="text-muted-foreground">{t("auth_files.siwc_status")}</span>
+                <p className="font-medium">
+                  {target.siwc_bound ? t("auth_files.siwc_bound") : t("auth_files.siwc_unbound")}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">{t("auth_files.siwc_use")}</span>
+                <p className="font-medium">{target.use_siwc ? t("auth_files.siwc_yes") : t("auth_files.siwc_no")}</p>
+              </div>
+              {target.siwc_expires_at && (
+                <div>
+                  <span className="text-muted-foreground">{t("auth_files.siwc_expires_at")}</span>
+                  <p>{formatDateTime(Date.parse(target.siwc_expires_at))}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {target.cooldowns && target.cooldowns.length > 0 && (
             <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
               <span className="font-medium text-warning">
@@ -542,8 +583,213 @@ function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: () => v
   );
 }
 
+type SiwcSession = { url: string; state: string; flow?: string; expires_in?: number };
+
+/**
+ * SIWC 绑定：给已有 Codex 凭据追加一个独立的 Sign in with ChatGPT 凭据分区。
+ * 授权后浏览器会跳到 127.0.0.1，远程部署时把地址栏里的完整回调 URL 粘回来提交。
+ */
+function SiwcBindDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
+  const { t } = useI18n();
+  const queryClient = useQueryClient();
+  const [session, setSession] = useState<(SiwcSession & { deadline?: number }) | null>(null);
+  const [callbackUrl, setCallbackUrl] = useState("");
+  const [now, setNow] = useState(Date.now);
+  const [copied, setCopied] = useState(false);
+  const started = useRef(false);
+  const expired = session?.deadline !== undefined && now >= session.deadline;
+
+  const start = useMutation({
+    mutationFn: () =>
+      api<SiwcSession>("/v8/management/oauth/siwc/bind", {
+        method: "POST",
+        body: { name: target.name },
+      }),
+    onSuccess: (data) => {
+      setNow(Date.now());
+      setSession({ ...data, deadline: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined });
+      setCallbackUrl("");
+    },
+  });
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    start.mutate();
+  }, [start]);
+
+  useEffect(() => {
+    if (!session?.deadline || expired) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [session?.deadline, expired]);
+
+  const status = useQuery({
+    queryKey: ["siwc-status", session?.state],
+    queryFn: () =>
+      api<{ status: "wait" | "ok" | "error"; error?: string }>(
+        `/v8/management/oauth/status?state=${encodeURIComponent(session?.state ?? "")}`,
+      ),
+    enabled: Boolean(session?.state) && !expired,
+    refetchInterval: (query) => (query.state.data?.status === "wait" || !query.state.data ? 2000 : false),
+    refetchOnWindowFocus: false,
+  });
+
+  const done = status.data?.status === "ok";
+  const failed = status.data?.status === "error";
+
+  useEffect(() => {
+    if (!done) return;
+    toast.success(t("auth_files.siwc_success"));
+    queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
+    onClose();
+  }, [done, onClose, queryClient, t]);
+
+  const submit = useMutation({
+    mutationFn: () =>
+      api("/v8/management/oauth/callback", {
+        method: "POST",
+        body: { provider: "codex", redirect_url: callbackUrl.trim() },
+      }),
+    onSuccess: () => toast.success(t("auth_files.siwc_callback_submitted")),
+    onError: (error: Error) => toast.error(t("auth_files.siwc_callback_failed", { message: error.message })),
+  });
+
+  const cancel = useMutation({
+    mutationFn: () =>
+      api(`/v8/management/oauth/session?state=${encodeURIComponent(session?.state ?? "")}`, { method: "DELETE" }),
+    onSettled: onClose,
+  });
+
+  const close = () => {
+    if (session?.state && !done) cancel.mutate();
+    else onClose();
+  };
+
+  const restart = () => {
+    setSession(null);
+    setCallbackUrl("");
+    start.mutate();
+  };
+
+  const copyUrl = async () => {
+    if (!session?.url) return;
+    await navigator.clipboard.writeText(session.url);
+    setCopied(true);
+    toast.success(t("auth_files.siwc_copied"));
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  function submitCallback(event: FormEvent) {
+    event.preventDefault();
+    if (callbackUrl.trim()) submit.mutate();
+  }
+
+  const secondsLeft = session?.deadline ? Math.max(0, Math.ceil((session.deadline - now) / 1000)) : 0;
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{target.siwc_bound ? t("auth_files.siwc_rebind") : t("auth_files.siwc_bind")}</DialogTitle>
+          <DialogDescription>{t("auth_files.siwc_desc")}</DialogDescription>
+        </DialogHeader>
+
+        {start.isPending ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner />
+            {t("auth_files.siwc_starting")}
+          </p>
+        ) : start.isError ? (
+          <div className="grid justify-start gap-3">
+            <p role="alert" className="text-sm text-destructive">
+              {t("auth_files.siwc_start_failed", { message: errorText(start.error) })}
+            </p>
+            <Button variant="outline" size="sm" onClick={restart}>
+              {t("auth_files.siwc_retry")}
+            </Button>
+          </div>
+        ) : session ? (
+          <div className="grid gap-4">
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" nativeButton={false} render={<a href={session.url} target="_blank" rel="noreferrer" />}>
+                <ExternalLink />
+                {t("auth_files.siwc_open")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={copyUrl}>
+                {copied ? <Check /> : <Copy />}
+                {t("auth_files.siwc_copy_url")}
+              </Button>
+            </div>
+
+            <form onSubmit={submitCallback} className="grid gap-2">
+              <Label htmlFor="siwc-callback">{t("auth_files.siwc_callback_label")}</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="siwc-callback"
+                  value={callbackUrl}
+                  onChange={(e) => setCallbackUrl(e.target.value)}
+                  placeholder={t("auth_files.siwc_callback_placeholder")}
+                />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={!callbackUrl.trim() || submit.isPending}
+                  className="shrink-0"
+                >
+                  {submit.isPending && <Spinner />}
+                  {t("auth_files.siwc_submit_callback")}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{t("auth_files.siwc_callback_hint")}</p>
+            </form>
+
+            <p
+              role="status"
+              className={
+                failed || expired ? "text-sm text-destructive" : "flex items-center gap-2 text-sm text-muted-foreground"
+              }
+            >
+              {failed ? (
+                `${t("auth_files.siwc_failed")}${status.data?.error ?? t("auth_files.siwc_unknown_error")}`
+              ) : expired ? (
+                t("auth_files.siwc_expired")
+              ) : (
+                <>
+                  <Spinner />
+                  {t("auth_files.siwc_waiting")}
+                  {session.deadline !== undefined && (
+                    <span className="tabular-nums">
+                      {t("auth_files.siwc_expires_in", {
+                        time: `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`,
+                      })}
+                    </span>
+                  )}
+                </>
+              )}
+            </p>
+
+            {expired && (
+              <Button variant="outline" size="sm" className="justify-self-start" onClick={restart}>
+                {t("auth_files.siwc_retry")}
+              </Button>
+            )}
+          </div>
+        ) : null}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={close} disabled={cancel.isPending}>
+            {cancel.isPending && <Spinner />}
+            {t("common.cancel")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type Dialogs =
-  | { kind: "models" | "fields" | "delete" | "details"; target: AuthFile }
+  | { kind: "models" | "fields" | "delete" | "details" | "siwc"; target: AuthFile }
   | { kind: "vertex" | "delete-all" | "batch-delete" }
   | null;
 
@@ -1027,6 +1273,12 @@ export function AuthFilesPage() {
                             <Boxes />
                             {t("auth_files.view_models")}
                           </DropdownMenuItem>
+                          {f.provider?.toLowerCase() === "codex" && f.siwc_bind_supported && (
+                            <DropdownMenuItem onClick={() => setDialog({ kind: "siwc", target: f })}>
+                              <Link2 />
+                              {f.siwc_bound ? t("auth_files.siwc_rebind") : t("auth_files.siwc_bind")}
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             disabled={f.runtime_only}
                             onClick={() => setDialog({ kind: "fields", target: f })}
@@ -1084,6 +1336,7 @@ export function AuthFilesPage() {
       {dialog?.kind === "models" && <ModelsDialog target={dialog.target} onClose={() => setDialog(null)} />}
       {dialog?.kind === "fields" && <FieldsDialog target={dialog.target} onClose={() => setDialog(null)} />}
       {dialog?.kind === "details" && <DetailsDialog target={dialog.target} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "siwc" && <SiwcBindDialog target={dialog.target} onClose={() => setDialog(null)} />}
       {dialog?.kind === "vertex" && <VertexDialog onClose={() => setDialog(null)} />}
 
       <AlertDialog

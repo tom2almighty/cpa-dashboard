@@ -32,6 +32,11 @@ export type AuthFile = {
   project_id?: string;
   // 仅 codex 凭据返回,为 id_token 解出的声明
   id_token?: { chatgpt_account_id?: string; plan_type?: string };
+  // 仅 codex 凭据返回的 SIWC 绑定摘要
+  siwc_bind_supported?: boolean;
+  use_siwc?: boolean;
+  siwc_bound?: boolean;
+  siwc_expires_at?: string;
   success?: number;
   failed?: number;
   recent_requests?: RecentBucket[];
