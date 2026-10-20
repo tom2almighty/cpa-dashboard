@@ -15,7 +15,13 @@ import { api, CONFIG_KEY, errorText } from "@/lib/api";
 const YAML_KEY = [...CONFIG_KEY, "yaml"];
 const fetchYaml = () => api<string>("/v8/management/config.yaml");
 
-export function YamlEditor({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void }) {
+export function YamlEditor({
+  onDirtyChange,
+  active = true,
+}: {
+  onDirtyChange?: (dirty: boolean) => void;
+  active?: boolean;
+}) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
@@ -24,6 +30,7 @@ export function YamlEditor({ onDirtyChange }: { onDirtyChange?: (dirty: boolean)
   const { data, isPending, isError, error } = useQuery({
     queryKey: YAML_KEY,
     queryFn: fetchYaml,
+    enabled: active,
     refetchOnWindowFocus: false,
   });
 

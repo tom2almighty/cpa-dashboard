@@ -679,7 +679,7 @@ export function SettingsGroup({ groupId }: { groupId: string }) {
         {nested ? (
           <Tabs defaultValue={sections[0].id} className="gap-4">
             <div className="overflow-x-auto no-scrollbar">
-              <TabsList variant="line" className="h-8">
+              <TabsList variant="line" className="h-8 w-max">
                 {sections.map((section) => (
                   <TabsTrigger key={section.id} value={section.id} className="h-8 px-2.5 text-xs sm:text-sm shrink-0">
                     {t(`config.sections.${group.id}.${section.id}` as never)}

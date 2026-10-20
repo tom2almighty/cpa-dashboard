@@ -683,6 +683,8 @@
     "search_placeholder": "搜索配置项...",
     "search_empty": "没有匹配的配置项",
     "only_modified": "只看已修改",
+    "scroll_tabs_left": "向左滚动标签",
+    "scroll_tabs_right": "向右滚动标签",
     "discard": "放弃修改",
     "save_success": "配置已保存，CPA 会自动重新加载生效",
     "save_failed": "保存失败：{{message}}",

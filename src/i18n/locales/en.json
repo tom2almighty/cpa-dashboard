@@ -683,6 +683,8 @@
     "search_placeholder": "Search settings...",
     "search_empty": "No matching settings",
     "only_modified": "Modified only",
+    "scroll_tabs_left": "Scroll tabs left",
+    "scroll_tabs_right": "Scroll tabs right",
     "discard": "Discard Changes",
     "save_success": "Configuration saved. CPA will reload it automatically",
     "save_failed": "Save failed: {{message}}",
