@@ -40,7 +40,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
-import { useVersionData, VersionDialog } from "@/components/version-dialog";
+import { VersionDialog } from "@/components/version-dialog";
 import { useLogout } from "@/hooks/use-logout";
 import { useI18n } from "@/i18n/context";
 import { fetchPlugins, PLUGINS_KEY, resolvePluginAsset } from "@/lib/plugins";
@@ -200,7 +200,6 @@ export function Layout() {
   const { pathname } = useLocation();
   const { t } = useI18n();
   const [openVersion, setOpenVersion] = useState(false);
-  const { hasAnyUpdate } = useVersionData();
   const isPluginView = pathname.startsWith("/plugins/view/");
   return (
     <SidebarProvider>
@@ -235,9 +234,6 @@ export function Layout() {
                   <Sparkles className="size-4 shrink-0 text-primary" />
                   <span className="truncate text-xs group-data-[collapsible=icon]:hidden">{t("version.title")}</span>
                 </div>
-                {hasAnyUpdate && (
-                  <span className="size-1.5 rounded-full bg-primary shrink-0 group-data-[collapsible=icon]:hidden" />
-                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>

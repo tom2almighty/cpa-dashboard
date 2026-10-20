@@ -1,5 +1,5 @@
 import { SiGithub } from "@icons-pack/react-simple-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowUpCircle, CheckCircle2, Download, ExternalLink, Info, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Trans } from "react-i18next";
@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { ApiError, request } from "@/lib/api";
+import { showErrorToast } from "@/lib/toast";
 
 declare const __APP_VERSION__: string | undefined;
 const FRONTEND_VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "";
@@ -95,6 +96,7 @@ export function useVersionData() {
   const hasAnyUpdate = cpaHasUpdate || panelHasUpdate;
 
   return {
+    cpaQuery,
     panelReleaseQuery,
     cpaCurrent,
     cpaLatest,
@@ -111,10 +113,10 @@ export function useVersionData() {
 }
 
 function VersionCardContent() {
-  const queryClient = useQueryClient();
   const { t } = useI18n();
   const [checking, setChecking] = useState(false);
   const {
+    cpaQuery,
     panelReleaseQuery,
     cpaCurrent,
     cpaLatest,
@@ -129,12 +131,16 @@ function VersionCardContent() {
   } = useVersionData();
   const handleCheckUpdates = async () => {
     setChecking(true);
-    await Promise.allSettled([
-      queryClient.invalidateQueries({ queryKey: ["cpa", "version"] }),
-      queryClient.invalidateQueries({ queryKey: ["panel", "latest-release"] }),
-    ]);
-    setChecking(false);
-    toast.success(t("version.checked_success"));
+    try {
+      const [cpa, panel] = await Promise.all([cpaQuery.refetch(), panelReleaseQuery.refetch()]);
+      if (cpa.isError || panel.isError || cpa.data?.error) {
+        showErrorToast(t("version.check_failed"), cpa.error?.message || panel.error?.message);
+      } else {
+        toast.success(t("version.checked_success"));
+      }
+    } finally {
+      setChecking(false);
+    }
   };
 
   const managementAsset = panelReleaseQuery.data?.assets?.find((a) => a.name === "management.html");
@@ -169,13 +175,13 @@ function VersionCardContent() {
                 </Button>
               </div>
               {panelHasUpdate ? (
-                <Badge variant="default" className="text-[10px] h-5 gap-1">
+                <Badge variant="default" className="text-xs h-5 gap-1">
                   <ArrowUpCircle className="size-3" />
                   {t("version.update_available")}
                 </Badge>
               ) : (
                 panelUpToDate && (
-                  <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground gap-1">
+                  <Badge variant="outline" className="text-xs h-5 text-muted-foreground gap-1">
                     <CheckCircle2 className="size-3 text-muted-foreground" />
                     {t("version.up_to_date")}
                   </Badge>
@@ -202,7 +208,7 @@ function VersionCardContent() {
                 <p className="font-medium text-foreground">
                   {t("version.found_new_version")} {panelLatest}！
                 </p>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   <Trans
                     i18nKey="version.auto_update_hint"
                     components={{ code: <code className="text-foreground font-mono" /> }}
@@ -253,13 +259,13 @@ function VersionCardContent() {
                 </Button>
               </div>
               {cpaHasUpdate ? (
-                <Badge variant="default" className="text-[10px] h-5 gap-1">
+                <Badge variant="default" className="text-xs h-5 gap-1">
                   <ArrowUpCircle className="size-3" />
                   {t("version.update_available")}
                 </Badge>
               ) : (
                 cpaUpToDate && (
-                  <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground gap-1">
+                  <Badge variant="outline" className="text-xs h-5 text-muted-foreground gap-1">
                     <CheckCircle2 className="size-3 text-muted-foreground" />
                     {t("version.up_to_date")}
                   </Badge>
