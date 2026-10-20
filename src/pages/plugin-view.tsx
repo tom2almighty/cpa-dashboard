@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Puzzle, Settings2 } from "lucide-react";
+import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -10,6 +11,7 @@ export function PluginViewPage() {
   const { pluginId = "" } = useParams<{ pluginId: string }>();
   const [searchParams] = useSearchParams();
   const { t } = useI18n();
+  const [loaded, setLoaded] = useState(false);
 
   const { data, isPending } = useQuery({
     queryKey: PLUGINS_KEY,
@@ -51,10 +53,16 @@ export function PluginViewPage() {
   const title = activeMenu.menu || plugin.metadata?.name || plugin.id;
 
   return (
-    <div className="size-full">
+    <div className="relative size-full">
+      {!loaded && (
+        <div className="absolute inset-0 grid place-items-center">
+          <Spinner className="size-6 text-muted-foreground" />
+        </div>
+      )}
       <iframe
         src={resolvedUrl}
         title={title}
+        onLoad={() => setLoaded(true)}
         className="size-full border-0"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
       />
