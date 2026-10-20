@@ -26,9 +26,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
+      closeButton
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "cn-toast max-w-md",
+          title: "max-h-32 overflow-y-auto break-words",
+          description: "max-h-48 overflow-y-auto whitespace-pre-wrap break-words",
         },
       }}
       {...props}
