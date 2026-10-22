@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/context";
 import { api, errorText } from "@/lib/api";
 import {
@@ -32,10 +33,14 @@ import {
   type StoreResponse,
 } from "./shared";
 
+const FILTERS = ["all", "installed", "not_installed", "updates"] as const;
+type StoreFilter = (typeof FILTERS)[number];
+
 export function Store() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<StoreFilter>("all");
   const [installingTarget, setInstallingTarget] = useState<StorePlugin | null>(null);
   const [customVersion, setCustomVersion] = useState("");
   const [page, setPage] = useState(1);
@@ -69,7 +74,12 @@ export function Store() {
   });
   const sourceName = (id?: string) => data?.sources?.find((s) => s.id === id)?.name || id;
   const plugins = useMemo(() => {
-    const list = data?.plugins ?? [];
+    const list = (data?.plugins ?? []).filter((p) => {
+      if (filter === "installed") return p.installed;
+      if (filter === "not_installed") return !p.installed;
+      if (filter === "updates") return p.installed && p.update_available;
+      return true;
+    });
     if (!search.trim()) return list;
     const term = search.toLowerCase().trim();
     return list.filter(
@@ -79,7 +89,7 @@ export function Store() {
         p.description?.toLowerCase().includes(term) ||
         p.author?.toLowerCase().includes(term),
     );
-  }, [data?.plugins, search]);
+  }, [data?.plugins, filter, search]);
 
   if (isError) {
     return (
@@ -97,217 +107,245 @@ export function Store() {
         </p>
       ))}
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{t("plugins.store_hint")}</p>
-        <Input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          placeholder={t("plugins.search_placeholder")}
-          className="w-56 sm:w-80 text-xs"
-        />
-      </div>
-      {isPending ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-44 rounded-lg" />
-          ))}
+      <Tabs
+        value={filter}
+        onValueChange={(value) => {
+          if (!value) return;
+          setFilter(value as StoreFilter);
+          setPage(1);
+        }}
+        className="gap-4"
+      >
+        <div className="overflow-x-auto no-scrollbar">
+          <TabsList variant="line" className="h-8 w-max">
+            {FILTERS.map((item) => (
+              <TabsTrigger key={item} value={item} className="h-8 shrink-0 px-2.5 text-xs sm:text-sm">
+                {t(`plugins.filter_${item}` as never)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </div>
-      ) : plugins.length === 0 ? (
-        <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-          {search.trim() ? t("plugins.store_no_match") : t("plugins.store_empty")}
-        </div>
-      ) : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {paginate(plugins, page, 9).pageItems.map((p) => {
-              const repoUrl = formatRepoUrl(p.repository, p.homepage);
-              const isOfficial = (p.repository || "").toLowerCase().includes("router-for-me/");
-              const platformList = (p.platforms ?? [])
-                .map((plat) => (plat.goos && plat.goarch ? `${plat.goos}/${plat.goarch}` : ""))
-                .filter(Boolean);
-
-              return (
-                <Card
-                  key={p.store_id}
-                  className="flex flex-col justify-between transition-colors hover:border-foreground/20"
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start gap-3">
-                      <PluginLogo src={p.logo} name={p.name || p.id} size="md" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <CardTitle className="truncate text-base font-semibold" title={p.name || p.id}>
-                            {p.name || p.id}
-                          </CardTitle>
-                          {p.installed && !p.update_available && (
-                            <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4">
-                              {t("plugins.badge_installed")}
-                            </Badge>
-                          )}
-                          {p.update_available && (
-                            <Badge variant="default" className="text-xs px-1.5 py-0 h-4">
-                              {t("plugins.badge_update_available")}
-                            </Badge>
-                          )}
-                          {!isOfficial && p.repository && (
-                            <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 text-warning border-warning/40">
-                              {t("plugins.badge_third_party")}
-                            </Badge>
-                          )}
-                          {p.auth_required && (
-                            <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 text-muted-foreground">
-                              {p.auth_configured
-                                ? t("plugins.badge_auth_configured")
-                                : t("plugins.badge_auth_required")}
-                            </Badge>
-                          )}
-                        </div>
-                        <div
-                          className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground truncate"
-                          title={p.id}
-                        >
-                          <span className="font-mono text-xs">{p.id}</span>
-                          {p.author && (
-                            <>
-                              <span>·</span>
-                              <span className="truncate">by {p.author}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        {repoUrl && (
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="text-muted-foreground hover:text-foreground"
-                            title={t("plugins.view_repo")}
-                            aria-label={t("plugins.view_repo")}
-                            render={
-                              <a href={repoUrl} target="_blank" rel="noreferrer">
-                                <GithubIcon className="size-3.5" />
-                              </a>
-                            }
-                          />
-                        )}
-                        {p.homepage && !p.homepage.includes("github.com") && (
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="text-muted-foreground hover:text-foreground"
-                            title={t("plugins.view_homepage")}
-                            aria-label={t("plugins.view_homepage")}
-                            render={
-                              <a href={p.homepage} target="_blank" rel="noreferrer">
-                                <ExternalLink className="size-3.5" />
-                              </a>
-                            }
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="flex-1 space-y-2.5 pb-3 text-sm text-muted-foreground">
-                    <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap wrap-break-word text-xs sm:text-sm">
-                      {p.description || t("plugins.no_description")}
-                    </p>
-
-                    {/* 标签列表 */}
-                    {p.tags && p.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {p.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 规格明细：许可证、安装类型、系统平台 */}
-                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground/80 pt-1">
-                      {p.license && (
-                        <span>{t("plugins.label_value", { label: t("plugins.license"), value: p.license })}</span>
-                      )}
-                      {p.install_type && (
-                        <span>
-                          {t("plugins.label_value", {
-                            label: t("plugins.install_type"),
-                            value: p.install_type.replace(/-/g, " "),
-                          })}
-                        </span>
-                      )}
-                      {platformList.length > 0 && (
-                        <span title={platformList.join(", ")}>
-                          {t("plugins.label_value", {
-                            label: t("plugins.platforms"),
-                            value: platformList.slice(0, 2).join(", "),
-                          })}
-                          {platformList.length > 2 && ` +${platformList.length - 2}`}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-
-                  <CardFooter className="flex items-center justify-between border-t bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="truncate max-w-30" title={p.source_name || p.source_id}>
-                        {p.source_name || p.source_id}
-                      </span>
-                      <span className="font-mono text-xs">
-                        {p.installed && p.installed_version && p.installed_version !== p.version
-                          ? `${p.installed_version} → ${p.version}`
-                          : `v${p.version || "0.0.0"}`}
-                      </span>
-                    </div>
-
-                    <div>
-                      {p.installed && !p.update_available ? (
-                        <Button size="sm" variant="ghost" disabled className="h-8 text-xs text-muted-foreground">
-                          {t("plugins.badge_installed")}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant={p.update_available ? "default" : "outline"}
-                          disabled={install.isPending}
-                          onClick={() => {
-                            setInstallingTarget(p);
-                            setCustomVersion(p.version || "");
-                          }}
-                        >
-                          {install.isPending && install.variables?.plugin.store_id === p.store_id ? (
-                            <Spinner className="size-3.5" />
-                          ) : (
-                            <Download className="size-3.5" />
-                          )}
-                          {p.update_available ? t("plugins.update") : t("plugins.install")}
-                        </Button>
-                      )}
-                    </div>
-                  </CardFooter>
-                </Card>
-              );
-            })}
-          </div>
-          <Pagination
-            page={paginate(plugins, page, 9).current}
-            pageCount={paginate(plugins, page, 9).pageCount}
-            total={plugins.length}
-            onChange={(nextPage) => {
-              setPage(nextPage);
-              window.scrollTo({ top: 0, behavior: "smooth" });
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">{t("plugins.store_hint")}</p>
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
             }}
+            placeholder={t("plugins.search_placeholder")}
+            className="w-56 sm:w-80 text-xs"
           />
-        </>
-      )}
+        </div>
+        <TabsContent value={filter}>
+          {isPending ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="h-44 rounded-lg" />
+              ))}
+            </div>
+          ) : plugins.length === 0 ? (
+            <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+              {search.trim()
+                ? t("plugins.store_no_match")
+                : filter === "all"
+                  ? t("plugins.store_empty")
+                  : t("plugins.store_filter_empty")}
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {paginate(plugins, page, 9).pageItems.map((p) => {
+                  const repoUrl = formatRepoUrl(p.repository, p.homepage);
+                  const isOfficial = (p.repository || "").toLowerCase().includes("router-for-me/");
+                  const platformList = (p.platforms ?? [])
+                    .map((plat) => (plat.goos && plat.goarch ? `${plat.goos}/${plat.goarch}` : ""))
+                    .filter(Boolean);
+
+                  return (
+                    <Card
+                      key={p.store_id}
+                      className="flex flex-col justify-between transition-colors hover:border-foreground/20"
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start gap-3">
+                          <PluginLogo src={p.logo} name={p.name || p.id} size="md" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <CardTitle className="truncate text-base font-semibold" title={p.name || p.id}>
+                                {p.name || p.id}
+                              </CardTitle>
+                              {p.installed && !p.update_available && (
+                                <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4">
+                                  {t("plugins.badge_installed")}
+                                </Badge>
+                              )}
+                              {p.update_available && (
+                                <Badge variant="default" className="text-xs px-1.5 py-0 h-4">
+                                  {t("plugins.badge_update_available")}
+                                </Badge>
+                              )}
+                              {!isOfficial && p.repository && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs px-1.5 py-0 h-4 text-warning border-warning/40"
+                                >
+                                  {t("plugins.badge_third_party")}
+                                </Badge>
+                              )}
+                              {p.auth_required && (
+                                <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 text-muted-foreground">
+                                  {p.auth_configured
+                                    ? t("plugins.badge_auth_configured")
+                                    : t("plugins.badge_auth_required")}
+                                </Badge>
+                              )}
+                            </div>
+                            <div
+                              className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground truncate"
+                              title={p.id}
+                            >
+                              <span className="font-mono text-xs">{p.id}</span>
+                              {p.author && (
+                                <>
+                                  <span>·</span>
+                                  <span className="truncate">by {p.author}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {repoUrl && (
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                className="text-muted-foreground hover:text-foreground"
+                                title={t("plugins.view_repo")}
+                                aria-label={t("plugins.view_repo")}
+                                render={
+                                  <a href={repoUrl} target="_blank" rel="noreferrer">
+                                    <GithubIcon className="size-3.5" />
+                                  </a>
+                                }
+                              />
+                            )}
+                            {p.homepage && !p.homepage.includes("github.com") && (
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                className="text-muted-foreground hover:text-foreground"
+                                title={t("plugins.view_homepage")}
+                                aria-label={t("plugins.view_homepage")}
+                                render={
+                                  <a href={p.homepage} target="_blank" rel="noreferrer">
+                                    <ExternalLink className="size-3.5" />
+                                  </a>
+                                }
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="flex-1 space-y-2.5 pb-3 text-sm text-muted-foreground">
+                        <p className="line-clamp-3 leading-relaxed whitespace-pre-wrap wrap-break-word text-xs sm:text-sm">
+                          {p.description || t("plugins.no_description")}
+                        </p>
+
+                        {/* 标签列表 */}
+                        {p.tags && p.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {p.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
+                              >
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 规格明细：许可证、安装类型、系统平台 */}
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground/80 pt-1">
+                          {p.license && (
+                            <span>{t("plugins.label_value", { label: t("plugins.license"), value: p.license })}</span>
+                          )}
+                          {p.install_type && (
+                            <span>
+                              {t("plugins.label_value", {
+                                label: t("plugins.install_type"),
+                                value: p.install_type.replace(/-/g, " "),
+                              })}
+                            </span>
+                          )}
+                          {platformList.length > 0 && (
+                            <span title={platformList.join(", ")}>
+                              {t("plugins.label_value", {
+                                label: t("plugins.platforms"),
+                                value: platformList.slice(0, 2).join(", "),
+                              })}
+                              {platformList.length > 2 && ` +${platformList.length - 2}`}
+                            </span>
+                          )}
+                        </div>
+                      </CardContent>
+
+                      <CardFooter className="flex items-center justify-between border-t bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="truncate max-w-30" title={p.source_name || p.source_id}>
+                            {p.source_name || p.source_id}
+                          </span>
+                          <span className="font-mono text-xs">
+                            {p.installed && p.installed_version && p.installed_version !== p.version
+                              ? `${p.installed_version} → ${p.version}`
+                              : `v${p.version || "0.0.0"}`}
+                          </span>
+                        </div>
+
+                        <div>
+                          {p.installed && !p.update_available ? (
+                            <Button size="sm" variant="ghost" disabled className="h-8 text-xs text-muted-foreground">
+                              {t("plugins.badge_installed")}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant={p.update_available ? "default" : "outline"}
+                              disabled={install.isPending}
+                              onClick={() => {
+                                setInstallingTarget(p);
+                                setCustomVersion(p.version || "");
+                              }}
+                            >
+                              {install.isPending && install.variables?.plugin.store_id === p.store_id ? (
+                                <Spinner className="size-3.5" />
+                              ) : (
+                                <Download className="size-3.5" />
+                              )}
+                              {p.update_available ? t("plugins.update") : t("plugins.install")}
+                            </Button>
+                          )}
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  );
+                })}
+              </div>
+              <Pagination
+                page={paginate(plugins, page, 9).current}
+                pageCount={paginate(plugins, page, 9).pageCount}
+                total={plugins.length}
+                onChange={(nextPage) => {
+                  setPage(nextPage);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              />
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={installingTarget !== null} onOpenChange={(open) => !open && setInstallingTarget(null)}>
         <AlertDialogContent>
