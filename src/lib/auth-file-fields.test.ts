@@ -10,6 +10,7 @@ test("读取认证文件字段,兼容连字符旧写法", () => {
     "request-retry": 2,
     weight: 5,
     websockets: true,
+    use_siwc: true,
     headers: { "X-Team": "core" },
     timezone: "Asia/Singapore",
     model_aliases: [{ name: "claude-sonnet-4-5", alias: "cs4.5" }],
@@ -21,6 +22,7 @@ test("读取认证文件字段,兼容连字符旧写法", () => {
   expect(fields.request_retry).toBe("2");
   expect(fields.weight).toBe("5");
   expect(fields.websockets).toBe(true);
+  expect(fields.use_siwc).toBe(true);
   expect(fields.headers).toBe("X-Team: core");
   expect(fields.timezone).toBe("Asia/Singapore");
   expect(fields.model_aliases).toBe("claude-sonnet-4-5 => cs4.5");
@@ -33,6 +35,9 @@ test("未改动的字段不进补丁,清空的数字写成 null", () => {
 
   const cleared = diffFields(before, { ...before, priority: "" });
   expect(cleared).toEqual({ priority: null });
+
+  const siwc = diffFields(empty, { ...empty, use_siwc: true });
+  expect(siwc).toEqual({ use_siwc: true });
 });
 
 test("别名按 name 合并,保留 fork/display-name 且支持重复 name", () => {

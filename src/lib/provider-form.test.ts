@@ -175,6 +175,24 @@ test("校验必填项", () => {
   expect(validate(vertex, { ...vertexForm, models: "gemini-pro" })).toBeNull();
 });
 
+test("Vertex 读写 OpenAPI 路由覆盖设置", () => {
+  const original = { keys: [{ "api-key": "k" }], openapi: false, "openapi-location": "us-east1" };
+  const form = { ...toForm(original), openapi: "true" as const, openapiLocation: "europe-west4" };
+  expect(fromForm(vertex, form, original)).toMatchObject({
+    openapi: true,
+    "openapi-location": "europe-west4",
+    keys: [{ "api-key": "k" }],
+  });
+
+  // 清空三态和 location 时删除字段,回退自动判断
+  const cleared = fromForm(vertex, { ...form, openapi: "" as const, openapiLocation: "" }, original);
+  expect(cleared.openapi).toBeUndefined();
+  expect(cleared["openapi-location"]).toBeUndefined();
+
+  // 其它渠道不写这两个字段
+  expect(fromForm(claude, form, { keys: [{ "api-key": "k" }] }).openapi).toBeUndefined();
+});
+
 test("解析与格式化模型行", () => {
   const text = "gpt-4o => 4o\ngpt-4o-mini\nclaude-3-5-sonnet => sonnet";
   const rows = parseModelRows(text);
@@ -185,7 +203,7 @@ test("解析与格式化模型行", () => {
   ]);
   expect(formatModelRows(rows)).toBe("gpt-4o => 4o\ngpt-4o-mini\nclaude-3-5-sonnet => sonnet");
 
-  // 别名与原名相同也保留(Vertex 需要显式别名)
+  // 别名与原名相同也保留
   expect(formatModelRows([{ name: "gpt-4o", alias: "gpt-4o" }])).toBe("gpt-4o => gpt-4o");
   // 空行或空名称过滤
   expect(

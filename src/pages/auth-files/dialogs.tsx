@@ -253,6 +253,19 @@ export function FieldsDialog({ target, onClose }: { target: AuthFile; onClose: (
                       onCheckedChange={(checked) => update({ websockets: checked })}
                     />
                   </div>
+                  {target.provider?.toLowerCase() === "codex" && (
+                    <div className="grid gap-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="f-use-siwc">{t("auth_files.field_use_siwc")}</Label>
+                        <Switch
+                          id="f-use-siwc"
+                          checked={form.use_siwc}
+                          onCheckedChange={(checked) => update({ use_siwc: checked })}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t("auth_files.field_use_siwc_hint")}</p>
+                    </div>
+                  )}
                 </TabsContent>
                 <TabsContent value="models" className="grid gap-4">
                   <ModelAliasesEditor
@@ -420,14 +433,34 @@ export function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: 
             <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
               <div>
                 <span className="text-muted-foreground">{t("auth_files.siwc_status")}</span>
-                <p className="font-medium">
-                  {target.siwc_bound ? t("auth_files.siwc_bound") : t("auth_files.siwc_unbound")}
+                <p
+                  className={`font-medium ${
+                    target.siwc_status === "invalid"
+                      ? "text-destructive"
+                      : target.siwc_status === "valid"
+                        ? "text-success"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {target.siwc_status
+                    ? t(`auth_files.siwc_status_${target.siwc_status}` as never)
+                    : target.siwc_bound
+                      ? t("auth_files.siwc_bound")
+                      : t("auth_files.siwc_unbound")}
                 </p>
               </div>
               <div>
                 <span className="text-muted-foreground">{t("auth_files.siwc_use")}</span>
                 <p className="font-medium">{target.use_siwc ? t("auth_files.siwc_yes") : t("auth_files.siwc_no")}</p>
               </div>
+              {target.siwc_bound !== undefined && (
+                <div>
+                  <span className="text-muted-foreground">{t("auth_files.siwc_binding")}</span>
+                  <p className="font-medium">
+                    {target.siwc_bound ? t("auth_files.siwc_bound") : t("auth_files.siwc_unbound")}
+                  </p>
+                </div>
+              )}
               {target.siwc_expires_at && (
                 <div>
                   <span className="text-muted-foreground">{t("auth_files.siwc_expires_at")}</span>

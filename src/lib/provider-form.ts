@@ -77,6 +77,9 @@ export type Form = {
   // 三态:空串表示不配置(继承全局)
   disableCooling: "" | "true" | "false";
   requestRetry: string;
+  // 仅 Vertex 兼容渠道:三态 OpenAPI 路由与可选 location
+  openapi: "" | "true" | "false";
+  openapiLocation: string;
 };
 
 export type Model = { name: string; alias?: string } & Json;
@@ -318,6 +321,8 @@ export function toForm(item: Json): Form {
     excluded: list<string>(item["excluded-models"]).join("\n"),
     disableCooling: disableCooling === true ? "true" : disableCooling === false ? "false" : "",
     requestRetry: item["request-retry"] === undefined ? "" : str(item["request-retry"]),
+    openapi: item.openapi === true ? "true" : item.openapi === false ? "false" : "",
+    openapiLocation: str(item["openapi-location"]),
   };
 }
 
@@ -376,6 +381,10 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
     set("excluded-models", lines(form.excluded, true));
     set("disable-cooling", form.disableCooling ? form.disableCooling === "true" : undefined);
     set("request-retry", form.requestRetry.trim() ? Number(form.requestRetry.trim()) : undefined);
+  }
+  if (kind.endpoint === "vertex") {
+    set("openapi", form.openapi ? form.openapi === "true" : undefined);
+    set("openapi-location", form.openapiLocation.trim());
   }
   set("prefix", form.prefix.trim());
   set("priority", form.priority.trim() ? Number(form.priority) : undefined);

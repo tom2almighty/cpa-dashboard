@@ -614,6 +614,42 @@ function EditDialog({
                     />
                   </Field>
                 </div>
+                {kind.endpoint === "vertex" && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field id={`${p}-openapi`} label={t("providers.openapi")} hint={t("providers.openapi_hint")}>
+                      <Select
+                        items={[
+                          { value: "", label: t("providers.inherit") },
+                          { value: "true", label: t("common.enabled") },
+                          { value: "false", label: t("providers.disabled") },
+                        ]}
+                        value={form.openapi || null}
+                        onValueChange={(value) => update({ openapi: (value ?? "") as Form["openapi"] })}
+                      >
+                        <SelectTrigger id={`${p}-openapi`} className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">{t("providers.inherit")}</SelectItem>
+                          <SelectItem value="true">{t("common.enabled")}</SelectItem>
+                          <SelectItem value="false">{t("providers.disabled")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field
+                      id={`${p}-openapi-location`}
+                      label={t("providers.openapi_location")}
+                      hint={t("providers.openapi_location_hint")}
+                    >
+                      <Input
+                        id={`${p}-openapi-location`}
+                        value={form.openapiLocation}
+                        placeholder="us-central1"
+                        onChange={(e) => update({ openapiLocation: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                )}
                 {!kind.openai && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field

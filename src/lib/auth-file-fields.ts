@@ -11,6 +11,7 @@ export type Fields = {
   weight: string;
   request_retry: string;
   websockets: boolean;
+  use_siwc: boolean;
   headers: string;
   timezone: string;
   model_aliases: string;
@@ -37,6 +38,7 @@ export function readFields(source: Record<string, unknown>): Fields {
     weight: text(source.weight),
     request_retry: text(source.request_retry ?? source["request-retry"]),
     websockets: source.websockets === true || source.websockets === "true",
+    use_siwc: source.use_siwc === true || source.use_siwc === "true",
     headers: Object.entries(headers)
       .map(([k, v]) => `${k}: ${v}`)
       .join("\n"),
@@ -81,6 +83,7 @@ export function diffFields(before: Fields, after: Fields): Record<string, unknow
     if (before[key] !== after[key]) patch[key] = after[key].trim() ? Number(after[key]) : null;
   }
   if (before.websockets !== after.websockets) patch.websockets = after.websockets;
+  if (before.use_siwc !== after.use_siwc) patch.use_siwc = after.use_siwc;
   if (before.timezone !== after.timezone) patch.timezone = after.timezone.trim();
   if (before.model_aliases !== after.model_aliases)
     patch.model_aliases = mergeAliasEntries(before.alias_entries, parseModelRows(after.model_aliases));

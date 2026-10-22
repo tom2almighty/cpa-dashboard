@@ -491,7 +491,19 @@ export function AuthFilesPage() {
                         {f.note || (accountName(f) !== f.name ? f.name : "")}
                       </div>
                     </TableCell>
-                    <TableCell>{f.provider ? <Badge variant="secondary">{f.provider}</Badge> : "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {f.provider ? <Badge variant="secondary">{f.provider}</Badge> : "—"}
+                        {(f.siwc_status === "valid" || f.siwc_status === "invalid") && (
+                          <Badge
+                            variant={f.siwc_status === "invalid" ? "destructive" : "outline"}
+                            className="font-normal"
+                          >
+                            {t(`auth_files.siwc_status_${f.siwc_status}` as never)}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <StatusCell file={f} />
                     </TableCell>

@@ -35,6 +35,7 @@ export type AuthFile = {
   // 仅 codex 凭据返回的 SIWC 绑定摘要
   siwc_bind_supported?: boolean;
   use_siwc?: boolean;
+  siwc_status?: "off" | "valid" | "invalid";
   siwc_bound?: boolean;
   siwc_expires_at?: string;
   success?: number;
