@@ -217,6 +217,9 @@ export const GROUPS: ConfigGroup[] = [
         items: [
           { endpoint: "client/codex/enable-apply-patch", type: "bool" },
           { endpoint: "client/codex/optimize-multi-agent-v2", type: "bool" },
+          { endpoint: "client/codex/web-search-result-cache/enabled", type: "bool" },
+          { endpoint: "client/codex/web-search-result-cache/ttl", type: "text", fallback: "24h" },
+          { endpoint: "client/codex/web-search-result-cache/limit", type: "int", fallback: "1024" },
         ],
       },
     ],

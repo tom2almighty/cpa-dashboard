@@ -1285,6 +1285,18 @@
         "label": "Codex Multi-Agent v2 Optimization",
         "hint": "Optimizes multi-agent v2 requests from Codex Desktop, codex-tui and codex_cli_rs. Applies to both OAuth and API key credentials"
       },
+      "client/codex/web-search-result-cache/enabled": {
+        "label": "Codex Web Search Cache",
+        "hint": "Caches upstream web search results per session so replayed web_search_call items without results keep them in later turns"
+      },
+      "client/codex/web-search-result-cache/ttl": {
+        "label": "Codex Web Search Cache TTL",
+        "hint": "Lifetime of cached entries, for example 24h. Defaults to 24h"
+      },
+      "client/codex/web-search-result-cache/limit": {
+        "label": "Codex Web Search Cache Limit",
+        "hint": "Maximum number of cached entries. Defaults to 1024"
+      },
       "plugins/store-auth": {
         "label": "Plugin Store Auth Rules",
         "hint": "Rules matching registry and artifact requests by URL prefix. Put token, username, and password environment variable names here, never plaintext values"

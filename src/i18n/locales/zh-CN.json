@@ -1285,6 +1285,18 @@
         "label": "Codex multi-agent v2 优化",
         "hint": "优化 Codex Desktop、codex-tui 与 codex_cli_rs 的 multi-agent v2 请求，对 OAuth 与 API key 凭据均生效"
       },
+      "client/codex/web-search-result-cache/enabled": {
+        "label": "Codex 网页搜索缓存",
+        "hint": "按会话缓存上游网页搜索结果，使缺少结果的重放 web_search_call 在后续轮次仍能恢复搜索结果"
+      },
+      "client/codex/web-search-result-cache/ttl": {
+        "label": "Codex 网页搜索缓存 TTL",
+        "hint": "缓存条目的存活时间，例如 24h；缺省为 24h"
+      },
+      "client/codex/web-search-result-cache/limit": {
+        "label": "Codex 网页搜索缓存上限",
+        "hint": "缓存保留的最大条目数；缺省为 1024"
+      },
       "plugins/store-auth": {
         "label": "插件商店认证规则 (store-auth)",
         "hint": "按 match 前缀匹配注册表与制品请求；token、用户名、密码只填环境变量名，不写明文"
