@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
@@ -58,6 +59,11 @@ export function AliasDialog({
     (aliases.length ? aliases : [{ name: "", alias: "" }]).map((a, i) => ({ ...a, key: i })),
   );
   const catalog = useCatalog(channel);
+  // openapi 仅对 vertex 渠道生效,其它渠道不展示该列,避免误导
+  const isVertex = channel === "vertex";
+  const columns = isVertex
+    ? "sm:grid-cols-[1fr_1fr_1fr_auto_auto_auto_auto]"
+    : "sm:grid-cols-[1fr_1fr_1fr_auto_auto_auto]";
   const update = (key: number, patch: Partial<Alias>) =>
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
@@ -112,18 +118,19 @@ export function AliasDialog({
             </div>
           )}
           <div className="grid gap-2">
-            <div className="hidden grid-cols-[1fr_1fr_1fr_auto_auto_auto] gap-2 px-1 text-xs text-muted-foreground sm:grid">
+            <div className={`hidden gap-2 px-1 text-xs text-muted-foreground sm:grid ${columns}`}>
               <span>{t("models.upstream_model")}</span>
               <span>{t("models.alias_name")}</span>
               <span>{t("models.display_name")}</span>
               <span title={t("models.fork_hint")}>{t("models.fork")}</span>
               <span title={t("models.force_mapping_hint")}>{t("models.force_mapping")}</span>
+              {isVertex && <span title={t("providers.openapi_hint")}>{t("providers.openapi")}</span>}
               <span className="w-8" />
             </div>
             {rows.map((r) => (
               <div
                 key={r.key}
-                className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_1fr_auto_auto_auto] sm:items-center sm:rounded-none sm:border-0 sm:p-0"
+                className={`grid gap-2 rounded-lg border p-3 sm:items-center sm:rounded-none sm:border-0 sm:p-0 ${columns}`}
               >
                 <AliasField label={t("models.upstream_model")}>
                   <SuggestInput
@@ -165,6 +172,32 @@ export function AliasDialog({
                     onCheckedChange={(v) => update(r.key, { "force-mapping": v })}
                   />
                 </AliasField>
+                {isVertex && (
+                  <AliasField label={t("providers.openapi")} inline>
+                    <Select
+                      items={[
+                        { value: "", label: t("providers.inherit") },
+                        { value: "true", label: t("common.enabled") },
+                        { value: "false", label: t("providers.disabled") },
+                      ]}
+                      value={r.openapi === true ? "true" : r.openapi === false ? "false" : null}
+                      onValueChange={(value) =>
+                        update(r.key, {
+                          openapi: value === "true" ? true : value === "false" ? false : undefined,
+                        })
+                      }
+                    >
+                      <SelectTrigger size="sm" aria-label={t("providers.openapi")} className="w-24 justify-self-center">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">{t("providers.inherit")}</SelectItem>
+                        <SelectItem value="true">{t("common.enabled")}</SelectItem>
+                        <SelectItem value="false">{t("providers.disabled")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </AliasField>
+                )}
                 <Button
                   type="button"
                   variant="ghost"

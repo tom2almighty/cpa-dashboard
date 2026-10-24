@@ -43,7 +43,15 @@ export const ALIAS_CHANNELS = [
 ];
 export type OAuthConfig = { "model-alias"?: Record<string, Alias[]>; "excluded-models"?: Record<string, string[]> };
 export const oauthOf = (c: Record<string, unknown>) => (c.oauth ?? {}) as OAuthConfig;
-export type Alias = { name: string; alias: string; fork?: boolean; "display-name"?: string; "force-mapping"?: boolean };
+export type Alias = {
+  name: string;
+  alias: string;
+  fork?: boolean;
+  "display-name"?: string;
+  "force-mapping"?: boolean;
+  /** Vertex only: overrides automatic OpenAI-compatible endpoint selection */
+  openapi?: boolean;
+};
 export type CatalogModel = { id: string; display_name?: string; owned_by?: string; context_length?: number };
 
 export function useCatalog(channel: string) {
