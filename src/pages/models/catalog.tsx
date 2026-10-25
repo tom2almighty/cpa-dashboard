@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useI18n } from "@/i18n/context";
 import { errorText } from "@/lib/api";
-import { CHANNELS, useCatalog } from "./shared";
+import { CHANNELS, SuggestInput, useCatalog } from "./shared";
 
 // ---------- 模型目录 ----------
 
@@ -16,22 +15,17 @@ export function Catalog() {
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">{t("models.catalog_hint")}</p>
-        <Select
-          items={CHANNELS.map((c) => ({ value: c, label: c }))}
-          value={channel}
-          onValueChange={(v) => v && setChannel(v)}
-        >
-          <SelectTrigger className="w-44" aria-label={t("models.select_channel")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CHANNELS.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* 渠道既可能是内置渠道，也可能是插件执行器注册的 provider，故允许直接输入 */}
+        <div className="w-44 shrink-0">
+          <SuggestInput
+            id="catalog-channel"
+            ariaLabel={t("models.select_channel")}
+            value={channel}
+            onChange={(v) => setChannel(v.trim().toLowerCase())}
+            options={CHANNELS}
+            placeholder={t("models.channel_placeholder")}
+          />
+        </div>
       </div>
       <Table>
         <TableHeader>
@@ -42,7 +36,9 @@ export function Catalog() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {isPending ? (
+          {!channel ? (
+            <EmptyRow columns={3}>{t("models.catalog_channel_required")}</EmptyRow>
+          ) : isPending ? (
             <SkeletonRows columns={3} />
           ) : isError ? (
             <EmptyRow columns={3}>{t("models.catalog_error", { message: errorText(error) })}</EmptyRow>
