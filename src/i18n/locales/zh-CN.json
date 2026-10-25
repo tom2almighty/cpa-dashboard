@@ -266,7 +266,7 @@
     "siwc_status_invalid": "SIWC 失效",
     "siwc_binding": "绑定数据",
     "field_use_siwc": "使用 SIWC",
-    "field_use_siwc_hint": "启用后使用已绑定的 SIWC 凭据；关闭只停用 SIWC，不会删除绑定数据，启用前请先完成绑定。",
+    "field_use_siwc_hint": "启用后，非 Codex 客户端请求使用已绑定的 SIWC 凭据；Codex 客户端始终使用外层凭据。关闭只停用 SIWC，不会删除绑定数据，启用前请先完成绑定。",
     "siwc_yes": "是",
     "siwc_no": "否",
     "tab_group_label": "凭据属性分组"

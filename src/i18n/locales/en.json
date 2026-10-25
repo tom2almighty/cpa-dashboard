@@ -266,7 +266,7 @@
     "siwc_status_invalid": "SIWC invalid",
     "siwc_binding": "Binding",
     "field_use_siwc": "Use SIWC",
-    "field_use_siwc_hint": "Use the bound SIWC credential when enabled. Turning it off only disables SIWC and keeps the binding data; complete the binding first.",
+    "field_use_siwc_hint": "When enabled, requests from non-Codex clients use the bound SIWC credential; Codex clients always use the outer credential. Turning it off only disables SIWC and keeps the binding data; complete the binding first.",
     "siwc_yes": "Yes",
     "siwc_no": "No",
     "tab_group_label": "Credential property groups"
