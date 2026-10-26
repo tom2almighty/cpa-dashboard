@@ -275,6 +275,8 @@
     "title": "OAuth 登录",
     "desc": "登录成功后，CPA 会把认证文件保存到认证目录，可在认证文件页查看。",
     "login_btn": "登录",
+    "proxy_label": "登录代理（可选，成功后写入凭据）",
+    "proxy_placeholder": "http://127.0.0.1:7890 / socks5://127.0.0.1:1080",
     "waiting_auth": "等待授权完成",
     "cancel_login": "取消",
     "submit_callback": "提交",

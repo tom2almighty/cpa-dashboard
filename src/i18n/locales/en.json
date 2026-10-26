@@ -275,6 +275,8 @@
     "title": "OAuth Login",
     "desc": "After successful login, CPA saves the auth file to the credentials directory, viewable on the Auth Files page.",
     "login_btn": "Login",
+    "proxy_label": "Login proxy (optional, saved to the credential)",
+    "proxy_placeholder": "http://127.0.0.1:7890 / socks5://127.0.0.1:1080",
     "waiting_auth": "Waiting for authorization...",
     "cancel_login": "Cancel",
     "submit_callback": "Submit",

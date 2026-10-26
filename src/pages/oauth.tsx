@@ -9,13 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { useCopiedState } from "@/hooks/use-copied-state";
 import { useI18n } from "@/i18n/context";
-import { api } from "@/lib/api";
+import { api, errorText } from "@/lib/api";
 import { CREDENTIALS_KEY } from "@/lib/credentials";
 
 type Provider = { id: string; name: string; hintKey: string; plugin?: boolean };
 
 // 与官方面板一致：只有浏览器回调流程需要后端在 CPA 主机上监听回调端口。
 const WEBUI_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin"]);
+
+// 这些提供方支持登录会话代理；kimi 旧版设备码流程尚未接入，其余内置与插件提供方都按会话代理处理
+const PROXY_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin", "kimi-ai", "meta"]);
 
 // 回调还是设备码流程由 auth-url 返回的 flow 决定
 const PROVIDERS: Provider[] = [
@@ -58,17 +61,19 @@ function ProviderCard({ provider }: { provider: Provider }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<(Session & { deadline?: number }) | null>(null);
   const [callbackUrl, setCallbackUrl] = useState("");
+  const [proxyUrl, setProxyUrl] = useState("");
   const [now, setNow] = useState(Date.now);
   const expired = session?.deadline !== undefined && now >= session.deadline;
+  const supportsProxy = provider.plugin || PROXY_SUPPORTED.has(provider.id);
 
   const start = useMutation({
-    mutationFn: () =>
-      // is_webui 让 CPA 在本机监听回调端口;设备码流程不需要,插件会把额外参数当作登录元数据
-      api<Session>(
-        `/v8/management/oauth/auth-url?provider=${encodeURIComponent(provider.id)}${
-          !provider.plugin && WEBUI_SUPPORTED.has(provider.id) ? "&is_webui=true" : ""
-        }`,
-      ),
+    mutationFn: () => {
+      // 代理只能在请求体里传;is_webui 让 CPA 在本机监听回调端口,设备码与插件流程不需要
+      const body: { provider: string; proxy_url?: string; is_webui?: boolean } = { provider: provider.id };
+      if (supportsProxy && proxyUrl.trim()) body.proxy_url = proxyUrl.trim();
+      if (!provider.plugin && WEBUI_SUPPORTED.has(provider.id)) body.is_webui = true;
+      return api<Session>("/v8/management/oauth/auth-url", { method: "POST", body });
+    },
     onSuccess: (data) => {
       setNow(Date.now());
       setSession({ ...data, deadline: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined });
@@ -147,6 +152,26 @@ function ProviderCard({ provider }: { provider: Provider }) {
           </Button>
         )}
       </div>
+
+      {!session && supportsProxy && (
+        <div className="grid gap-1.5">
+          <Label htmlFor={`proxy-${provider.id}`} className="text-xs text-muted-foreground">
+            {t("oauth.proxy_label")}
+          </Label>
+          <Input
+            id={`proxy-${provider.id}`}
+            value={proxyUrl}
+            onChange={(e) => {
+              setProxyUrl(e.target.value);
+              if (start.isError) start.reset();
+            }}
+            placeholder={t("oauth.proxy_placeholder")}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+      )}
+      {start.isError && <p className="text-xs text-destructive">{errorText(start.error)}</p>}
 
       {session && (
         <div className="grid gap-4 border-t pt-4">
