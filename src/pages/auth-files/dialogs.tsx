@@ -316,7 +316,8 @@ export function VertexDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [picked, setPicked] = useState<File | null>(null);
-  const [location, setLocation] = useState("us-central1");
+  // CPA 8.0.43 起未指定 location 的 Vertex 凭据默认走 global 端点
+  const [location, setLocation] = useState("global");
   const importKey = useMutation({
     mutationFn: () => {
       const form = new FormData();
