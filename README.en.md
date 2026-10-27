@@ -49,7 +49,7 @@ Open `http://<cpa-host>/management.html`. You can also download `management.html
 2. Set `MANAGEMENT_PASSWORD` on the CPA server.
 3. Open the page and enter the CPA address and management key.
 
-The single-file build is roughly 1.8MB uncompressed (about 580KB gzipped). Enable gzip or brotli at your reverse proxy; CPA does not compress static files.
+The single-file build is roughly 1.8MB uncompressed (about 580KB gzipped). When CPA hosts the panel itself, it compresses downstream responses (including static files and SSE) according to `server.response-compression`; standalone static hosting still needs gzip or brotli at the hosting layer.
 
 ## License
 

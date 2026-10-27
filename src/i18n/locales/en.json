@@ -819,7 +819,7 @@
     "groups": {
       "plugins": "Dynamic binary plugin discovery, store sources and store auth (the plugins section)",
       "models": "Model catalog sources (HTTP(s) URLs or absolute local paths, corresponding to the models section in config.yaml)",
-      "server": "Listener, TLS and LAN service discovery (the server section)",
+      "server": "Listener, response compression, TLS and LAN service discovery (the server section)",
       "management": "Management access and the bundled control panel (the management section)",
       "routing": "Credential selection strategy, session affinity, retries and cooldown (the routing section)",
       "requests": "Upstream proxy, header passthrough, stream keep-alives and multimedia (the requests section)",
@@ -838,6 +838,7 @@
       },
       "server": {
         "listening": "Listener",
+        "compression": "Response compression",
         "tls": "TLS",
         "discovery": "LAN service discovery"
       },
@@ -1144,6 +1145,18 @@
         "label": "Codex Response Steering (experimental)",
         "hint": "Full-duplex Responses WebSocket; one socket stays on one account and model"
       },
+      "upstream/codex/upstream-request-compression": {
+        "label": "Codex Upstream Request Compression",
+        "hint": "Send zstd-compressed request bodies to the ChatGPT Codex backend; applies only to OAuth credentials using the official Codex endpoint, and a 400/415 rejection retries uncompressed"
+      },
+      "upstream/codex/upstream-request-compression-min-bytes": {
+        "label": "Codex Request Compression Threshold (bytes)",
+        "hint": "Request bodies smaller than this are sent uncompressed; defaults to 1024"
+      },
+      "upstream/codex/websocket-compression": {
+        "label": "Codex WebSocket Compression",
+        "hint": "Enable permessage-deflate on Codex WebSockets after negotiation, enabled by default"
+      },
       "upstream/claude/model-level-cooling": {
         "label": "Claude Model-Level Cooling",
         "hint": "Scope quota cooldowns to the requested model instead of the whole credential"
@@ -1186,7 +1199,7 @@
       },
       "server/discovery/subtypes": {
         "label": "Advertised Subtypes",
-        "hint": "One API protocol subtype per line with a leading underscore, for example _responses. Empty uses CPA defaults: chat, responses, messages, generate-content, interactions"
+        "hint": "One API protocol subtype per line with a leading underscore, for example _responses. Empty uses CPA defaults: chat, responses, messages, generate-content, interactions. Optional extended subtypes: _completions, _responses-ws, _realtime, _images, _videos, _audio, _count-tokens, _search"
       },
       "server/discovery/interfaces/include": {
         "label": "Interface Allow-list",
@@ -1199,10 +1212,6 @@
       "server/discovery/auth-required": {
         "label": "Advertise Credentials Required",
         "hint": "Announce that clients must authenticate, enabled by default"
-      },
-      "server/discovery/advertise-management": {
-        "label": "Advertise Management Availability",
-        "hint": "Announce that the management API is reachable, disabled by default"
       },
       "management/base-url": {
         "label": "TUI Management Base URL",
@@ -1307,6 +1316,14 @@
       "server/max-request-body-bytes": {
         "label": "Max Request Body Bytes",
         "hint": "Inbound requests larger than this return 413; 0 disables the limit"
+      },
+      "server/response-compression/enabled": {
+        "label": "Response Compression",
+        "hint": "Compress downstream HTTP responses (including SSE) when clients accept zstd or gzip; WebSockets are never compressed. Enabled by default"
+      },
+      "server/response-compression/min-bytes": {
+        "label": "Response Compression Threshold (bytes)",
+        "hint": "Non-streaming responses smaller than this are sent uncompressed; defaults to 1024"
       },
       "routing/session-affinity-rebind-on": {
         "label": "Session Affinity Rebind",

@@ -107,6 +107,13 @@ export const GROUPS: ConfigGroup[] = [
         ],
       },
       {
+        id: "compression",
+        items: [
+          { endpoint: "server/response-compression/enabled", type: "bool", fallback: true },
+          { endpoint: "server/response-compression/min-bytes", type: "int", fallback: "1024" },
+        ],
+      },
+      {
         id: "tls",
         items: [
           { endpoint: "server/tls/enable", type: "bool" },
@@ -124,7 +131,6 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "server/discovery/interfaces/include", type: "list" },
           { endpoint: "server/discovery/interfaces/exclude", type: "list" },
           { endpoint: "server/discovery/auth-required", type: "bool", fallback: true },
-          { endpoint: "server/discovery/advertise-management", type: "bool" },
         ],
       },
     ],
@@ -231,6 +237,9 @@ export const GROUPS: ConfigGroup[] = [
         id: "codex",
         items: [
           { endpoint: "upstream/codex/response-steering", type: "bool" },
+          { endpoint: "upstream/codex/upstream-request-compression", type: "bool", fallback: false },
+          { endpoint: "upstream/codex/upstream-request-compression-min-bytes", type: "int", fallback: "1024" },
+          { endpoint: "upstream/codex/websocket-compression", type: "bool", fallback: true },
           { endpoint: "upstream/codex/disable-codex-cloaking", type: "bool" },
           { endpoint: "upstream/codex/stream-bootstrap-buffering", type: "bool" },
           { endpoint: "upstream/codex/stream-bootstrap-timeout", type: "text", fallback: "0" },

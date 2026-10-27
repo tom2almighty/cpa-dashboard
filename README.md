@@ -49,7 +49,7 @@ management:
 2. 在 CPA 服务端设置环境变量 `MANAGEMENT_PASSWORD`。
 3. 打开页面，在登录界面填写 CPA 地址与管理密钥。
 
-构建结果是未压缩的单文件，约 1.8MB（gzip 后约 580KB）。建议在反向代理层开启 gzip 或 brotli；CPA 本身不压缩静态文件。
+构建结果是未压缩的单文件，约 1.8MB（gzip 后约 580KB）。交给 CPA 内置托管时，CPA 默认按 `server.response-compression` 配置压缩下游响应（含静态文件与 SSE）；独立静态站点部署时仍需在托管层开启 gzip 或 brotli。
 
 ## 开源许可证
 

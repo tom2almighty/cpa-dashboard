@@ -819,7 +819,7 @@
     "groups": {
       "plugins": "动态二进制插件发现、商店源与商店认证（对应 plugins 节）",
       "models": "模型目录来源配置，支持 HTTP(S) 地址或本地绝对路径（对应 config.yaml 的 models 节）",
-      "server": "监听地址、TLS 与局域网服务发现（对应 config.yaml 的 server 节）",
+      "server": "监听地址、响应压缩、TLS 与局域网服务发现（对应 config.yaml 的 server 节）",
       "management": "管理接口权限与内置管理面板（对应 management 节）",
       "routing": "凭据选择策略、会话粘性、轮次重试与冷却（对应 routing 节）",
       "requests": "上游代理、响应头透传、流式保活与多媒体行为（对应 requests 节）",
@@ -838,6 +838,7 @@
       },
       "server": {
         "listening": "监听地址",
+        "compression": "响应压缩",
         "tls": "TLS",
         "discovery": "局域网服务发现"
       },
@@ -1144,6 +1145,18 @@
         "label": "Codex 响应引导（实验）",
         "hint": "全双工 Responses WebSocket，一个 socket 固定一个账号和模型"
       },
+      "upstream/codex/upstream-request-compression": {
+        "label": "Codex 上游请求压缩",
+        "hint": "向 ChatGPT Codex 后端发送 zstd 压缩请求体，仅在 OAuth 凭据访问官方 codex 地址时生效；400/415 会退回未压缩请求重试"
+      },
+      "upstream/codex/upstream-request-compression-min-bytes": {
+        "label": "Codex 请求压缩阈值（字节）",
+        "hint": "小于该字节数的请求体不压缩；缺省为 1024"
+      },
+      "upstream/codex/websocket-compression": {
+        "label": "Codex WebSocket 压缩",
+        "hint": "协商后为 Codex WebSocket 启用 permessage-deflate，默认开启"
+      },
       "upstream/claude/model-level-cooling": {
         "label": "Claude 按模型冷却",
         "hint": "配额冷却只作用于所请求的模型，而不是整个凭据"
@@ -1186,7 +1199,7 @@
       },
       "server/discovery/subtypes": {
         "label": "广播协议子类型 (subtypes)",
-        "hint": "每行一项并带前导下划线，例如 _responses；留空使用 CPA 默认的 chat、responses、messages、generate-content、interactions"
+        "hint": "每行一项并带前导下划线，例如 _responses；留空使用 CPA 默认的 chat、responses、messages、generate-content、interactions。可选扩展子类型：_completions、_responses-ws、_realtime、_images、_videos、_audio、_count-tokens、_search"
       },
       "server/discovery/interfaces/include": {
         "label": "广播网卡白名单 (interfaces.include)",
@@ -1199,10 +1212,6 @@
       "server/discovery/auth-required": {
         "label": "广播要求认证 (auth-required)",
         "hint": "在广播中声明客户端必须携带凭据，默认开启"
-      },
-      "server/discovery/advertise-management": {
-        "label": "广播管理接口 (advertise-management)",
-        "hint": "在广播中声明管理接口可用，默认关闭"
       },
       "management/base-url": {
         "label": "TUI 管理基址 (base-url)",
@@ -1307,6 +1316,14 @@
       "server/max-request-body-bytes": {
         "label": "请求体大小上限（字节）",
         "hint": "超过该值的入站请求返回 413，0 表示不限制"
+      },
+      "server/response-compression/enabled": {
+        "label": "响应压缩 (response-compression)",
+        "hint": "客户端声明 zstd 或 gzip 时压缩下游 HTTP 响应（含 SSE）；WebSocket 不压缩，默认开启"
+      },
+      "server/response-compression/min-bytes": {
+        "label": "响应压缩阈值（字节）",
+        "hint": "小于该字节数的非流式响应不压缩；缺省为 1024"
       },
       "routing/session-affinity-rebind-on": {
         "label": "会话粘性重绑时机",
