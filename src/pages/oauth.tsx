@@ -17,8 +17,8 @@ type Provider = { id: string; name: string; hintKey: string; plugin?: boolean };
 // 与官方面板一致：只有浏览器回调流程需要后端在 CPA 主机上监听回调端口。
 const WEBUI_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin"]);
 
-// 这些提供方支持登录会话代理；kimi 旧版设备码流程尚未接入，其余内置与插件提供方都按会话代理处理
-const PROXY_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin", "kimi-ai", "meta"]);
+// 这些提供方支持登录会话代理；其余内置与插件提供方都按会话代理处理
+const PROXY_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin", "kimi", "kimi-ai", "meta"]);
 
 // 回调还是设备码流程由 auth-url 返回的 flow 决定
 const PROVIDERS: Provider[] = [
