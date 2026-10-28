@@ -24,7 +24,7 @@
    - 客户端 API 密钥统一使用 `/v8/management/config/access/api-keys`（`access.api-keys`），区分于上游服务提供商分组 `api-keys.<provider>`。
 2. **凭据管理**：
    - OAuth 与认证文件通过 `/v8/management/credentials*` 接口统一操作（包括列出、上传、删除、下载与状态更新）。
-   - 冷却状态与重置走 `/v8/management/routing/cooldown/reset`，静态模型目录走 `/v8/management/routing/model-definitions/:channel`。
+   - 冷却状态与重置走 `/v8/management/routing/cooldown/reset`；静态模型目录读取走 `/v8/management/routing/model-definitions/:channel`，即时刷新走 `POST /v8/management/routing/model-definitions/refresh`。
 3. **插件管理**：
    - 插件列表、商店与安装统一走 `/v8/management/plugins*`；插件个性化配置走 `/v8/management/config/plugins/configs/<id>`。
 4. **前端数据约定**（`src/lib/api.ts`）：

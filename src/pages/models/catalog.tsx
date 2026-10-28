@@ -1,30 +1,66 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useI18n } from "@/i18n/context";
-import { errorText } from "@/lib/api";
+import { api, errorText } from "@/lib/api";
 import { CHANNELS, SuggestInput, useCatalog } from "./shared";
 
 // ---------- 模型目录 ----------
 
+type CatalogRefreshResult = { changed_providers?: string[] };
+
 export function Catalog() {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const [channel, setChannel] = useState(CHANNELS[0]);
   const { data, isPending, isError, error } = useCatalog(channel);
+  const refresh = useMutation({
+    mutationFn: () => api<CatalogRefreshResult>("/v8/management/routing/model-definitions/refresh", { method: "POST" }),
+    onSuccess: (result) => {
+      const changed = result.changed_providers ?? [];
+      toast.success(
+        changed.length
+          ? t("models.catalog_refreshed_changed", { providers: changed.join(", ") })
+          : t("models.catalog_refreshed"),
+      );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cpa", "model-definitions"] });
+      void queryClient.invalidateQueries({ queryKey: ["cpa", "v1-models"] });
+    },
+  });
+
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">{t("models.catalog_hint")}</p>
-        {/* 渠道既可能是内置渠道，也可能是插件执行器注册的 provider，故允许直接输入 */}
-        <div className="w-44 shrink-0">
-          <SuggestInput
-            id="catalog-channel"
-            ariaLabel={t("models.select_channel")}
-            value={channel}
-            onChange={(v) => setChannel(v.trim().toLowerCase())}
-            options={CHANNELS}
-            placeholder={t("models.channel_placeholder")}
-          />
+        <div className="flex items-center gap-2">
+          {/* 渠道既可能是内置渠道，也可能是插件执行器注册的 provider，故允许直接输入 */}
+          <div className="w-44 shrink-0">
+            <SuggestInput
+              id="catalog-channel"
+              ariaLabel={t("models.select_channel")}
+              value={channel}
+              onChange={(v) => setChannel(v.trim().toLowerCase())}
+              options={CHANNELS}
+              placeholder={t("models.channel_placeholder")}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => refresh.mutate()}
+            disabled={refresh.isPending}
+            aria-label={t("models.refresh_catalog")}
+            title={t("models.refresh_catalog")}
+          >
+            {refresh.isPending ? <Spinner /> : <RefreshCw />}
+          </Button>
         </div>
       </div>
       <Table>
