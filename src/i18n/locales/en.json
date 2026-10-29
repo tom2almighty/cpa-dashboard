@@ -548,6 +548,7 @@
     "catalog_channel_required": "Enter a channel name to view model definitions",
     "th_model": "Model",
     "th_owner": "Owned By",
+    "web_search": "Web Search",
     "catalog_error": "No model definitions for this channel ({{message}})",
     "refresh_catalog": "Refresh model catalogs",
     "catalog_refreshed": "Model catalogs refreshed; no channels changed",

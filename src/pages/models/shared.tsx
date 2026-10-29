@@ -52,7 +52,13 @@ export type Alias = {
   /** Vertex only: overrides automatic OpenAI-compatible endpoint selection */
   openapi?: boolean;
 };
-export type CatalogModel = { id: string; display_name?: string; owned_by?: string; context_length?: number };
+export type CatalogModel = {
+  id: string;
+  display_name?: string;
+  owned_by?: string;
+  context_length?: number;
+  supports_web_search?: boolean;
+};
 
 export function useCatalog(channel: string) {
   return useQuery({

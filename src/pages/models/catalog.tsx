@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyRow, SkeletonRows } from "@/components/table-rows";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -69,17 +70,18 @@ export function Catalog() {
             <TableHead>{t("models.th_model")}</TableHead>
             <TableHead className="hidden sm:table-cell">{t("models.display_name")}</TableHead>
             <TableHead className="hidden sm:table-cell">{t("models.th_owner")}</TableHead>
+            <TableHead className="hidden w-28 sm:table-cell">{t("models.web_search")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {!channel ? (
-            <EmptyRow columns={3}>{t("models.catalog_channel_required")}</EmptyRow>
+            <EmptyRow columns={4}>{t("models.catalog_channel_required")}</EmptyRow>
           ) : isPending ? (
-            <SkeletonRows columns={3} />
+            <SkeletonRows columns={4} />
           ) : isError ? (
-            <EmptyRow columns={3}>{t("models.catalog_error", { message: errorText(error) })}</EmptyRow>
+            <EmptyRow columns={4}>{t("models.catalog_error", { message: errorText(error) })}</EmptyRow>
           ) : data.length === 0 ? (
-            <EmptyRow columns={3}>{t("models.no_models")}</EmptyRow>
+            <EmptyRow columns={4}>{t("models.no_models")}</EmptyRow>
           ) : (
             data.map((m) => (
               <TableRow key={m.id}>
@@ -89,9 +91,25 @@ export function Catalog() {
                   <span className="mt-0.5 block font-sans text-xs font-normal text-muted-foreground sm:hidden">
                     {[m.display_name, m.owned_by].filter(Boolean).join(" · ")}
                   </span>
+                  {m.supports_web_search && (
+                    <Badge variant="outline" className="mt-1 sm:hidden">
+                      <Search />
+                      {t("models.web_search")}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">{m.display_name || "—"}</TableCell>
                 <TableCell className="hidden text-muted-foreground sm:table-cell">{m.owned_by || "—"}</TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  {m.supports_web_search ? (
+                    <Badge variant="outline">
+                      <Search />
+                      {t("models.web_search")}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
               </TableRow>
             ))
           )}

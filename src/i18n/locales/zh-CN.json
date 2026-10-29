@@ -548,6 +548,7 @@
     "catalog_channel_required": "输入渠道名查看模型定义",
     "th_model": "模型",
     "th_owner": "提供方",
+    "web_search": "网页搜索",
     "catalog_error": "这个渠道没有模型定义（{{message}}）",
     "refresh_catalog": "刷新模型目录",
     "catalog_refreshed": "模型目录已刷新，没有渠道变化",
