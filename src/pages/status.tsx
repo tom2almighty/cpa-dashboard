@@ -9,12 +9,12 @@ import { configQuery } from "@/lib/api";
 import { accountName, useCredentials } from "@/lib/credentials";
 import { formatInteger } from "@/lib/format";
 import { type Json, KINDS, list } from "@/lib/provider-form";
-import { type AuthFile, authState } from "@/lib/types";
+import { type AuthFile, authState, authUsable } from "@/lib/types";
 
 // refreshing、pending 是正常的中间状态,不算需要处理
 function needsAttention(f: AuthFile): boolean {
   const state = authState(f);
-  return state === "cooldown" || state === "error";
+  return state === "cooldown" || state === "error" || state === "sign_in";
 }
 
 function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
@@ -68,7 +68,7 @@ export function StatusPage() {
     const key = f.provider || t("overview.unknown_provider");
     const g = groups.get(key) ?? { total: 0, usable: 0 };
     g.total += 1;
-    if (!f.disabled && !needsAttention(f)) g.usable += 1;
+    if (authUsable(f)) g.usable += 1;
     groups.set(key, g);
   }
   const byProvider = [...groups].sort((a, b) => b[1].total - a[1].total);
@@ -83,7 +83,7 @@ export function StatusPage() {
       >
         <Stat
           label={t("overview.available_accounts")}
-          value={`${formatInteger(active.length - attention.length)} / ${formatInteger(accounts.length)}`}
+          value={`${formatInteger(accounts.filter(authUsable).length)} / ${formatInteger(accounts.length)}`}
           detail={
             attention.length ? `${attention.length} ${t("overview.needs_attention_suffix")}` : t("overview.all_normal")
           }
@@ -155,7 +155,11 @@ export function StatusPage() {
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{accountName(f)}</span>
                       <Badge variant="destructive">
-                        {authState(f) === "cooldown" ? t("overview.cooldown") : t("auth_files.status_auth_error")}
+                        {authState(f) === "sign_in"
+                          ? t("auth_files.status_sign_in")
+                          : authState(f) === "cooldown"
+                            ? t("overview.cooldown")
+                            : t("auth_files.status_auth_error")}
                       </Badge>
                     </div>
                     {f.status_message && (

@@ -269,7 +269,36 @@
     "field_use_siwc_hint": "When enabled, requests from non-Codex clients use the bound SIWC credential; Codex clients always use the outer credential. Turning it off only disables SIWC and keeps the binding data; complete the binding first.",
     "siwc_yes": "Yes",
     "siwc_no": "No",
-    "tab_group_label": "Credential property groups"
+    "tab_group_label": "Credential property groups",
+    "status_sign_in": "Sign-in required",
+    "sign_in_suffix": ", {{count}} need sign-in",
+    "sign_in_again": "Sign in to this account",
+    "recovery_hint": "Automatic renewal has failed; the current access token may still work. Sign in to the same account on this CPA instance. Signing in on another machine does not update this credential.",
+    "recovery_adopted": "New credentials loaded; check credential details for inference and automatic renewal status",
+    "targeted_login_hint": "Sign in to the same account as this credential. Successful login only means the new credentials are loaded; no inference request is sent automatically.",
+    "renewal_state": "Automatic renewal",
+    "recovery_stage": "Recovery stage",
+    "access_token_expires_at": "Access token expires",
+    "next_refresh_after": "Next renewal check",
+    "renewal_states": {
+      "sign_in_required": "Sign-in required (token not yet expired)",
+      "expired_sign_in_required": "Token expired; sign-in required",
+      "retry_scheduled": "Renewal retry scheduled",
+      "awaiting_first_renewal": "Awaiting first automatic renewal",
+      "renewal_verified": "Automatic renewal verified"
+    },
+    "recovery_stages": {
+      "sign_in_required": "Sign-in required",
+      "quota_blocked": "Quota blocked",
+      "loaded": "Credentials loaded",
+      "inference_verified": "Inference verified",
+      "renewal_verified": "Automatic renewal verified"
+    },
+    "verify_credential": "Verify inference",
+    "verify_hint": "Send a minimal inference request using {{name}} in an isolated session. This consumes a small amount of quota. Success only verifies inference, not automatic renewal, and does not clear existing quota cooldowns.",
+    "verify_model": "Model (optional; CPA selects one when empty)",
+    "verify_success": "Inference verified; automatic renewal is tracked separately",
+    "verify_incomplete": "The request completed, but inference is not verified for this credential"
   },
   "oauth": {
     "title": "OAuth Login",

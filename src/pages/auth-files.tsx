@@ -8,10 +8,12 @@ import {
   FileKey,
   Info,
   Link2,
+  LogIn,
   PencilLine,
   RefreshCw,
   RotateCcw,
   Search,
+  ShieldCheck,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -61,6 +63,7 @@ import {
   StatusCell,
   VertexDialog,
 } from "./auth-files/dialogs";
+import { RecoveryDialog, VerifyDialog } from "./auth-files/recovery";
 import { file } from "./auth-files/shared";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -82,7 +85,7 @@ function reportFailed(failed: BatchResult["failed"]) {
 }
 
 type Dialogs =
-  | { kind: "models" | "fields" | "delete" | "details" | "siwc"; target: AuthFile }
+  | { kind: "models" | "fields" | "delete" | "details" | "siwc" | "recovery" | "verify"; target: AuthFile }
   | { kind: "vertex" | "delete-all" | "batch-delete" }
   | null;
 
@@ -92,7 +95,9 @@ export function AuthFilesPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [keyword, setKeyword] = useState("");
   const [provider, setProvider] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cooldown" | "error" | "disabled">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "sign_in" | "cooldown" | "error" | "disabled">(
+    "all",
+  );
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialogs>(null);
@@ -165,11 +170,11 @@ export function AuthFilesPage() {
       }),
     onSuccess: (_, f) => {
       toast.success(t("auth_files.refreshed", { name: accountName(f) }));
-      refresh();
     },
     onError: (err: Error) => {
       toast.error(t("auth_files.refresh_failed", { message: errorText(err) }));
     },
+    onSettled: refresh,
     meta: { quiet: true },
   });
 
@@ -292,6 +297,7 @@ export function AuthFilesPage() {
 
   const cooling = data.filter((f) => authState(f) === "cooldown").length;
   const erroring = data.filter((f) => authState(f) === "error").length;
+  const signInRequired = data.filter((f) => authState(f) === "sign_in").length;
 
   return (
     <>
@@ -305,7 +311,8 @@ export function AuthFilesPage() {
                 disabled: data.filter((f) => f.disabled).length,
                 cooling:
                   (cooling ? t("auth_files.cooling_suffix", { cooling }) : "") +
-                  (erroring ? t("auth_files.error_suffix", { count: erroring }) : ""),
+                  (erroring ? t("auth_files.error_suffix", { count: erroring }) : "") +
+                  (signInRequired ? t("auth_files.sign_in_suffix", { count: signInRequired }) : ""),
               })
         }
         actions={
@@ -351,12 +358,13 @@ export function AuthFilesPage() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
               <Select value={statusFilter} onValueChange={(v) => setStatusFilter((v as typeof statusFilter) ?? "all")}>
-                <SelectTrigger className="w-28" aria-label={t("auth_files.filter_status_label")}>
+                <SelectTrigger className="w-36" aria-label={t("auth_files.filter_status_label")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("auth_files.status_all")}</SelectItem>
                   <SelectItem value="active">{t("auth_files.status_active")}</SelectItem>
+                  <SelectItem value="sign_in">{t("auth_files.status_sign_in")}</SelectItem>
                   <SelectItem value="cooldown">{t("auth_files.status_cooldown")}</SelectItem>
                   <SelectItem value="error">{t("auth_files.status_auth_error")}</SelectItem>
                   <SelectItem value="disabled">{t("auth_files.status_disabled")}</SelectItem>
@@ -546,7 +554,23 @@ export function AuthFilesPage() {
                             <Info />
                             {t("auth_files.view_details")}
                           </DropdownMenuItem>
-                          <DropdownMenuItem disabled={manualRefresh.isPending} onClick={() => manualRefresh.mutate(f)}>
+                          {f.provider?.toLowerCase() === "codex" && (
+                            <DropdownMenuItem onClick={() => setDialog({ kind: "recovery", target: f })}>
+                              <LogIn />
+                              {t("auth_files.sign_in_again")}
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            disabled={f.disabled || f.requires_sign_in}
+                            onClick={() => setDialog({ kind: "verify", target: f })}
+                          >
+                            <ShieldCheck />
+                            {t("auth_files.verify_credential")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={manualRefresh.isPending || f.requires_sign_in}
+                            onClick={() => manualRefresh.mutate(f)}
+                          >
                             <RefreshCw className={manualRefresh.isPending ? "animate-spin" : undefined} />
                             {t("auth_files.refresh_credential")}
                           </DropdownMenuItem>
@@ -618,6 +642,8 @@ export function AuthFilesPage() {
       {dialog?.kind === "fields" && <FieldsDialog target={dialog.target} onClose={() => setDialog(null)} />}
       {dialog?.kind === "details" && <DetailsDialog target={dialog.target} onClose={() => setDialog(null)} />}
       {dialog?.kind === "siwc" && <SiwcBindDialog target={dialog.target} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "recovery" && <RecoveryDialog target={dialog.target} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "verify" && <VerifyDialog target={dialog.target} onClose={() => setDialog(null)} />}
       {dialog?.kind === "vertex" && <VertexDialog onClose={() => setDialog(null)} />}
 
       <AlertDialog

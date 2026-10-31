@@ -10,7 +10,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { useCopiedState } from "@/hooks/use-copied-state";
 import { useI18n } from "@/i18n/context";
 import { api, errorText } from "@/lib/api";
-import { CREDENTIALS_KEY } from "@/lib/credentials";
+import { CREDENTIALS_KEY, credentialTarget } from "@/lib/credentials";
+import type { AuthFile } from "@/lib/types";
 
 type Provider = { id: string; name: string; hintKey: string; plugin?: boolean };
 
@@ -56,7 +57,15 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function ProviderCard({ provider }: { provider: Provider }) {
+export function ProviderCard({
+  provider,
+  target,
+  onComplete,
+}: {
+  provider: Provider;
+  target?: AuthFile;
+  onComplete?: () => void;
+}) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [session, setSession] = useState<(Session & { deadline?: number }) | null>(null);
@@ -69,7 +78,10 @@ function ProviderCard({ provider }: { provider: Provider }) {
   const start = useMutation({
     mutationFn: () => {
       // 代理只能在请求体里传;is_webui 让 CPA 在本机监听回调端口,设备码与插件流程不需要
-      const body: { provider: string; proxy_url?: string; is_webui?: boolean } = { provider: provider.id };
+      const body: { provider: string; proxy_url?: string; is_webui?: boolean; name?: string; auth_index?: string } = {
+        provider: provider.id,
+        ...(target ? credentialTarget(target) : {}),
+      };
       if (supportsProxy && proxyUrl.trim()) body.proxy_url = proxyUrl.trim();
       if (!provider.plugin && WEBUI_SUPPORTED.has(provider.id)) body.is_webui = true;
       return api<Session>("/v8/management/oauth/auth-url", { method: "POST", body });
@@ -104,10 +116,11 @@ function ProviderCard({ provider }: { provider: Provider }) {
 
   useEffect(() => {
     if (!done) return;
-    toast.success(t("oauth.login_success", { name: provider.name }));
+    toast.success(t(target ? "auth_files.recovery_adopted" : "oauth.login_success", { name: provider.name }));
     queryClient.invalidateQueries({ queryKey: CREDENTIALS_KEY });
     setSession(null);
-  }, [done, provider.name, queryClient, t]);
+    onComplete?.();
+  }, [done, provider.name, queryClient, t, target, onComplete]);
 
   const submit = useMutation({
     mutationFn: () =>

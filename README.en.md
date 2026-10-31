@@ -6,6 +6,8 @@
 
 A web management panel for CLIProxyAPI 8.x, covering auth files, OAuth, providers, client API keys, models, plugins, logs and v8 configuration. The build output is a single `management.html` that can be hosted by CPA or deployed as a standalone static site.
 
+The credential page shows renewal and recovery status, supports same-account Codex sign-in, and offers manual inference verification (which consumes a small amount of quota). Successful login or inference does not verify automatic renewal.
+
 ## Development
 
 Requires Node.js 24+ and pnpm 12.10.1 (declared in `package.json` under `packageManager`).

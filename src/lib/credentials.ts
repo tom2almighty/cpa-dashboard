@@ -10,6 +10,17 @@ export type CredentialsResponse = {
 
 export const CREDENTIALS_KEY = ["cpa", "credentials"] as const;
 
+export function credentialTarget(file: AuthFile) {
+  return file.auth_index ? { auth_index: file.auth_index } : { name: file.name };
+}
+
+export function verifyCredential(file: AuthFile, model: string) {
+  return api<{ status: string; verified: boolean }>("/v8/management/credentials/verify", {
+    method: "POST",
+    body: { ...credentialTarget(file), ...(model.trim() ? { model: model.trim() } : {}) },
+  });
+}
+
 /** 凭据的展示名：优先账号信息，最后回退到文件名 */
 export function accountName(file: AuthFile): string {
   return file.email || file.label || file.account || file.name;

@@ -25,6 +25,7 @@
 2. **凭据管理**：
    - OAuth 与认证文件通过 `/v8/management/credentials*` 接口统一操作（包括列出、上传、删除、下载与状态更新）。
    - 冷却状态与重置走 `/v8/management/routing/cooldown/reset`；静态模型目录读取走 `/v8/management/routing/model-definitions/:channel`，即时刷新走 `POST /v8/management/routing/model-definitions/refresh`。
+   - 续期异常读取 `requires_sign_in` / `renewal_state` / `recovery_stage`，需要重新登录不等于当前 access token 已不可用。Codex 定向恢复复用 OAuth 流程并携带 `auth_index`（无索引时用 `name`）；`POST /v8/management/credentials/verify` 只在用户确认后触发真实推理，成功不能视为自动续期验证通过。
 3. **插件管理**：
    - 插件列表、商店与安装统一走 `/v8/management/plugins*`；插件个性化配置走 `/v8/management/config/plugins/configs/<id>`。
 4. **前端数据约定**（`src/lib/api.ts`）：

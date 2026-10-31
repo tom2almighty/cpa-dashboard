@@ -269,7 +269,36 @@
     "field_use_siwc_hint": "启用后，非 Codex 客户端请求使用已绑定的 SIWC 凭据；Codex 客户端始终使用外层凭据。关闭只停用 SIWC，不会删除绑定数据，启用前请先完成绑定。",
     "siwc_yes": "是",
     "siwc_no": "否",
-    "tab_group_label": "凭据属性分组"
+    "tab_group_label": "凭据属性分组",
+    "status_sign_in": "需要重新登录",
+    "sign_in_suffix": "，{{count}} 个需要重新登录",
+    "sign_in_again": "重新登录此账号",
+    "recovery_hint": "自动续期已失效，当前访问令牌可能仍能使用。请在本 CPA 实例重新登录同一账号；在其他机器登录不会更新此凭据。",
+    "recovery_adopted": "新凭据已加载；推理与自动续期状态请在凭据详情中确认",
+    "targeted_login_hint": "必须登录此凭据对应的同一账号。登录成功仅表示新凭据已加载，不会自动发送推理请求。",
+    "renewal_state": "自动续期状态",
+    "recovery_stage": "恢复阶段",
+    "access_token_expires_at": "访问令牌到期时间",
+    "next_refresh_after": "下次续期检查",
+    "renewal_states": {
+      "sign_in_required": "需要重新登录（令牌尚未过期）",
+      "expired_sign_in_required": "令牌已过期，需要重新登录",
+      "retry_scheduled": "已安排续期重试",
+      "awaiting_first_renewal": "等待首次自动续期",
+      "renewal_verified": "自动续期已验证"
+    },
+    "recovery_stages": {
+      "sign_in_required": "需要重新登录",
+      "quota_blocked": "额度受限",
+      "loaded": "凭据已加载",
+      "inference_verified": "推理已验证",
+      "renewal_verified": "自动续期已验证"
+    },
+    "verify_credential": "验证推理",
+    "verify_hint": "将使用 {{name}} 发送一次独立会话的最小推理请求，会消耗少量额度。成功仅验证推理可用，不代表自动续期正常，也不会清除已有额度冷却。",
+    "verify_model": "模型（可选，留空由 CPA 选择）",
+    "verify_success": "推理验证通过；自动续期状态单独记录",
+    "verify_incomplete": "请求结束，但凭据尚未通过推理验证"
   },
   "oauth": {
     "title": "OAuth 登录",

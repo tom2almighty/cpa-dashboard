@@ -21,6 +21,16 @@ export type AuthFile = {
   // unknown / active / pending / refreshing / error / disabled
   status?: string;
   status_message?: string;
+  requires_sign_in?: boolean;
+  renewal_state?: string;
+  recovery_stage?: string;
+  access_token_expires_at?: string;
+  next_refresh_after?: string;
+  refresh_error?: { code?: string; message?: string; http_status?: number };
+  adopted?: boolean;
+  inference_verified?: boolean;
+  renewal_verified?: boolean;
+  quota_blocked?: boolean;
   disabled?: boolean;
   unavailable?: boolean;
   runtime_only?: boolean;
@@ -49,9 +59,15 @@ export type AuthFile = {
 };
 
 // 冷却只看 cooldowns;unavailable 但没有冷却记录的是 401、令牌过期等认证错误
-export function authState(f: AuthFile): "disabled" | "cooldown" | "error" | "ok" {
+export function authState(f: AuthFile): "disabled" | "sign_in" | "cooldown" | "error" | "ok" {
   if (f.disabled) return "disabled";
+  if (f.requires_sign_in) return "sign_in";
   if (f.cooldowns?.length) return "cooldown";
   if (f.unavailable || f.status === "error") return "error";
   return "ok";
+}
+
+// Terminal renewal failure does not invalidate an access token that still works.
+export function authUsable(f: AuthFile): boolean {
+  return !f.disabled && !f.cooldowns?.length && !f.unavailable && f.status !== "error";
 }

@@ -28,12 +28,20 @@ import { diffFields, type Fields, NUMBER_FIELDS, readFields } from "@/lib/auth-f
 import { accountName, CREDENTIALS_KEY } from "@/lib/credentials";
 import { formatDateTime } from "@/lib/format";
 import { type AuthFile, authState } from "@/lib/types";
+import { RenewalDetails } from "./recovery";
 import { contentQuery, file } from "./shared";
 
 export function StatusCell({ file: f }: { file: AuthFile }) {
   const { t } = useI18n();
   const state = authState(f);
   if (state === "disabled") return <Badge variant="outline">{t("auth_files.status_disabled")}</Badge>;
+  if (state === "sign_in") {
+    return (
+      <Badge variant="outline" className="text-warning" title={t("auth_files.recovery_hint")}>
+        {t("auth_files.status_sign_in")}
+      </Badge>
+    );
+  }
 
   if (state === "cooldown" && f.cooldowns) {
     const credWide = f.cooldowns.some((c) => c.scope === "credential");
@@ -413,11 +421,13 @@ export function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: 
               <p className="font-medium">
                 {state === "disabled"
                   ? t("auth_files.status_disabled")
-                  : state === "cooldown"
-                    ? t("overview.cooldown")
-                    : state === "error"
-                      ? t("auth_files.status_auth_error")
-                      : target.status || t("auth_files.status_normal")}
+                  : state === "sign_in"
+                    ? t("auth_files.status_sign_in")
+                    : state === "cooldown"
+                      ? t("overview.cooldown")
+                      : state === "error"
+                        ? t("auth_files.status_auth_error")
+                        : target.status || t("auth_files.status_normal")}
               </p>
             </div>
             <div>
@@ -429,6 +439,8 @@ export function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: 
               <p>{target.updated_at ? formatDateTime(Date.parse(target.updated_at)) : "—"}</p>
             </div>
           </div>
+
+          <RenewalDetails target={target} />
 
           {target.provider?.toLowerCase() === "codex" && target.siwc_bind_supported !== undefined && (
             <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
