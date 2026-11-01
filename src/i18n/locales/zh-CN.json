@@ -889,7 +889,8 @@
         "streaming": "流式传输"
       },
       "client": {
-        "codex": "Codex"
+        "codex": "Codex",
+        "claude": "Claude"
       },
       "upstream": {
         "codex": "Codex",
@@ -1330,6 +1331,10 @@
       "client/codex/optimize-multi-agent-v2": {
         "label": "Codex multi-agent v2 优化",
         "hint": "优化 Codex Desktop、codex-tui 与 codex_cli_rs 的 multi-agent v2 请求，对 OAuth 与 API key 凭据均生效"
+      },
+      "client/claude/show-codex-commentary": {
+        "label": "显示 Codex 注释",
+        "hint": "将 Codex 的公开 commentary 以可见 Claude 文本返回，同时保留阶段标记用于重放；默认关闭"
       },
       "client/codex/web-search-result-cache/enabled": {
         "label": "Codex 网页搜索缓存",

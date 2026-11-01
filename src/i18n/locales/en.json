@@ -889,7 +889,8 @@
         "streaming": "Streaming"
       },
       "client": {
-        "codex": "Codex"
+        "codex": "Codex",
+        "claude": "Claude"
       },
       "upstream": {
         "codex": "Codex",
@@ -1330,6 +1331,10 @@
       "client/codex/optimize-multi-agent-v2": {
         "label": "Codex Multi-Agent v2 Optimization",
         "hint": "Optimizes multi-agent v2 requests from Codex Desktop, codex-tui and codex_cli_rs. Applies to both OAuth and API key credentials"
+      },
+      "client/claude/show-codex-commentary": {
+        "label": "Show Codex commentary",
+        "hint": "Return public Codex commentary as visible Claude text while keeping phase markers for replay; disabled by default"
       },
       "client/codex/web-search-result-cache/enabled": {
         "label": "Codex Web Search Cache",

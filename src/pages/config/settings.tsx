@@ -228,6 +228,10 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "client/codex/web-search-result-cache/limit", type: "int", fallback: "1024" },
         ],
       },
+      {
+        id: "claude",
+        items: [{ endpoint: "client/claude/show-codex-commentary", type: "bool", fallback: false }],
+      },
     ],
   },
   {
