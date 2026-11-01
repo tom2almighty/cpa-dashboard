@@ -11,6 +11,7 @@ import { useCopiedState } from "@/hooks/use-copied-state";
 import { useI18n } from "@/i18n/context";
 import { api, errorText } from "@/lib/api";
 import { CREDENTIALS_KEY, credentialTarget } from "@/lib/credentials";
+import { type Plugin, pluginOAuthIdentifiers } from "@/lib/plugins";
 import type { AuthFile } from "@/lib/types";
 
 type Provider = { id: string; name: string; hintKey: string; plugin?: boolean };
@@ -35,9 +36,7 @@ const PROVIDERS: Provider[] = [
 
 type Session = { url: string; state: string; flow?: string; user_code?: string; expires_in?: number };
 
-type PluginList = {
-  plugins?: { id: string; supports_oauth?: boolean; oauth_provider?: string; metadata?: { name?: string } }[];
-};
+type PluginList = { plugins?: Plugin[] };
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const { t } = useI18n();
@@ -265,14 +264,23 @@ export function OAuthPage() {
     retry: false,
   });
   const builtIn = new Set(PROVIDERS.map((p) => p.id));
+  const seen = new Set(builtIn);
   const pluginProviders: Provider[] = (plugins.data?.plugins ?? [])
-    .filter((p) => p.supports_oauth && !builtIn.has(p.oauth_provider || p.id))
-    .map((p) => ({
-      id: p.oauth_provider || p.id,
-      name: p.metadata?.name || p.id,
-      hintKey: "oauth.plugin_provider_hint",
-      plugin: true,
-    }));
+    .filter((p) => p.supports_oauth)
+    .flatMap((p) => {
+      // 老版本只回 oauth_provider；都没有时沿用插件 id，保持旧行为
+      const declared = pluginOAuthIdentifiers(p);
+      const ids = (declared.length ? declared : [p.id]).filter((id) => !seen.has(id));
+      for (const id of ids) seen.add(id);
+      const pluginName = p.metadata?.name || p.id;
+      return ids.map((id) => ({
+        // 一个插件可以注册多个入口（例如同一厂商的多个门户），标识必须逐个展示
+        id,
+        name: ids.length > 1 ? `${pluginName} · ${id}` : pluginName,
+        hintKey: "oauth.plugin_provider_hint",
+        plugin: true,
+      }));
+    });
 
   return (
     <>

@@ -22,6 +22,8 @@ export type Plugin = {
   effective_enabled?: boolean;
   supports_oauth?: boolean;
   oauth_provider?: string;
+  /** 插件的多个 OAuth 提供商标识；缺省时回退到 oauth_provider */
+  oauth_providers?: string[];
   logo?: string;
   config_fields?: ConfigField[] | null;
   menus?: PluginMenu[] | null;
@@ -40,6 +42,23 @@ export type PluginsResponse = {
   plugins_dir?: string;
   plugins?: Plugin[];
 };
+
+/** 插件声明的 OAuth 提供商标识。CPA 8 起支持一个插件注册多个入口。 */
+export function pluginOAuthIdentifiers(plugin: Plugin): string[] {
+  const declared = plugin.oauth_providers?.length
+    ? plugin.oauth_providers
+    : plugin.oauth_provider
+      ? [plugin.oauth_provider]
+      : [];
+  const seen = new Set<string>();
+  return declared
+    .map((id) => id.trim())
+    .filter((id) => {
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+}
 
 export const PLUGINS_KEY = ["cpa", "plugins"] as const;
 
