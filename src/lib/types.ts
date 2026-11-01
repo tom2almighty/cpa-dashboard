@@ -53,6 +53,7 @@ export type AuthFile = {
   recent_requests?: RecentBucket[];
   cooldowns?: AuthFileCooldown[] | null;
   priority?: number;
+  weight?: number;
   note?: string;
   last_refresh?: string;
   updated_at?: string;

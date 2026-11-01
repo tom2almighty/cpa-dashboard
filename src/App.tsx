@@ -15,6 +15,7 @@ const ModelsPage = lazy(() => import("@/pages/models").then((m) => ({ default: m
 const PluginsPage = lazy(() => import("@/pages/plugins").then((m) => ({ default: m.PluginsPage })));
 const LogsPage = lazy(() => import("@/pages/logs").then((m) => ({ default: m.LogsPage })));
 const ApiKeysPage = lazy(() => import("@/pages/api-keys").then((m) => ({ default: m.ApiKeysPage })));
+const RoutingPage = lazy(() => import("@/pages/routing").then((m) => ({ default: m.RoutingPage })));
 const PluginViewPage = lazy(() => import("@/pages/plugin-view").then((m) => ({ default: m.PluginViewPage })));
 
 // 用保存的管理密钥试探一次 CPA
@@ -57,6 +58,7 @@ export const router = createHashRouter([
           { path: "oauth", element: <OAuthPage /> },
           { path: "providers", element: <ProvidersPage /> },
           { path: "api-keys", element: <ApiKeysPage /> },
+          { path: "routing", element: <RoutingPage /> },
           { path: "models", element: <ModelsPage /> },
           { path: "plugins", element: <PluginsPage /> },
           { path: "logs", element: <LogsPage /> },

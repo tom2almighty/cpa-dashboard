@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Puzzle,
+  Route,
   ScrollText,
   Sparkles,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const GATEWAY_NAV: NavItemDef[] = [
   { to: "/oauth", labelKey: "nav.oauth", icon: KeySquare },
   { to: "/providers", labelKey: "nav.providers", icon: Network },
   { to: "/api-keys", labelKey: "nav.api_keys", icon: KeyRound },
+  { to: "/routing", labelKey: "nav.routing", icon: Route },
 ];
 
 const MODEL_NAV: NavItemDef[] = [{ to: "/models", labelKey: "nav.models", icon: Boxes }];
