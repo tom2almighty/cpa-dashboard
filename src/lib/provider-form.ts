@@ -51,6 +51,7 @@ export type ProviderKey = {
   websockets?: boolean;
   cloak?: { mode?: string } & Json;
   "native-tool-search"?: boolean;
+  "connection-pool"?: Json;
 };
 
 // 键级字段:weight 决定加权轮询份额,proxy-url 覆盖分组代理,websockets 仅个别渠道支持
@@ -62,6 +63,8 @@ export type KeyRow = {
   websockets: boolean;
   cloakMode: string;
   nativeToolSearch: boolean;
+  // 三态:空串表示沿用分组连接池设置
+  connectionPool: "" | "true" | "false";
 };
 
 export type Form = {
@@ -80,6 +83,10 @@ export type Form = {
   // 仅 Vertex 兼容渠道:三态 OpenAPI 路由与可选 location
   openapi: "" | "true" | "false";
   openapiLocation: string;
+  // 分组级连接池;开启后各键可单独关闭
+  connectionPool: boolean;
+  connectionPoolIdle: string;
+  connectionPoolMaxIdle: string;
 };
 
 export type Model = { name: string; alias?: string } & Json;
@@ -96,6 +103,7 @@ export function newKeyRow(): KeyRow {
     websockets: false,
     cloakMode: "",
     nativeToolSearch: false,
+    connectionPool: "",
   };
 }
 
@@ -297,6 +305,8 @@ export function groupTitle(item: Json): string {
 export function toForm(item: Json): Form {
   const keysList = list<ProviderKey>(item.keys);
   const disableCooling = item["disable-cooling"];
+  const hasConnectionPool = item["connection-pool"] !== undefined && item["connection-pool"] !== null;
+  const connectionPool = (item["connection-pool"] ?? {}) as Json;
   return {
     name: str(item.name),
     keys: keysList.map((k) => ({
@@ -307,6 +317,8 @@ export function toForm(item: Json): Form {
       websockets: k.websockets === true,
       cloakMode: str(k.cloak?.mode),
       nativeToolSearch: k["native-tool-search"] === true,
+      // 空块同样是显式开启
+      connectionPool: k["connection-pool"] ? (k["connection-pool"].enabled === false ? "false" : "true") : "",
     })),
     baseUrl: str(item["base-url"]),
     proxyUrl: str(item["proxy-url"]),
@@ -323,6 +335,11 @@ export function toForm(item: Json): Form {
     requestRetry: item["request-retry"] === undefined ? "" : str(item["request-retry"]),
     openapi: item.openapi === true ? "true" : item.openapi === false ? "false" : "",
     openapiLocation: str(item["openapi-location"]),
+    // 空块也是显式开启,只有 enabled: false 视为关闭
+    connectionPool: hasConnectionPool && connectionPool.enabled !== false,
+    connectionPoolIdle: str(connectionPool["idle-conn-timeout"]),
+    connectionPoolMaxIdle:
+      connectionPool["max-idle-conns-per-host"] === undefined ? "" : str(connectionPool["max-idle-conns-per-host"]),
   };
 }
 
@@ -350,6 +367,12 @@ function applyKeyRow(kind: Kind, row: KeyRow, previous: Json | undefined): Json 
   } else {
     delete entry["native-tool-search"];
   }
+  // 键级连接池只改 enabled,保留已有超时等覆盖字段
+  const pool: Json = { ...((previous?.["connection-pool"] as Json | undefined) ?? {}) };
+  if (row.connectionPool) pool.enabled = row.connectionPool === "true";
+  else delete pool.enabled;
+  if (Object.keys(pool).length) entry["connection-pool"] = pool;
+  else delete entry["connection-pool"];
   return entry;
 }
 
@@ -386,6 +409,16 @@ export function fromForm(kind: Kind, form: Form, original: Json): Json {
     set("openapi", form.openapi ? form.openapi === "true" : undefined);
     set("openapi-location", form.openapiLocation.trim());
   }
+  if (form.connectionPool) {
+    const pool: Json = { enabled: true };
+    if (form.connectionPoolIdle.trim()) pool["idle-conn-timeout"] = form.connectionPoolIdle.trim();
+    if (form.connectionPoolMaxIdle.trim()) {
+      pool["max-idle-conns-per-host"] = Number(form.connectionPoolMaxIdle.trim());
+    }
+    set("connection-pool", pool);
+  } else {
+    set("connection-pool", undefined);
+  }
   set("prefix", form.prefix.trim());
   set("priority", form.priority.trim() ? Number(form.priority) : undefined);
   set("headers", headersFromText(form.headers));
@@ -409,6 +442,8 @@ export function validate(kind: Kind, form: Form): string | null {
   if (form.priority.trim() && !/^-?\d+$/.test(form.priority.trim())) return i18n.t("provider_form.priority_integer");
   if (form.requestRetry.trim() && !/^-?\d+$/.test(form.requestRetry.trim()))
     return i18n.t("provider_form.retry_integer");
+  if (form.connectionPool && form.connectionPoolMaxIdle.trim() && !/^-?\d+$/.test(form.connectionPoolMaxIdle.trim()))
+    return i18n.t("provider_form.pool_max_idle_integer");
   if (form.keys.some((row) => row.weight.trim() && !/^-?\d+$/.test(row.weight.trim())))
     return i18n.t("provider_form.weight_integer");
   // 请求头必须写成 "名称: 值",名称不能为空(值可以为空)

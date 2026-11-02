@@ -368,58 +368,77 @@ function KeyRowsEditor({ kind, form, update }: { kind: Kind; form: Form; update:
             aria-label={t("providers.key_proxy_named", { n: index + 1 })}
             className="font-mono text-xs sm:col-span-3"
           />
-          {(kind.websockets || kind.cloak || kind.nativeToolSearch) && (
-            <div className="flex flex-wrap items-center gap-4 sm:col-span-3">
-              {kind.websockets && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Switch
-                    checked={row.websockets}
-                    onCheckedChange={(checked) => setRow(index, { websockets: checked })}
-                    aria-label={t("providers.websockets_named", { n: index + 1 })}
-                  />
-                  <span>{t("providers.websockets")}</span>
-                </div>
-              )}
-              {kind.nativeToolSearch && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Switch
-                    checked={row.nativeToolSearch}
-                    onCheckedChange={(checked) => setRow(index, { nativeToolSearch: checked })}
-                    aria-label={t("providers.native_tool_search_named", { n: index + 1 })}
-                  />
-                  <span>{t("providers.native_tool_search")}</span>
-                </div>
-              )}
-              {kind.cloak && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{t("providers.cloak_mode")}</span>
-                  <Select
-                    items={CLOAK_MODES.map((mode) => ({
-                      value: mode,
-                      label: mode ? t(`providers.cloak_${mode}`) : t("providers.cloak_inherit"),
-                    }))}
-                    value={row.cloakMode || null}
-                    onValueChange={(value) => setRow(index, { cloakMode: value ?? "" })}
-                  >
-                    <SelectTrigger
-                      className="h-7 w-28 text-xs"
-                      aria-label={t("providers.cloak_named", { n: index + 1 })}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">{t("providers.cloak_inherit")}</SelectItem>
-                      {CLOAK_MODES.filter(Boolean).map((mode) => (
-                        <SelectItem key={mode} value={mode}>
-                          {t(`providers.cloak_${mode}` as never)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+          <div className="flex flex-wrap items-center gap-4 sm:col-span-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{t("providers.connection_pool")}</span>
+              <Select
+                items={[
+                  { value: "", label: t("providers.inherit") },
+                  { value: "true", label: t("common.enabled") },
+                  { value: "false", label: t("providers.disabled") },
+                ]}
+                value={row.connectionPool || null}
+                onValueChange={(value) => setRow(index, { connectionPool: (value ?? "") as KeyRow["connectionPool"] })}
+              >
+                <SelectTrigger
+                  className="h-7 w-28 text-xs"
+                  aria-label={t("providers.connection_pool_named", { n: index + 1 })}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t("providers.inherit")}</SelectItem>
+                  <SelectItem value="true">{t("common.enabled")}</SelectItem>
+                  <SelectItem value="false">{t("providers.disabled")}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            {kind.websockets && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Switch
+                  checked={row.websockets}
+                  onCheckedChange={(checked) => setRow(index, { websockets: checked })}
+                  aria-label={t("providers.websockets_named", { n: index + 1 })}
+                />
+                <span>{t("providers.websockets")}</span>
+              </div>
+            )}
+            {kind.nativeToolSearch && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Switch
+                  checked={row.nativeToolSearch}
+                  onCheckedChange={(checked) => setRow(index, { nativeToolSearch: checked })}
+                  aria-label={t("providers.native_tool_search_named", { n: index + 1 })}
+                />
+                <span>{t("providers.native_tool_search")}</span>
+              </div>
+            )}
+            {kind.cloak && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{t("providers.cloak_mode")}</span>
+                <Select
+                  items={CLOAK_MODES.map((mode) => ({
+                    value: mode,
+                    label: mode ? t(`providers.cloak_${mode}`) : t("providers.cloak_inherit"),
+                  }))}
+                  value={row.cloakMode || null}
+                  onValueChange={(value) => setRow(index, { cloakMode: value ?? "" })}
+                >
+                  <SelectTrigger className="h-7 w-28 text-xs" aria-label={t("providers.cloak_named", { n: index + 1 })}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t("providers.cloak_inherit")}</SelectItem>
+                    {CLOAK_MODES.filter(Boolean).map((mode) => (
+                      <SelectItem key={mode} value={mode}>
+                        {t(`providers.cloak_${mode}` as never)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </div>
       ))}
       <Button
@@ -438,6 +457,7 @@ function KeyRowsEditor({ kind, form, update }: { kind: Kind; form: Form; update:
       {kind.nativeToolSearch && (
         <p className="text-xs text-muted-foreground">{t("providers.native_tool_search_hint")}</p>
       )}
+      <p className="text-xs text-muted-foreground">{t("providers.connection_pool_key_hint")}</p>
     </div>
   );
 }
@@ -705,6 +725,50 @@ function EditDialog({
                     />
                   </Field>
                 )}
+                <div className="grid gap-3 rounded-md border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="grid gap-1">
+                      <Label htmlFor={`${p}-pool`}>{t("providers.connection_pool")}</Label>
+                      <p className="text-xs text-muted-foreground">{t("providers.connection_pool_hint")}</p>
+                    </div>
+                    <Switch
+                      id={`${p}-pool`}
+                      checked={form.connectionPool}
+                      onCheckedChange={(checked) => update({ connectionPool: checked })}
+                    />
+                  </div>
+                  {form.connectionPool && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field
+                        id={`${p}-pool-idle`}
+                        label={t("providers.connection_pool_idle")}
+                        hint={t("providers.connection_pool_idle_hint")}
+                      >
+                        <Input
+                          id={`${p}-pool-idle`}
+                          value={form.connectionPoolIdle}
+                          placeholder="300s"
+                          className="font-mono"
+                          onChange={(e) => update({ connectionPoolIdle: e.target.value })}
+                        />
+                      </Field>
+                      <Field
+                        id={`${p}-pool-max-idle`}
+                        label={t("providers.connection_pool_max_idle")}
+                        hint={t("providers.connection_pool_max_idle_hint")}
+                      >
+                        <Input
+                          id={`${p}-pool-max-idle`}
+                          inputMode="numeric"
+                          value={form.connectionPoolMaxIdle}
+                          placeholder="2"
+                          className="font-mono"
+                          onChange={(e) => update({ connectionPoolMaxIdle: e.target.value })}
+                        />
+                      </Field>
+                    </div>
+                  )}
+                </div>
                 <HeadersEditor
                   id={`${p}-headers`}
                   value={form.headers}

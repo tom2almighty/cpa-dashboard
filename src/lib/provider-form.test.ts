@@ -161,11 +161,46 @@ test("分组级 disable-cooling 三态与 request-retry", () => {
   expect(cleared["request-retry"]).toBeUndefined();
 });
 
+test("连接池分组开关与键级覆盖", () => {
+  const original = {
+    keys: [{ "api-key": "k1" }, { "api-key": "k2", "connection-pool": { enabled: false } }],
+    "connection-pool": { enabled: true, "idle-conn-timeout": "300s", "max-idle-conns-per-host": 2 },
+  };
+
+  const form = toForm(original);
+  expect(form.connectionPool).toBe(true);
+  expect(form.connectionPoolIdle).toBe("300s");
+  expect(form.connectionPoolMaxIdle).toBe("2");
+  expect(form.keys[1].connectionPool).toBe("false");
+
+  // 保留分组配置与键级关闭标记
+  expect(fromForm(claude, form, original)).toMatchObject({
+    "connection-pool": { enabled: true, "idle-conn-timeout": "300s", "max-idle-conns-per-host": 2 },
+    keys: [{ "api-key": "k1" }, { "api-key": "k2", "connection-pool": { enabled: false } }],
+  });
+
+  // 关闭分组并让键恢复继承时,块整体删除
+  const cleared = fromForm(
+    claude,
+    { ...form, connectionPool: false, keys: rows({ key: "k1" }, { key: "k2" }) },
+    original,
+  );
+  expect(cleared["connection-pool"]).toBeUndefined();
+  expect(cleared.keys).toEqual([{ "api-key": "k1" }, { "api-key": "k2" }]);
+
+  // 空块同样是显式开启
+  expect(toForm({ keys: [{ "api-key": "k" }], "connection-pool": {} }).connectionPool).toBe(true);
+  expect(toForm({ keys: [{ "api-key": "k", "connection-pool": {} }] }).keys[0].connectionPool).toBe("true");
+});
+
 test("校验必填项", () => {
   expect(validate(claude, toForm({}))).toBe("请填写 API Key");
   expect(validate(openai, { ...toForm({}), name: "or", keys: rows({ key: "sk-test" }) })).toBe("请填写 Base URL");
   expect(validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), priority: "1.5" })).toBe("优先级必须是整数");
   expect(validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), requestRetry: "x" })).toBe("重试轮次必须是整数");
+  expect(
+    validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), connectionPool: true, connectionPoolMaxIdle: "x" }),
+  ).toBe("每主机空闲连接数必须是整数");
   expect(validate(claude, { ...toForm({ keys: [{ "api-key": "k" }] }), keys: rows({ key: "k", weight: "1.5" }) })).toBe(
     "密钥权重必须是整数",
   );
