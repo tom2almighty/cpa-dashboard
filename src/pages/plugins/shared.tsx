@@ -67,6 +67,15 @@ export function fromForm(fields: ConfigField[], values: Record<string, unknown>)
 
 export type PluginPlatform = { goos?: string; goarch?: string };
 
+export type PluginLocale = {
+  name?: string;
+  description?: string;
+  author?: string;
+  homepage?: string;
+  license?: string;
+  tags?: string[];
+};
+
 export type StorePlugin = {
   store_id: string;
   source_id: string;
@@ -80,6 +89,7 @@ export type StorePlugin = {
   homepage?: string;
   license?: string;
   tags?: string[];
+  locales?: Record<string, PluginLocale>;
   platforms?: PluginPlatform[];
   install_type?: string;
   auth_required?: boolean;
@@ -92,6 +102,32 @@ export type StorePlugin = {
   update_available?: boolean;
   logo?: string;
 };
+
+/** 商店条目按当前界面语言取本地化文案，缺失字段回退到条目原文 */
+export function localizeStorePlugin(plugin: StorePlugin, language: string): StorePlugin {
+  const locales = plugin.locales;
+  if (!locales) return plugin;
+  const wanted = language.toLowerCase();
+  const base = wanted.split("-")[0];
+  const entries = Object.entries(locales);
+  const match =
+    entries.find(([key]) => key.toLowerCase() === wanted) ??
+    entries.find(([key]) => {
+      const keyLower = key.toLowerCase();
+      return keyLower === base || keyLower.split("-")[0] === base;
+    });
+  if (!match) return plugin;
+  const locale = match[1];
+  return {
+    ...plugin,
+    name: locale.name || plugin.name,
+    description: locale.description || plugin.description,
+    author: locale.author || plugin.author,
+    homepage: locale.homepage || plugin.homepage,
+    license: locale.license || plugin.license,
+    tags: locale.tags?.length ? locale.tags : plugin.tags,
+  };
+}
 
 export function PluginLogo({ src, name, size = "md" }: { src?: string; name: string; size?: "sm" | "md" | "lg" }) {
   const [error, setError] = useState(false);

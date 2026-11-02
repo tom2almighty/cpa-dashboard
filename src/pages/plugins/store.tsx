@@ -26,6 +26,7 @@ import { api, errorText } from "@/lib/api";
 import {
   formatRepoUrl,
   GithubIcon,
+  localizeStorePlugin,
   PluginLogo,
   refreshPlugins,
   STORE_KEY,
@@ -37,7 +38,7 @@ const FILTERS = ["all", "installed", "not_installed", "updates"] as const;
 type StoreFilter = (typeof FILTERS)[number];
 
 export function Store() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<StoreFilter>("all");
@@ -64,7 +65,8 @@ export function Store() {
     },
     meta: { quiet: true },
     onSuccess: (res, { plugin: p }) => {
-      toast.success(t("plugins.installed_toast", { name: p.name || p.id, version: res.version ?? "" }));
+      const name = localizeStorePlugin(p, language).name || p.id;
+      toast.success(t("plugins.installed_toast", { name, version: res.version ?? "" }));
       queryClient.invalidateQueries({ queryKey: STORE_KEY });
       refreshPlugins(queryClient, (plugins) => plugins.some((x) => x.id === p.id));
       setInstallingTarget(null);
@@ -74,12 +76,14 @@ export function Store() {
   });
   const sourceName = (id?: string) => data?.sources?.find((s) => s.id === id)?.name || id;
   const plugins = useMemo(() => {
-    const list = (data?.plugins ?? []).filter((p) => {
-      if (filter === "installed") return p.installed;
-      if (filter === "not_installed") return !p.installed;
-      if (filter === "updates") return p.installed && p.update_available;
-      return true;
-    });
+    const list = (data?.plugins ?? [])
+      .map((p) => localizeStorePlugin(p, language))
+      .filter((p) => {
+        if (filter === "installed") return p.installed;
+        if (filter === "not_installed") return !p.installed;
+        if (filter === "updates") return p.installed && p.update_available;
+        return true;
+      });
     if (!search.trim()) return list;
     const term = search.toLowerCase().trim();
     return list.filter(
@@ -89,7 +93,7 @@ export function Store() {
         p.description?.toLowerCase().includes(term) ||
         p.author?.toLowerCase().includes(term),
     );
-  }, [data?.plugins, filter, search]);
+  }, [data?.plugins, filter, search, language]);
 
   if (isError) {
     return (
