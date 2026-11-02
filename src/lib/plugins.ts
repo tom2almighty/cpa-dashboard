@@ -15,6 +15,20 @@ export type PluginMenu = {
   description?: string;
 };
 
+export type OAuthProviderEntry = {
+  identifier: string;
+  /** 入口自己的展示名；为空时回退插件名 */
+  name?: string;
+  /** 入口自己的图标资产；为空时回退插件图标 */
+  logo?: string;
+};
+
+export type PluginOAuthProvider = {
+  id: string;
+  name: string;
+  logo: string;
+};
+
 export type Plugin = {
   id: string;
   registered?: boolean;
@@ -24,6 +38,8 @@ export type Plugin = {
   oauth_provider?: string;
   /** 插件的多个 OAuth 提供商标识；缺省时回退到 oauth_provider */
   oauth_providers?: string[];
+  /** 逐入口的名称与图标；缺省时回退到插件元数据 */
+  oauth_provider_entries?: OAuthProviderEntry[];
   logo?: string;
   config_fields?: ConfigField[] | null;
   menus?: PluginMenu[] | null;
@@ -43,21 +59,44 @@ export type PluginsResponse = {
   plugins?: Plugin[];
 };
 
-/** 插件声明的 OAuth 提供商标识。CPA 8 起支持一个插件注册多个入口。 */
-export function pluginOAuthIdentifiers(plugin: Plugin): string[] {
+/** 插件声明的 OAuth 提供方入口。CPA 8 起支持一个插件注册多个入口。 */
+export function pluginOAuthProviders(plugin: Plugin): PluginOAuthProvider[] {
   const declared = plugin.oauth_providers?.length
-    ? plugin.oauth_providers
+    ? [...plugin.oauth_providers]
     : plugin.oauth_provider
       ? [plugin.oauth_provider]
       : [];
+  const entries = new Map<string, OAuthProviderEntry>();
+  for (const entry of plugin.oauth_provider_entries ?? []) {
+    const id = entry.identifier?.trim();
+    if (!id || entries.has(id)) continue;
+    entries.set(id, entry);
+  }
+  for (const id of entries.keys()) {
+    if (!declared.includes(id)) declared.push(id);
+  }
+
+  const pluginName = plugin.metadata?.name?.trim() || plugin.id;
+  const pluginLogo = plugin.logo?.trim() || plugin.metadata?.logo?.trim() || "";
   const seen = new Set<string>();
-  return declared
-    .map((id) => id.trim())
-    .filter((id) => {
-      if (!id || seen.has(id)) return false;
-      seen.add(id);
-      return true;
+  const out: PluginOAuthProvider[] = [];
+  for (const raw of declared) {
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const entry = entries.get(id);
+    out.push({
+      id,
+      name: entry?.name?.trim() || pluginName,
+      logo: entry?.logo?.trim() || pluginLogo,
     });
+  }
+  return out;
+}
+
+/** 插件声明的 OAuth 提供商标识。 */
+export function pluginOAuthIdentifiers(plugin: Plugin): string[] {
+  return pluginOAuthProviders(plugin).map((provider) => provider.id);
 }
 
 export const PLUGINS_KEY = ["cpa", "plugins"] as const;

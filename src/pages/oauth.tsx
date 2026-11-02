@@ -11,10 +11,11 @@ import { useCopiedState } from "@/hooks/use-copied-state";
 import { useI18n } from "@/i18n/context";
 import { api, errorText } from "@/lib/api";
 import { CREDENTIALS_KEY, credentialTarget } from "@/lib/credentials";
-import { type Plugin, pluginOAuthIdentifiers } from "@/lib/plugins";
+import { type Plugin, pluginOAuthProviders } from "@/lib/plugins";
 import type { AuthFile } from "@/lib/types";
+import { PluginLogo } from "./plugins/shared";
 
-type Provider = { id: string; name: string; hintKey: string; plugin?: boolean };
+type Provider = { id: string; name: string; hintKey: string; logo?: string; plugin?: boolean };
 
 // 与官方面板一致：只有浏览器回调流程需要后端在 CPA 主机上监听回调端口。
 const WEBUI_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin"]);
@@ -146,11 +147,14 @@ export function ProviderCard({
   return (
     <section aria-labelledby={`oauth-${provider.id}`} className="grid content-start gap-4 rounded-lg border p-5">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 id={`oauth-${provider.id}`} className="font-medium">
-            {provider.name}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t(provider.hintKey as never)}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          {provider.logo && <PluginLogo src={provider.logo} name={provider.name} size="sm" />}
+          <div className="min-w-0">
+            <h2 id={`oauth-${provider.id}`} className="truncate font-medium">
+              {provider.name}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t(provider.hintKey as never)}</p>
+          </div>
         </div>
         {session ? (
           <Button variant="ghost" size="sm" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
@@ -269,14 +273,20 @@ export function OAuthPage() {
     .filter((p) => p.supports_oauth)
     .flatMap((p) => {
       // 老版本只回 oauth_provider；都没有时沿用插件 id，保持旧行为
-      const declared = pluginOAuthIdentifiers(p);
-      const ids = (declared.length ? declared : [p.id]).filter((id) => !seen.has(id));
-      for (const id of ids) seen.add(id);
-      const pluginName = p.metadata?.name || p.id;
-      return ids.map((id) => ({
+      const declared = pluginOAuthProviders(p);
+      const providers = declared.length
+        ? declared
+        : [{ id: p.id, name: p.metadata?.name || p.id, logo: p.logo || p.metadata?.logo || "" }];
+      const selected = providers.filter((item) => !seen.has(item.id));
+      for (const item of selected) seen.add(item.id);
+      // 没有逐入口名称时，多入口会共用插件名，用标识补足区分度
+      const nameCounts = new Map<string, number>();
+      for (const item of selected) nameCounts.set(item.name, (nameCounts.get(item.name) ?? 0) + 1);
+      return selected.map((item) => ({
         // 一个插件可以注册多个入口（例如同一厂商的多个门户），标识必须逐个展示
-        id,
-        name: ids.length > 1 ? `${pluginName} · ${id}` : pluginName,
+        id: item.id,
+        name: (nameCounts.get(item.name) ?? 0) > 1 ? `${item.name} · ${item.id}` : item.name,
+        logo: item.logo,
         hintKey: "oauth.plugin_provider_hint",
         plugin: true,
       }));

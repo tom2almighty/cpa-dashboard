@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { pluginOAuthIdentifiers, resolvePluginAsset, resolvePluginMenuUrl } from "./plugins";
+import { pluginOAuthIdentifiers, pluginOAuthProviders, resolvePluginAsset, resolvePluginMenuUrl } from "./plugins";
 
 test("resolvePluginMenuUrl 解析插件相对路径与绝对路径", () => {
   expect(resolvePluginMenuUrl("cpa-usage-stats", "/dashboard")).toBe("/v0/resource/plugins/cpa-usage-stats/dashboard");
@@ -20,6 +20,31 @@ test("pluginOAuthIdentifiers 支持多个入口并去除重复与空白", () => 
       oauth_providers: [" zcode-zai ", "zcode-bigmodel", "", "zcode-bigmodel"],
     }),
   ).toEqual(["zcode-zai", "zcode-bigmodel"]);
+});
+
+test("pluginOAuthProviders 使用逐入口名称与图标,缺省时回退插件元数据", () => {
+  const base = {
+    id: "p",
+    metadata: { name: "ZCode", logo: "https://cdn.example/plugin.png" },
+    oauth_provider: "zcode-zai",
+  };
+  expect(pluginOAuthProviders(base)).toEqual([
+    { id: "zcode-zai", name: "ZCode", logo: "https://cdn.example/plugin.png" },
+  ]);
+
+  const withEntries = {
+    ...base,
+    oauth_providers: ["zcode-zai"],
+    oauth_provider_entries: [
+      { identifier: "zcode-zai", name: " Z.ai " },
+      { identifier: "zcode-bigmodel", name: "BigModel", logo: "https://cdn.example/bigmodel.png" },
+    ],
+  };
+  expect(pluginOAuthProviders(withEntries)).toEqual([
+    { id: "zcode-zai", name: "Z.ai", logo: "https://cdn.example/plugin.png" },
+    { id: "zcode-bigmodel", name: "BigModel", logo: "https://cdn.example/bigmodel.png" },
+  ]);
+  expect(pluginOAuthIdentifiers(withEntries)).toEqual(["zcode-zai", "zcode-bigmodel"]);
 });
 
 test("resolvePluginAsset 解析网络与本地图片资产", () => {
