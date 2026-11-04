@@ -1086,6 +1086,10 @@
         "label": "Claude Stabilize Device Profile",
         "hint": "Pin OS and architecture to baseline values per credential to reduce risk-control triggers"
       },
+      "upstream/claude/header-defaults/native-entrypoints": {
+        "label": "Native Claude Code Entrypoints",
+        "hint": "Extra entrypoint labels treated as native Claude Code clients beyond the built-in cli, sdk-cli, sdk-ts, and claude-vscode, one per line (for example t3-code)"
+      },
       "upstream/claude/header-defaults/user-agent": {
         "label": "Claude Default User-Agent",
         "hint": "Baseline Claude Code CLI User-Agent used when the client doesn't send one"

@@ -1086,6 +1086,10 @@
         "label": "Claude 设备配置指纹稳定化",
         "hint": "为每个凭据将 OS 与系统架构固定为基准值，降低风控概率"
       },
+      "upstream/claude/header-defaults/native-entrypoints": {
+        "label": "原生 Claude Code 入口",
+        "hint": "在内置 cli、sdk-cli、sdk-ts、claude-vscode 之外，额外按原生 Claude Code 客户端处理的入口标识，每行一项（如 t3-code）"
+      },
       "upstream/claude/header-defaults/user-agent": {
         "label": "Claude 默认 User-Agent",
         "hint": "客户端未携带时填补的 Claude Code CLI 基准 User-Agent"

@@ -266,6 +266,7 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "upstream/claude/header-defaults/timeout", type: "text" },
           { endpoint: "upstream/claude/header-defaults/timezone", type: "text" },
           { endpoint: "upstream/claude/header-defaults/stabilize-device-profile", type: "bool" },
+          { endpoint: "upstream/claude/header-defaults/native-entrypoints", type: "list" },
           { endpoint: "upstream/claude/header-defaults/anthropic-beta-strip", type: "list" },
           { endpoint: "upstream/claude/header-defaults/anthropic-beta-append", type: "list" },
           { endpoint: "upstream/claude/header-defaults/inject-diagnostics", type: "bool", fallback: true },
@@ -462,6 +463,7 @@ const ENDPOINT_ALIASES: Record<string, string[]> = {
   "upstream/claude/header-defaults/stabilize-device-profile": [
     "oauth/providers/claude/header-defaults/stabilize-device-profile",
   ],
+  "upstream/claude/header-defaults/native-entrypoints": ["oauth/providers/claude/header-defaults/native-entrypoints"],
   "upstream/claude/header-defaults/anthropic-beta-strip": [
     "oauth/providers/claude/header-defaults/anthropic-beta-strip",
   ],
