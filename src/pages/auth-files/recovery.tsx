@@ -11,7 +11,7 @@ import { errorText } from "@/lib/api";
 import { accountName, CREDENTIALS_KEY, verifyCredential } from "@/lib/credentials";
 import { formatDateTime } from "@/lib/format";
 import type { AuthFile } from "@/lib/types";
-import { ProviderCard } from "../oauth";
+import { builtInProvider, ProviderCard } from "../oauth";
 
 export function RenewalDetails({ target }: { target: AuthFile }) {
   const { t } = useI18n();
@@ -58,6 +58,8 @@ export function RenewalDetails({ target }: { target: AuthFile }) {
 
 export function RecoveryDialog({ target, onClose }: { target: AuthFile; onClose: () => void }) {
   const { t } = useI18n();
+  const provider = builtInProvider(target.provider);
+  if (!provider) return null;
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-svh overflow-y-auto sm:max-w-xl">
@@ -67,7 +69,7 @@ export function RecoveryDialog({ target, onClose }: { target: AuthFile; onClose:
         </DialogHeader>
         <RenewalDetails target={target} />
         <ProviderCard
-          provider={{ id: "codex", name: "Codex", hintKey: "auth_files.targeted_login_hint" }}
+          provider={{ ...provider, hintKey: "auth_files.targeted_login_hint" }}
           target={target}
           onComplete={onClose}
         />

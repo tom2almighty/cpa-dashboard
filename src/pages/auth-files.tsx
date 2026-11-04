@@ -65,6 +65,7 @@ import {
 } from "./auth-files/dialogs";
 import { RecoveryDialog, VerifyDialog } from "./auth-files/recovery";
 import { file } from "./auth-files/shared";
+import { builtInProvider } from "./oauth";
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -554,7 +555,7 @@ export function AuthFilesPage() {
                             <Info />
                             {t("auth_files.view_details")}
                           </DropdownMenuItem>
-                          {f.provider?.toLowerCase() === "codex" && (
+                          {builtInProvider(f.provider) && (
                             <DropdownMenuItem onClick={() => setDialog({ kind: "recovery", target: f })}>
                               <LogIn />
                               {t("auth_files.sign_in_again")}

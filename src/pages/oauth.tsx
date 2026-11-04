@@ -35,6 +35,16 @@ const PROVIDERS: Provider[] = [
   { id: "meta", name: "Muse (Meta)", hintKey: "oauth.hints.meta" },
 ];
 
+/**
+ * 凭据 provider 对应的内置 OAuth 提供商。历史 Kimi 凭据可能写成 kimi.ai/kimi.com，
+ * CPA 的定向 OAuth 只接受 kimi / kimi-ai。
+ */
+export function builtInProvider(provider: string | undefined): Provider | undefined {
+  const id = (provider ?? "").trim().toLowerCase();
+  const normalized = id === "kimi.ai" ? "kimi-ai" : id === "kimi.com" ? "kimi" : id;
+  return PROVIDERS.find((item) => item.id === normalized);
+}
+
 type Session = { url: string; state: string; flow?: string; user_code?: string; expires_in?: number };
 
 type PluginList = { plugins?: Plugin[] };
