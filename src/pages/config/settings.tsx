@@ -122,6 +122,13 @@ export const GROUPS: ConfigGroup[] = [
         ],
       },
       {
+        id: "storage",
+        items: [
+          { endpoint: "server/kv-store/disabled", type: "bool" },
+          { endpoint: "server/kv-store/path", type: "text" },
+        ],
+      },
+      {
         id: "discovery",
         items: [
           { endpoint: "server/discovery/enabled", type: "bool" },

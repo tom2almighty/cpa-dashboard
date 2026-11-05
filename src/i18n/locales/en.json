@@ -861,7 +861,7 @@
     "groups": {
       "plugins": "Dynamic binary plugin discovery, store sources and store auth (the plugins section)",
       "models": "Model catalog sources (HTTP(s) URLs or absolute local paths, corresponding to the models section in config.yaml)",
-      "server": "Listener, response compression, TLS and LAN service discovery (the server section)",
+      "server": "Listener, response compression, TLS, local KV storage and LAN service discovery (the server section)",
       "management": "Management access and the bundled control panel (the management section)",
       "routing": "Credential selection strategy, session affinity, retries and cooldown (the routing section)",
       "requests": "Upstream proxy, header passthrough, stream keep-alives and multimedia (the requests section)",
@@ -882,6 +882,7 @@
         "listening": "Listener",
         "compression": "Response compression",
         "tls": "TLS",
+        "storage": "Local KV store",
         "discovery": "LAN service discovery"
       },
       "management": {
@@ -964,6 +965,14 @@
       "server/tls/key": {
         "label": "TLS Private Key Path",
         "hint": "Path to the server SSL/TLS private key file (.key)"
+      },
+      "server/kv-store/disabled": {
+        "label": "Disable Local KV Store",
+        "hint": "When true, disables bbolt persistence and falls back to in-memory storage; enabled by default, and ignored in Home mode"
+      },
+      "server/kv-store/path": {
+        "label": "KV Database Path",
+        "hint": "Path to the bbolt database file; defaults to <auth-dir>/kv.db when empty"
       },
       "management/allow-remote": {
         "label": "Allow Remote",
@@ -1415,7 +1424,7 @@
       },
       "upstream/claude/session-date-pin-days": {
         "label": "Session Date Pin Retention (Days)",
-        "hint": "Days to retain the cloaked currentDate pin per session to prevent credential switches or idle gaps from invalidating thinking signatures and prompt cache; defaults to 7, 0 keeps 1h continuity"
+        "hint": "Days to retain the cloaked currentDate pin per session in in-memory mode to prevent credential switches or idle gaps from invalidating thinking signatures and prompt cache; defaults to 7, 0 keeps 1h continuity. Ignored when a KV store (local bbolt or Home) is active, where pins persist permanently"
       },
       "oauth/providers/codex/signin-with-chatgpt-identifier": {
         "label": "Sign in with ChatGPT Identifier",
