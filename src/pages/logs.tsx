@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, Download, Pause, Play, Search, Trash2 } from "lucide-react";
+import { ArrowDown, Download, Pause, Play, Search, Trash2, X } from "lucide-react";
 import { type FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -274,8 +274,18 @@ function LiveLogs() {
             onChange={(e) => setKeyword(e.target.value)}
             placeholder={t("logs.search")}
             aria-label={t("logs.search")}
-            className="pl-8 text-xs"
+            className="pl-8 pr-8 text-xs"
           />
+          {keyword && (
+            <button
+              type="button"
+              onClick={() => setKeyword("")}
+              aria-label={t("common.clear_search")}
+              className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          )}
         </div>
         <ToggleGroup
           variant="outline"

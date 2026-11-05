@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, RotateCcw, Save, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCcw, Save, Search, X } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -201,8 +201,18 @@ function ConfigPageInner() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={t("config.search_placeholder")}
                   aria-label={t("config.search_placeholder")}
-                  className="h-8 w-40 pl-8 text-xs sm:w-52"
+                  className="h-8 w-40 pl-8 pr-8 text-xs sm:w-52"
                 />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label={t("common.clear_search")}
+                    className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
               </div>
               <Button
                 variant={onlyDirty ? "secondary" : "outline"}

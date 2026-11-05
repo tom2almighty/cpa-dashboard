@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, RefreshCw } from "lucide-react";
+import { Check, Copy, RefreshCw, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Trans } from "react-i18next";
 import { toast } from "sonner";
@@ -80,14 +80,26 @@ export function AvailableModels() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("models.search")}
-            aria-label={t("models.search")}
-            className="w-48 sm:w-64"
-          />
+          <div className="relative">
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("models.search")}
+              aria-label={t("models.search")}
+              className="w-48 pr-8 sm:w-64"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label={t("common.clear_search")}
+                className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
           <Button
             variant="outline"
             size="icon"

@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { type ChangeEvent, useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -399,8 +400,18 @@ export function AuthFilesPage() {
                   aria-label={t("auth_files.search_label")}
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  className="w-56 pl-8"
+                  className="w-56 pl-8 pr-8"
                 />
+                {keyword && (
+                  <button
+                    type="button"
+                    onClick={() => setKeyword("")}
+                    aria-label={t("common.clear_search")}
+                    className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
