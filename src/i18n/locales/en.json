@@ -1110,7 +1110,7 @@
       },
       "multimedia/disable-image-generation": {
         "label": "Image Generation",
-        "hint": "Control model image generation: allow, disable globally, allow only the image endpoint, or pass through as-is",
+        "hint": "Control model image generation: allow, disable globally, allow only the image endpoint, or pass through as-is. Native Codex Responses-Lite routes reject forced hosted image generation with HTTP 400; choose passthrough to keep forwarding them",
         "options": {
           "false": "Allow (default)",
           "true": "Disable globally",

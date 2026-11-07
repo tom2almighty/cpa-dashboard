@@ -1110,7 +1110,7 @@
       },
       "multimedia/disable-image-generation": {
         "label": "图像生成行为控制",
-        "hint": "控制模型图片生成行为：允许、全局禁用、仅允许图像接口或原样透传",
+        "hint": "控制模型图片生成行为：允许、全局禁用、仅允许图像接口或原样透传。Codex Responses-Lite 原生路由会以 400 拒绝强制注入的托管生图，需要放行时选择原样透传",
         "options": {
           "false": "允许生图（默认）",
           "true": "全局禁用生图",
