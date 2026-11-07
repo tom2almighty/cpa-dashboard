@@ -11,7 +11,7 @@ import { useCopiedState } from "@/hooks/use-copied-state";
 import { useI18n } from "@/i18n/context";
 import { api, errorText } from "@/lib/api";
 import { CREDENTIALS_KEY, credentialTarget } from "@/lib/credentials";
-import { type Plugin, pluginOAuthProviders } from "@/lib/plugins";
+import { fetchPlugins, PLUGINS_KEY, pluginOAuthProviders } from "@/lib/plugins";
 import type { AuthFile } from "@/lib/types";
 import { PluginLogo } from "./plugins/shared";
 
@@ -46,8 +46,6 @@ export function builtInProvider(provider: string | undefined): Provider | undefi
 }
 
 type Session = { url: string; state: string; flow?: string; user_code?: string; expires_in?: number };
-
-type PluginList = { plugins?: Plugin[] };
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const { t } = useI18n();
@@ -273,8 +271,8 @@ export function ProviderCard({
 export function OAuthPage() {
   const { t } = useI18n();
   const plugins = useQuery({
-    queryKey: ["cpa", "plugins"],
-    queryFn: () => api<PluginList>("/v8/management/plugins"),
+    queryKey: PLUGINS_KEY,
+    queryFn: fetchPlugins,
     retry: false,
   });
   const builtIn = new Set(PROVIDERS.map((p) => p.id));

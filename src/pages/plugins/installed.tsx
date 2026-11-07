@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useI18n } from "@/i18n/context";
 import { ApiError, api, configPath, errorText } from "@/lib/api";
-import { PLUGINS_KEY, type Plugin, type PluginsResponse, resolvePluginMenuUrl } from "@/lib/plugins";
+import { fetchPlugins, PLUGINS_KEY, type Plugin, resolvePluginMenuUrl } from "@/lib/plugins";
 import { ConfigDialog, PluginViewerDialog } from "./plugin-config";
 import { GithubIcon, PluginLogo, refreshPlugins } from "./shared";
 
@@ -34,7 +34,7 @@ export function Installed() {
   );
   const { data, isPending, isError, error } = useQuery({
     queryKey: PLUGINS_KEY,
-    queryFn: () => api<PluginsResponse>("/v8/management/plugins"),
+    queryFn: fetchPlugins,
   });
 
   const toggle = useMutation({

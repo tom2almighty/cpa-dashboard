@@ -28,6 +28,7 @@
    - 续期异常读取 `requires_sign_in` / `renewal_state` / `recovery_stage`，需要重新登录不等于当前 access token 已不可用。全部内置 OAuth 提供商（Claude、Codex、Antigravity、Kimi、Kimi.ai、xAI、Devin、Meta）的定向恢复复用 OAuth 流程并携带 `auth_index`（无索引时用 `name`）；`POST /v8/management/credentials/verify` 只在用户确认后触发真实推理，成功不能视为自动续期验证通过。
 3. **插件管理**：
    - 插件列表、商店与安装统一走 `/v8/management/plugins*`；插件个性化配置走 `/v8/management/config/plugins/configs/<id>`。
+   - `GET /plugins` 返回的名称、图标、菜单与配置字段经后端 `html.EscapeString` 处理，统一在 `src/lib/plugins.ts` 的 `fetchPlugins` 里还原一次，页面不得直接调用该接口拿原始数据。
 4. **前端数据约定**（`src/lib/api.ts`）：
    - 配置读取统一走 `configQuery`（`GET /config` 单一缓存，`CONFIG_KEY = ["config"]`），各页面用 `select` 取子树；任何配置写入后 invalidate `CONFIG_KEY`。
    - 读后写（read-modify-write）场景只把 404 视为空值（`orNotFound`），其它错误照常抛出，禁止吞错后整体覆盖写。
