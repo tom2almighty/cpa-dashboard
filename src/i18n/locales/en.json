@@ -182,6 +182,7 @@
     "field_proxy": "Proxy",
     "vertex_imported": "Imported Vertex project {{project}}",
     "provider_label": "Provider:",
+    "oauth_provider_label": "OAuth entry:",
     "status_label": "Status:",
     "deleted_one": "Deleted {{name}}",
     "deleted_count": "Deleted {{count}} auth file(s)",

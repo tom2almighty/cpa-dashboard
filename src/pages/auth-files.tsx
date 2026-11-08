@@ -266,16 +266,21 @@ export function AuthFilesPage() {
     if (files.length) upload.mutate(files);
   }
 
-  const providers = useMemo(() => [...new Set(data.map((f) => f.provider ?? "").filter(Boolean))].sort(), [data]);
+  const providers = useMemo(
+    () => [...new Set(data.flatMap((f) => [f.provider ?? "", f.oauth_provider ?? ""]).filter(Boolean))].sort(),
+    [data],
+  );
 
   const matchFilters = useCallback(
     (f: AuthFile) => {
       const k = deferredKeyword.trim().toLowerCase();
       const wanted = statusFilter === "active" ? "ok" : statusFilter;
-      if (provider && f.provider !== provider) return false;
+      if (provider && f.provider !== provider && f.oauth_provider !== provider) return false;
       if (wanted !== "all" && authState(f) !== wanted) return false;
       if (k) {
-        const match = [f.name, f.email, f.label, f.note, f.provider].some((v) => v?.toLowerCase().includes(k));
+        const match = [f.name, f.email, f.label, f.note, f.provider, f.oauth_provider].some((v) =>
+          v?.toLowerCase().includes(k),
+        );
         if (!match) return false;
       }
       return true;
@@ -514,6 +519,11 @@ export function AuthFilesPage() {
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {f.provider ? <Badge variant="secondary">{f.provider}</Badge> : "—"}
+                        {f.oauth_provider && f.oauth_provider !== f.provider && (
+                          <Badge variant="outline" className="font-normal">
+                            {f.oauth_provider}
+                          </Badge>
+                        )}
                         {(f.siwc_status === "valid" || f.siwc_status === "invalid") && (
                           <Badge
                             variant={f.siwc_status === "invalid" ? "destructive" : "outline"}

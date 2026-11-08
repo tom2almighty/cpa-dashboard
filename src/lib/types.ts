@@ -17,6 +17,8 @@ export type AuthFile = {
   name: string;
   type?: string;
   provider?: string;
+  // 多入口插件登录时记录的 OAuth 入口标识(v8)；内置与单入口凭据不返回
+  oauth_provider?: string;
   label?: string;
   // unknown / active / pending / refreshing / error / disabled
   status?: string;

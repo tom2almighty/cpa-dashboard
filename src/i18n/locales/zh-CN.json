@@ -182,6 +182,7 @@
     "field_proxy": "代理",
     "vertex_imported": "已导入 Vertex 项目 {{project}}",
     "provider_label": "提供商：",
+    "oauth_provider_label": "登录入口：",
     "status_label": "状态：",
     "deleted_one": "已删除 {{name}}",
     "deleted_count": "已删除 {{count}} 个认证文件",

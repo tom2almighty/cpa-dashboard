@@ -402,6 +402,12 @@ export function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: 
               <span className="text-muted-foreground">{t("auth_files.provider_label")}</span>
               <p className="font-medium">{target.provider || "—"}</p>
             </div>
+            {target.oauth_provider && (
+              <div>
+                <span className="text-muted-foreground">{t("auth_files.oauth_provider_label")}</span>
+                <p className="font-medium">{target.oauth_provider}</p>
+              </div>
+            )}
             <div>
               <span className="text-muted-foreground">{t("auth_files.account_id")}</span>
               <p className="font-medium">{target.email || target.account || "—"}</p>
