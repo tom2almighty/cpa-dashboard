@@ -175,7 +175,7 @@ export const GROUPS: ConfigGroup[] = [
           {
             endpoint: "routing/session-affinity-rebind-on",
             type: "select",
-            options: ["any", "quota"],
+            options: ["any", "quota", "never"],
             fallback: "any",
           },
           { endpoint: "routing/session-affinity-ttl", type: "text", fallback: "1h" },

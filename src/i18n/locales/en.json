@@ -1389,10 +1389,11 @@
       },
       "routing/session-affinity-rebind-on": {
         "label": "Session Affinity Rebind",
-        "hint": "any: any credential failure rebinds the session; quota: transient errors fail over for one request only and only quota/auth errors rebind. Ignored when session-affinity is off",
+        "hint": "any: any credential failure rebinds the session; quota: transient errors fail over for one request only and only quota/auth errors rebind; never: never move an established session to another credential, return the error or retry the same credential instead. Ignored when session-affinity is off",
         "options": {
           "any": "Any failure (any)",
-          "quota": "Quota and auth only (quota)"
+          "quota": "Quota and auth only (quota)",
+          "never": "Never rebind (never)"
         }
       },
       "requests/tls-handshake-timeout-seconds": {

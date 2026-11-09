@@ -1389,10 +1389,11 @@
       },
       "routing/session-affinity-rebind-on": {
         "label": "会话粘性重绑时机",
-        "hint": "any：任何凭据失败都切换并重绑会话；quota：瞬态错误仅本次请求切换，额度与鉴权错误才重绑。session-affinity 关闭时忽略",
+        "hint": "any：任何凭据失败都切换并重绑会话；quota：瞬态错误仅本次请求切换，额度与鉴权错误才重绑；never：已建立的会话绝不切换到其它凭据，直接返回错误或重试原凭据。session-affinity 关闭时忽略",
         "options": {
           "any": "任意失败 (any)",
-          "quota": "仅额度与鉴权失败 (quota)"
+          "quota": "仅额度与鉴权失败 (quota)",
+          "never": "绝不重绑 (never)"
         }
       },
       "requests/tls-handshake-timeout-seconds": {
