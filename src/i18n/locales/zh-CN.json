@@ -661,6 +661,8 @@
     "store_load_failed": "读取插件商店失败：{{message}}",
     "source_load_failed": "商店源 {{name}} 读取失败：{{error}}",
     "store_hint": "插件会以宿主进程二进制形式运行，请仅从受信任的来源安装。",
+    "refresh_store": "刷新",
+    "refresh_store_hint": "重新从 GitHub 检查插件最新版本，服务端会限制短时间内频繁刷新。",
     "store_no_match": "未找到符合搜索条件的插件",
     "store_empty": "商店里没有插件",
     "store_filter_empty": "没有符合当前筛选条件的插件",

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, ShieldAlert } from "lucide-react";
+import { Download, ExternalLink, RefreshCw, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Pagination, paginate } from "@/components/pagination";
@@ -74,6 +74,13 @@ export function Store() {
     },
     onError: (e) => toast.error(errorText(e)),
   });
+  // 服务端默认缓存最新版本检查;手动刷新走 refresh 参数绕过缓存,受 GitHub 限流约束
+  const refreshStore = useMutation({
+    mutationFn: () => api<StoreResponse>("/v8/management/plugins/store?refresh=true"),
+    meta: { quiet: true },
+    onSuccess: (res) => queryClient.setQueryData(STORE_KEY, res),
+    onError: (e) => toast.error(errorText(e)),
+  });
   const sourceName = (id?: string) => data?.sources?.find((s) => s.id === id)?.name || id;
   const plugins = useMemo(() => {
     const list = (data?.plugins ?? [])
@@ -131,15 +138,27 @@ export function Store() {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">{t("plugins.store_hint")}</p>
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder={t("plugins.search_placeholder")}
-            className="w-56 sm:w-80 text-xs"
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshStore.mutate()}
+              disabled={refreshStore.isPending}
+              title={t("plugins.refresh_store_hint")}
+            >
+              {refreshStore.isPending ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
+              {t("plugins.refresh_store")}
+            </Button>
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder={t("plugins.search_placeholder")}
+              className="w-56 sm:w-80 text-xs"
+            />
+          </div>
         </div>
         <TabsContent value={filter}>
           {isPending ? (

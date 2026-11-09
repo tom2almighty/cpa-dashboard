@@ -661,6 +661,8 @@
     "store_load_failed": "Failed to load Plugin Store: {{message}}",
     "source_load_failed": "Failed to load store source {{name}}: {{error}}",
     "store_hint": "Plugins run as binaries in the host process. Only install from trusted sources.",
+    "refresh_store": "Refresh",
+    "refresh_store_hint": "Re-check latest plugin versions from GitHub. The server rate-limits rapid refreshes.",
     "store_no_match": "No plugins match your search",
     "store_empty": "No plugins in the store",
     "store_filter_empty": "No plugins match the current filter",
