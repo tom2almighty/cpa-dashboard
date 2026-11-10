@@ -172,6 +172,7 @@
       "payment_required": "Payment Required (402)",
       "not_found": "Not Found (404)",
       "model_not_supported": "Model Not Supported",
+      "transient_rate_limit": "Transient Rate Limit",
       "transient_error": "Transient Network Error"
     },
     "models_count": "{{count}} model(s)",

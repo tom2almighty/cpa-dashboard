@@ -172,6 +172,7 @@
       "payment_required": "需要付费 (402)",
       "not_found": "资源不存在 (404)",
       "model_not_supported": "模型不受支持",
+      "transient_rate_limit": "临时限流",
       "transient_error": "临时网络错误"
     },
     "models_count": "{{count}} 个模型",
