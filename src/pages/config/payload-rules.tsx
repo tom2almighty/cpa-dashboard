@@ -200,6 +200,7 @@ function RuleDialog({
                     { value: "claude", label: "Claude" },
                     { value: "codex", label: "Codex" },
                     { value: "antigravity", label: "Antigravity" },
+                    { value: "meta", label: "Meta" },
                   ]}
                   value={protocol || "all"}
                   onValueChange={(v) => setProtocol(v && v !== "all" ? v : "")}
@@ -214,6 +215,7 @@ function RuleDialog({
                     <SelectItem value="claude">Claude</SelectItem>
                     <SelectItem value="codex">Codex</SelectItem>
                     <SelectItem value="antigravity">Antigravity</SelectItem>
+                    <SelectItem value="meta">Meta</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
