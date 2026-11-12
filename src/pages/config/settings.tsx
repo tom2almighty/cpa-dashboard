@@ -10,17 +10,34 @@ import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound, replac
 import { showErrorToast } from "@/lib/toast";
 import { parseValue, SettingField } from "./settings-fields";
 
-export { parseAuthRules, parseChannelEntries, parseIceServers, parseValue, SettingField } from "./settings-fields";
+export {
+  parseAuthRules,
+  parseChannelEntries,
+  parseIceServers,
+  parseStringMap,
+  parseValue,
+  SettingField,
+} from "./settings-fields";
 
 export type Json = Record<string, unknown>;
 
 // 文案取自 i18n：config.fields.<endpoint>.{label,hint,options.<value>}，config.groups.<id>
-// list 为每行一项的字符串数组，auth-rules 为插件商店认证规则数组，
-// channel-entries 为「渠道 -> 条目数组」对象（如 oauth.settings），
+// list 为每行一项的字符串数组，string-map 为字符串键值对对象（如 sensitive-words-replace），
+// auth-rules 为插件商店认证规则数组，channel-entries 为「渠道 -> 条目数组」对象（如 oauth.settings），
 // ice-servers 为 Codex Live 的 STUN/TURN 条目数组
 export type Setting = {
   endpoint: string;
-  type: "bool" | "int" | "text" | "password" | "select" | "list" | "auth-rules" | "channel-entries" | "ice-servers";
+  type:
+    | "bool"
+    | "int"
+    | "text"
+    | "password"
+    | "select"
+    | "list"
+    | "string-map"
+    | "auth-rules"
+    | "channel-entries"
+    | "ice-servers";
   options?: string[];
   fallback?: string | boolean;
   /** channel-entries 可视化编辑时每个条目的字段 */
@@ -42,6 +59,9 @@ export type ConfigGroup = {
 
 /** 一条插件商店认证规则,键名沿用 CPA 的 json tag(snake_case) */
 export type AuthRule = Record<string, unknown>;
+
+/** 字符串键值对配置,如 sensitive-words-replace */
+export type StringMap = Record<string, string>;
 
 /** Codex Live 的 STUN/TURN 服务器;凭据字段不会由配置接口回显 */
 export type IceServer = { urls: string[]; username?: string; credential?: string };
@@ -263,6 +283,7 @@ export const GROUPS: ConfigGroup[] = [
         items: [
           { endpoint: "upstream/claude/model-level-cooling", type: "bool" },
           { endpoint: "upstream/claude/tool-search", type: "bool" },
+          { endpoint: "upstream/claude/server-side-fallback", type: "bool" },
           { endpoint: "upstream/claude/disable-claude-cloak-mode", type: "bool" },
           { endpoint: "upstream/claude/disable-cloaking-model-list", type: "bool" },
           { endpoint: "upstream/claude/header-defaults/user-agent", type: "text" },
@@ -351,6 +372,7 @@ export const GROUPS: ConfigGroup[] = [
           { endpoint: "oauth/providers/antigravity/signature-cache-enabled", type: "bool", fallback: true },
           { endpoint: "oauth/providers/antigravity/signature-bypass-strict", type: "bool" },
           { endpoint: "oauth/providers/antigravity/sensitive-words", type: "list" },
+          { endpoint: "oauth/providers/antigravity/sensitive-words-replace", type: "string-map" },
           { endpoint: "oauth/providers/antigravity/connection-pool/enabled", type: "bool" },
           { endpoint: "oauth/providers/antigravity/connection-pool/idle-conn-timeout", type: "text", fallback: "30s" },
           {
@@ -362,7 +384,10 @@ export const GROUPS: ConfigGroup[] = [
       },
       {
         id: "devin",
-        items: [{ endpoint: "oauth/providers/devin/sensitive-words", type: "list" }],
+        items: [
+          { endpoint: "oauth/providers/devin/sensitive-words", type: "list" },
+          { endpoint: "oauth/providers/devin/sensitive-words-replace", type: "string-map" },
+        ],
       },
     ],
   },
@@ -553,8 +578,13 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
       if (setting.type === "bool") return typeof value === "boolean" ? value : setting.fallback === true;
       if (value === undefined) return String(setting.fallback ?? "");
       if (setting.type === "list" && Array.isArray(value)) return value.join("\n");
-      if (setting.type === "auth-rules" || setting.type === "channel-entries" || setting.type === "ice-servers")
-        return JSON.stringify(value ?? [], null, 2);
+      if (
+        setting.type === "string-map" ||
+        setting.type === "auth-rules" ||
+        setting.type === "channel-entries" ||
+        setting.type === "ice-servers"
+      )
+        return JSON.stringify(value ?? (setting.type === "string-map" ? {} : []), null, 2);
       return String(value);
     },
     [config],
@@ -598,7 +628,12 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
           );
         }
         // map 类型 PATCH 会深度合并、删不掉已有键,整体 PUT 替换
-        if (setting.type === "auth-rules" || setting.type === "channel-entries" || setting.type === "ice-servers") {
+        if (
+          setting.type === "string-map" ||
+          setting.type === "auth-rules" ||
+          setting.type === "channel-entries" ||
+          setting.type === "ice-servers"
+        ) {
           replaced.push([setting.endpoint, value]);
           continue;
         }

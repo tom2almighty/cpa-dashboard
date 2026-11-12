@@ -23,6 +23,7 @@ import {
   type IceServer,
   readPath,
   type Setting,
+  type StringMap,
   useConfigSettings,
 } from "./settings";
 
@@ -34,6 +35,14 @@ export function parseValue(type: Setting["type"], text: string): unknown {
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
+  if (type === "string-map") {
+    try {
+      const value: unknown = JSON.parse(text);
+      return isStringMap(value) ? value : undefined;
+    } catch {
+      return undefined;
+    }
+  }
   if (type === "auth-rules" || type === "channel-entries" || type === "ice-servers") {
     if (type === "ice-servers") return parseIceServers(text) ?? undefined;
     try {
@@ -56,6 +65,11 @@ function isRule(value: unknown): value is AuthRule {
 /** 「渠道 -> 条目数组」:每个值都必须是非空对象的数组 */
 function isChannelEntries(value: unknown): value is ChannelEntries {
   return isRule(value) && Object.values(value).every((entries) => Array.isArray(entries) && entries.every(isRule));
+}
+
+/** 字符串键值对:非空对象,且每个值都是字符串 */
+function isStringMap(value: unknown): value is StringMap {
+  return isRule(value) && Object.values(value).every((item) => typeof item === "string");
 }
 
 export function SettingField({ setting }: { setting: Setting }) {
@@ -151,6 +165,18 @@ export function SettingField({ setting }: { setting: Setting }) {
     control = (
       <ListField id={id} labelId={labelId} text={text} invalid={invalid} onChange={(next) => setValue(setting, next)} />
     );
+  } else if (setting.type === "string-map") {
+    control = (
+      <DualModeField
+        ariaLabelledBy={labelId}
+        value={text}
+        onChange={(next) => setValue(setting, next)}
+        parse={parseStringMap}
+        format={(entries) => JSON.stringify(entries, null, 2)}
+        render={(entries, write) => <StringMapField value={entries} write={write} />}
+        invalidHint={t("config.settings.map_invalid_json")}
+      />
+    );
   } else if (setting.type === "auth-rules") {
     control = (
       <DualModeField
@@ -221,6 +247,7 @@ export function SettingField({ setting }: { setting: Setting }) {
   // list / 双模式编辑器需要整行宽度,其余保持左右分栏
   const wide =
     setting.type === "list" ||
+    setting.type === "string-map" ||
     setting.type === "auth-rules" ||
     setting.type === "channel-entries" ||
     setting.type === "ice-servers";
@@ -500,6 +527,82 @@ export function parseChannelEntries(text: string): ChannelEntries | null {
   } catch {
     return null;
   }
+}
+
+/** 文本 → 字符串键值对;空文本视为空对象 */
+export function parseStringMap(text: string): StringMap | null {
+  if (text.trim() === "") return {};
+  try {
+    const value: unknown = JSON.parse(text);
+    return isStringMap(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 字符串键值对可视化编辑:左侧原文,右侧替换值 */
+function StringMapField({ value, write }: { value: StringMap; write: (next: StringMap) => void }) {
+  const { t } = useI18n();
+  const [rows, setRows] = useState(() => Object.entries(value).map(([key, item]) => ({ key, value: item })));
+  const rowKeys = useRef<string[]>([]);
+  const keySeq = useRef(0);
+  while (rowKeys.current.length < rows.length) rowKeys.current.push(`map-${keySeq.current++}`);
+  if (rowKeys.current.length > rows.length) rowKeys.current.length = rows.length;
+
+  const commit = (next: { key: string; value: string }[]) => {
+    setRows(next);
+    const map: StringMap = {};
+    for (const row of next) if (row.key) map[row.key] = row.value;
+    write(map);
+  };
+
+  return (
+    <div className="grid gap-2">
+      {rows.length === 0 && <p className="text-xs text-muted-foreground">{t("config.settings.map_empty")}</p>}
+      {rows.map((row, index) => (
+        <div key={rowKeys.current[index]} className="flex items-center gap-2">
+          <Input
+            value={row.key}
+            placeholder={t("config.settings.map_key")}
+            aria-label={t("config.settings.map_key")}
+            onChange={(e) => commit(rows.map((item, i) => (i === index ? { ...item, key: e.target.value } : item)))}
+            className="flex-1 font-mono text-xs"
+          />
+          <Input
+            value={row.value}
+            placeholder={t("config.settings.map_value")}
+            aria-label={t("config.settings.map_value")}
+            onChange={(e) => commit(rows.map((item, i) => (i === index ? { ...item, value: e.target.value } : item)))}
+            className="flex-1 font-mono text-xs"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+            title={t("config.settings.list_remove")}
+            aria-label={t("config.settings.list_remove")}
+            onClick={() => {
+              rowKeys.current.splice(index, 1);
+              commit(rows.filter((_, i) => i !== index));
+            }}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 w-fit gap-1 text-xs"
+        onClick={() => commit([...rows, { key: "", value: "" }])}
+      >
+        <Plus className="size-3.5" />
+        {t("config.settings.map_add")}
+      </Button>
+    </div>
+  );
 }
 
 /** 认证规则列表;规则来自 JSON、自身没有 id,这里按行分配稳定 key,只在增删行时变动 */

@@ -10,6 +10,7 @@ import {
   parseAuthRules,
   parseChannelEntries,
   parseIceServers,
+  parseStringMap,
   parseValue,
   readPath,
 } from "./settings";
@@ -34,6 +35,11 @@ const SETTINGS_KEYS = [
   "invalid_value",
   "list_add",
   "list_remove",
+  "map_add",
+  "map_key",
+  "map_value",
+  "map_empty",
+  "map_invalid_json",
   "auth_add_rule",
   "auth_rule",
   "auth_empty",
@@ -152,6 +158,17 @@ test("parseChannelEntries 只接受「渠道 -> 条目数组」", () => {
   expect(parseChannelEntries('{"codex":{}}')).toBeNull();
   expect(parseChannelEntries('{"codex":["x"]}')).toBeNull();
   expect(parseChannelEntries("{")).toBeNull();
+});
+
+test("parseStringMap 只接受字符串键值对", () => {
+  expect(parseStringMap('{"Claude Code":"Claude"}')).toEqual({ "Claude Code": "Claude" });
+  expect(parseStringMap("{}")).toEqual({});
+  expect(parseStringMap("")).toEqual({});
+  expect(parseStringMap('{"a":"b","c":1}')).toBeNull();
+  expect(parseStringMap('["a"]')).toBeNull();
+  expect(parseStringMap("{")).toBeNull();
+  expect(parseValue("string-map", '{"Claude Code":"Claude"}')).toEqual({ "Claude Code": "Claude" });
+  expect(parseValue("string-map", '{"c":1}')).toBeUndefined();
 });
 
 test("parseIceServers 规范化 URL 并保留凭据", () => {

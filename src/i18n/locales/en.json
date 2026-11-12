@@ -763,6 +763,11 @@
       "invalid_value": "{{field}}: invalid format",
       "list_add": "Add row",
       "list_remove": "Remove this item",
+      "map_add": "Add key-value pair",
+      "map_key": "Original text",
+      "map_value": "Replace with",
+      "map_empty": "No replacements yet",
+      "map_invalid_json": "Invalid JSON: expected an object of string key-value pairs",
       "auth_add_rule": "Add rule",
       "auth_rule": "Rule {{index}}",
       "auth_empty": "No auth rules yet",
@@ -1226,6 +1231,10 @@
         "label": "Claude Tool Search",
         "hint": "Enable Codex client tool_search on Claude Responses routes with native tool search where supported"
       },
+      "upstream/claude/server-side-fallback": {
+        "label": "Claude Server-Side Fallback",
+        "hint": "Let Anthropic add cross-model fallbacks when a cloaked request does not declare any. Off by default; enable only when needed"
+      },
       "upstream/claude/disable-cloaking-model-list": {
         "label": "Uncloaked Claude Model List",
         "hint": "Return original model IDs in the Anthropic model list instead of cloaked ones"
@@ -1344,11 +1353,19 @@
       },
       "oauth/providers/antigravity/sensitive-words": {
         "label": "Antigravity Sensitive Words",
-        "hint": "Words obfuscated with zero-width characters in system instructions, one per line. Matching is case-insensitive; empty entries are removed on save"
+        "hint": "Words obfuscated with invisible combining characters in system instructions, one per line. Matching is case-insensitive; empty entries are removed on save"
+      },
+      "oauth/providers/antigravity/sensitive-words-replace": {
+        "label": "Antigravity Sensitive Word Replacements",
+        "hint": "Single-pass literal replacements with longest match first, for example mapping a specific system prompt to a generic description. Works alongside sensitive-word obfuscation"
       },
       "oauth/providers/devin/sensitive-words": {
         "label": "Devin System Prompt Sensitive Words",
-        "hint": "Words obfuscated with zero-width characters in Devin system instructions and prompts, one per line. A match removes the whole line, so configure carefully"
+        "hint": "Words that remove the whole matching line in Devin system instructions and prompts, one per line. Empty entries are removed on save, so configure carefully"
+      },
+      "oauth/providers/devin/sensitive-words-replace": {
+        "label": "Devin Sensitive Word Replacements",
+        "hint": "Single-pass literal replacements in system prompts with longest match first, for example mapping a specific prompt to a generic description"
       },
       "client/codex/enable-apply-patch": {
         "label": "Codex apply_patch Capability",

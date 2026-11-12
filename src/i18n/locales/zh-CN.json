@@ -763,6 +763,11 @@
       "invalid_value": "{{field}}：格式不正确",
       "list_add": "添加一行",
       "list_remove": "删除该项",
+      "map_add": "添加键值对",
+      "map_key": "原文",
+      "map_value": "替换为",
+      "map_empty": "暂无替换规则",
+      "map_invalid_json": "JSON 格式不正确：需要一个字符串键值对对象",
       "auth_add_rule": "添加规则",
       "auth_rule": "规则 {{index}}",
       "auth_empty": "暂无认证规则",
@@ -1226,6 +1231,10 @@
         "label": "Claude 工具搜索 (tool-search)",
         "hint": "在 Claude Responses 路由上启用 Codex 客户端 tool_search；支持原生工具搜索的上游使用 Anthropic native 协议"
       },
+      "upstream/claude/server-side-fallback": {
+        "label": "Claude 服务端回退 (server-side-fallback)",
+        "hint": "请求未显式提供 fallback 时，由 Anthropic 服务端补充跨模型回退；默认关闭，仅在需要时开启"
+      },
       "upstream/claude/disable-cloaking-model-list": {
         "label": "Claude 模型列表不伪装",
         "hint": "Anthropic 模型列表返回原始模型 ID，而不是伪装后的 ID"
@@ -1344,11 +1353,19 @@
       },
       "oauth/providers/antigravity/sensitive-words": {
         "label": "Antigravity 敏感词",
-        "hint": "在 system instructions 中用零宽字符混淆的词，每行一项；匹配不区分大小写，保存时移除空项"
+        "hint": "在 system instructions 中用不可见组合字符混淆的词，每行一项；匹配不区分大小写，保存时移除空项"
+      },
+      "oauth/providers/antigravity/sensitive-words-replace": {
+        "label": "Antigravity 敏感词替换",
+        "hint": "按最长匹配优先做单次字面替换，如把特定系统提示词换成普通描述；与敏感词混淆可同时生效"
       },
       "oauth/providers/devin/sensitive-words": {
         "label": "Devin 系统提示词敏感词",
-        "hint": "在 Devin system instructions 与 prompt 中用零宽字符混淆的词，每行一项；命中会使整行被删除，谨慎配置"
+        "hint": "在 Devin system instructions 与 prompt 中命中即删除整行，每行一项；保存时移除空项，谨慎配置"
+      },
+      "oauth/providers/devin/sensitive-words-replace": {
+        "label": "Devin 敏感词替换",
+        "hint": "在 system prompts 中按最长匹配优先做单次字面替换，如把特定提示词换成普通描述"
       },
       "client/codex/enable-apply-patch": {
         "label": "Codex apply_patch 能力 (enable-apply-patch)",
