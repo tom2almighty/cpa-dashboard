@@ -127,6 +127,10 @@ export const GROUPS: ConfigGroup[] = [
         ],
       },
       {
+        id: "shutdown",
+        items: [{ endpoint: "server/shutdown-timeout", type: "int", fallback: "0" }],
+      },
+      {
         id: "compression",
         items: [
           { endpoint: "server/response-compression/enabled", type: "bool", fallback: true },

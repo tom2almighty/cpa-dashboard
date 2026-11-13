@@ -871,7 +871,7 @@
     "groups": {
       "plugins": "Dynamic binary plugin discovery, store sources and store auth (the plugins section)",
       "models": "Model catalog sources (HTTP(s) URLs or absolute local paths, corresponding to the models section in config.yaml)",
-      "server": "Listener, response compression, TLS, local KV storage and LAN service discovery (the server section)",
+      "server": "Listener, graceful shutdown, response compression, TLS, local KV storage and LAN service discovery (the server section)",
       "management": "Management access and the bundled control panel (the management section)",
       "routing": "Credential selection strategy, session affinity, retries and cooldown (the routing section)",
       "requests": "Upstream proxy, header passthrough, stream keep-alives and multimedia (the requests section)",
@@ -890,6 +890,7 @@
       },
       "server": {
         "listening": "Listener",
+        "shutdown": "Graceful shutdown",
         "compression": "Response compression",
         "tls": "TLS",
         "storage": "Local KV store",
@@ -1182,6 +1183,10 @@
       "server/trusted-proxies": {
         "label": "Trusted Proxies",
         "hint": "IPs or CIDRs allowed to send forwarded client IP headers, one per line; empty trusts none. Requires restart"
+      },
+      "server/shutdown-timeout": {
+        "label": "Shutdown Drain Timeout (seconds)",
+        "hint": "How long in-flight HTTP requests may finish after SIGINT/SIGTERM before remaining connections are closed; 0 closes immediately. WebSocket sessions are not drained"
       },
       "server/discovery/enabled": {
         "label": "LAN Service Discovery",
