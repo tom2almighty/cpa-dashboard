@@ -171,6 +171,7 @@ const ERROR_KEYS: Record<string, string> = {
   invalid_config: "api_error.invalid_config",
   invalid_yaml: "api_error.invalid_yaml",
   provider_not_found: "api_error.provider_not_found",
+  "invalid proxy_url": "api_error.invalid_proxy_url",
   read_only_field: "api_error.read_only_field",
   plugin_delete_requires_restart: "api_error.delete_requires_restart",
   plugin_update_requires_restart: "api_error.update_requires_restart",

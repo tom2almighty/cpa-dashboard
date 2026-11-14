@@ -349,6 +349,7 @@
     "invalid_config": "配置未通过 CPA 校验：{{message}}",
     "invalid_yaml": "YAML 无法解析：{{message}}",
     "provider_not_found": "CPA 不支持该登录提供商",
+    "invalid_proxy_url": "代理地址无效，请使用 http、https、socks5 或 socks5h",
     "read_only_field": "该字段由 CPA 托管，不能修改",
     "delete_requires_restart": "该插件无法热卸载，删除后需要重启 CPA",
     "update_requires_restart": "该插件无法热更新，更新后需要重启 CPA",

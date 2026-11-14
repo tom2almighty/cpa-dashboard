@@ -349,6 +349,7 @@
     "invalid_config": "CPA rejected this config: {{message}}",
     "invalid_yaml": "YAML cannot be parsed: {{message}}",
     "provider_not_found": "CPA does not support this login provider",
+    "invalid_proxy_url": "Invalid proxy URL; use http, https, socks5, or socks5h",
     "read_only_field": "This field is owned by CPA and cannot be changed",
     "delete_requires_restart": "This plugin cannot be hot-unloaded; restart CPA after deleting it",
     "update_requires_restart": "This plugin cannot be hot-updated; restart CPA after updating it",
