@@ -32,6 +32,7 @@ export type PluginOAuthProvider = {
 export type Plugin = {
   id: string;
   registered?: boolean;
+  priority?: number;
   enabled?: boolean;
   effective_enabled?: boolean;
   supports_oauth?: boolean;

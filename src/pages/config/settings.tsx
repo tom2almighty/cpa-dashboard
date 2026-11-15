@@ -14,6 +14,7 @@ export {
   parseAuthRules,
   parseChannelEntries,
   parseIceServers,
+  parsePatternRules,
   parseStringMap,
   parseValue,
   SettingField,
@@ -23,6 +24,7 @@ export type Json = Record<string, unknown>;
 
 // 文案取自 i18n：config.fields.<endpoint>.{label,hint,options.<value>}，config.groups.<id>
 // list 为每行一项的字符串数组，string-map 为字符串键值对对象（如 sensitive-words-replace），
+// pattern-rules 为按序执行的正则替换数组（如 sensitive-patterns-replace），
 // auth-rules 为插件商店认证规则数组，channel-entries 为「渠道 -> 条目数组」对象（如 oauth.settings），
 // ice-servers 为 Codex Live 的 STUN/TURN 条目数组
 export type Setting = {
@@ -35,6 +37,7 @@ export type Setting = {
     | "select"
     | "list"
     | "string-map"
+    | "pattern-rules"
     | "auth-rules"
     | "channel-entries"
     | "ice-servers";
@@ -62,6 +65,9 @@ export type AuthRule = Record<string, unknown>;
 
 /** 字符串键值对配置,如 sensitive-words-replace */
 export type StringMap = Record<string, string>;
+
+/** 按序执行的 Go RE2 正则替换规则,如 sensitive-patterns-replace */
+export type PatternRule = { pattern: string; replacement: string };
 
 /** Codex Live 的 STUN/TURN 服务器;凭据字段不会由配置接口回显 */
 export type IceServer = { urls: string[]; username?: string; credential?: string };
@@ -373,10 +379,12 @@ export const GROUPS: ConfigGroup[] = [
         id: "antigravity",
         items: [
           { endpoint: "oauth/providers/antigravity/antigravity-credits", type: "bool", fallback: true },
+          { endpoint: "oauth/providers/antigravity/tos-pause-window", type: "text", fallback: "0" },
           { endpoint: "oauth/providers/antigravity/signature-cache-enabled", type: "bool", fallback: true },
           { endpoint: "oauth/providers/antigravity/signature-bypass-strict", type: "bool" },
           { endpoint: "oauth/providers/antigravity/sensitive-words", type: "list" },
           { endpoint: "oauth/providers/antigravity/sensitive-words-replace", type: "string-map" },
+          { endpoint: "oauth/providers/antigravity/sensitive-patterns-replace", type: "pattern-rules" },
           { endpoint: "oauth/providers/antigravity/connection-pool/enabled", type: "bool" },
           { endpoint: "oauth/providers/antigravity/connection-pool/idle-conn-timeout", type: "text", fallback: "30s" },
           {
@@ -391,6 +399,7 @@ export const GROUPS: ConfigGroup[] = [
         items: [
           { endpoint: "oauth/providers/devin/sensitive-words", type: "list" },
           { endpoint: "oauth/providers/devin/sensitive-words-replace", type: "string-map" },
+          { endpoint: "oauth/providers/devin/sensitive-patterns-replace", type: "pattern-rules" },
         ],
       },
     ],
@@ -584,6 +593,7 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
       if (setting.type === "list" && Array.isArray(value)) return value.join("\n");
       if (
         setting.type === "string-map" ||
+        setting.type === "pattern-rules" ||
         setting.type === "auth-rules" ||
         setting.type === "channel-entries" ||
         setting.type === "ice-servers"
@@ -634,6 +644,7 @@ export function ConfigSettingsProvider({ children }: { children: React.ReactNode
         // map 类型 PATCH 会深度合并、删不掉已有键,整体 PUT 替换
         if (
           setting.type === "string-map" ||
+          setting.type === "pattern-rules" ||
           setting.type === "auth-rules" ||
           setting.type === "channel-entries" ||
           setting.type === "ice-servers"

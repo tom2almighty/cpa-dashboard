@@ -21,6 +21,7 @@ import {
   type ChannelEntries,
   type EntryFieldSpec,
   type IceServer,
+  type PatternRule,
   readPath,
   type Setting,
   type StringMap,
@@ -42,6 +43,10 @@ export function parseValue(type: Setting["type"], text: string): unknown {
     } catch {
       return undefined;
     }
+  }
+  if (type === "pattern-rules") {
+    if (text.trim() === "") return undefined;
+    return parsePatternRules(text) ?? undefined;
   }
   if (type === "auth-rules" || type === "channel-entries" || type === "ice-servers") {
     if (type === "ice-servers") return parseIceServers(text) ?? undefined;
@@ -177,6 +182,18 @@ export function SettingField({ setting }: { setting: Setting }) {
         invalidHint={t("config.settings.map_invalid_json")}
       />
     );
+  } else if (setting.type === "pattern-rules") {
+    control = (
+      <DualModeField
+        ariaLabelledBy={labelId}
+        value={text}
+        onChange={(next) => setValue(setting, next)}
+        parse={parsePatternRules}
+        format={(rules) => JSON.stringify(rules, null, 2)}
+        render={(rules, write) => <PatternRulesField value={rules} write={write} />}
+        invalidHint={t("config.settings.pattern_invalid_json")}
+      />
+    );
   } else if (setting.type === "auth-rules") {
     control = (
       <DualModeField
@@ -248,6 +265,7 @@ export function SettingField({ setting }: { setting: Setting }) {
   const wide =
     setting.type === "list" ||
     setting.type === "string-map" ||
+    setting.type === "pattern-rules" ||
     setting.type === "auth-rules" ||
     setting.type === "channel-entries" ||
     setting.type === "ice-servers";
@@ -538,6 +556,104 @@ export function parseStringMap(text: string): StringMap | null {
   } catch {
     return null;
   }
+}
+
+function isPatternRule(value: unknown): value is { pattern: string; replacement?: string } {
+  return (
+    isRule(value) &&
+    typeof value.pattern === "string" &&
+    (value.replacement === undefined || typeof value.replacement === "string")
+  );
+}
+
+/** 文本 → 按序执行的正则替换规则数组;空文本视为空数组,空白 pattern 会被过滤 */
+export function parsePatternRules(text: string): PatternRule[] | null {
+  if (text.trim() === "") return [];
+  try {
+    const value: unknown = JSON.parse(text);
+    if (!Array.isArray(value) || !value.every(isPatternRule)) return null;
+    const out: PatternRule[] = [];
+    for (const item of value) {
+      const pattern = item.pattern.trim();
+      if (!pattern) continue;
+      out.push({ pattern, replacement: item.replacement ?? "" });
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/** 正则替换规则列表可视化编辑:左侧 Go RE2 正则,右侧替换文本(留空表示删除命中内容) */
+function PatternRulesField({ value, write }: { value: PatternRule[]; write: (next: PatternRule[]) => void }) {
+  const { t } = useI18n();
+  const [rows, setRows] = useState(() =>
+    value.map((item) => ({ pattern: item.pattern, replacement: item.replacement })),
+  );
+  const rowKeys = useRef<string[]>([]);
+  const keySeq = useRef(0);
+  while (rowKeys.current.length < rows.length) rowKeys.current.push(`pattern-${keySeq.current++}`);
+  if (rowKeys.current.length > rows.length) rowKeys.current.length = rows.length;
+
+  const commit = (next: PatternRule[]) => {
+    setRows(next);
+    const rules: PatternRule[] = [];
+    for (const row of next) {
+      const pattern = row.pattern.trim();
+      if (pattern) rules.push({ pattern, replacement: row.replacement });
+    }
+    write(rules);
+  };
+
+  return (
+    <div className="grid gap-2">
+      {rows.length === 0 && <p className="text-xs text-muted-foreground">{t("config.settings.pattern_empty")}</p>}
+      {rows.map((row, index) => (
+        <div key={rowKeys.current[index]} className="flex items-center gap-2">
+          <Input
+            value={row.pattern}
+            placeholder={t("config.settings.pattern_regex")}
+            aria-label={t("config.settings.pattern_regex")}
+            onChange={(e) => commit(rows.map((item, i) => (i === index ? { ...item, pattern: e.target.value } : item)))}
+            className="flex-1 font-mono text-xs"
+          />
+          <Input
+            value={row.replacement}
+            placeholder={t("config.settings.pattern_replacement")}
+            aria-label={t("config.settings.pattern_replacement")}
+            onChange={(e) =>
+              commit(rows.map((item, i) => (i === index ? { ...item, replacement: e.target.value } : item)))
+            }
+            className="flex-1 font-mono text-xs"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+            title={t("config.settings.list_remove")}
+            aria-label={t("config.settings.list_remove")}
+            onClick={() => {
+              rowKeys.current.splice(index, 1);
+              commit(rows.filter((_, i) => i !== index));
+            }}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 w-fit gap-1 text-xs"
+        onClick={() => commit([...rows, { pattern: "", replacement: "" }])}
+      >
+        <Plus className="size-3.5" />
+        {t("config.settings.pattern_add")}
+      </Button>
+    </div>
+  );
 }
 
 /** 字符串键值对可视化编辑:左侧原文,右侧替换值 */

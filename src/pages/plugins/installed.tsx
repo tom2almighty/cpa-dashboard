@@ -171,13 +171,24 @@ export function Installed() {
                 </TableCell>
                 <TableCell className="tabular-nums">{p.metadata?.version || "—"}</TableCell>
                 <TableCell>
-                  {p.effective_enabled ? (
-                    <Badge variant="secondary">{t("plugins.status_running")}</Badge>
-                  ) : p.registered ? (
-                    <Badge variant="outline">{t("plugins.status_disabled")}</Badge>
-                  ) : (
-                    <Badge variant="outline">{t("plugins.status_unloaded")}</Badge>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {p.effective_enabled ? (
+                      <Badge variant="secondary">{t("plugins.status_running")}</Badge>
+                    ) : p.registered ? (
+                      <Badge variant="outline">{t("plugins.status_disabled")}</Badge>
+                    ) : (
+                      <Badge variant="outline">{t("plugins.status_unloaded")}</Badge>
+                    )}
+                    {p.registered && typeof p.priority === "number" && (
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-xs font-normal"
+                        title={t("plugins.priority_hint")}
+                      >
+                        {t("plugins.priority_badge", { priority: p.priority })}
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Switch

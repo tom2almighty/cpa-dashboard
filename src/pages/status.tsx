@@ -13,6 +13,7 @@ import { type AuthFile, authState, authUsable } from "@/lib/types";
 
 // refreshing、pending 是正常的中间状态,不算需要处理
 function needsAttention(f: AuthFile): boolean {
+  if (f.disabled && (f.status_message === "tos_violation" || Boolean(f.tos_appeal_url))) return true;
   const state = authState(f);
   return state === "cooldown" || state === "error" || state === "sign_in";
 }
@@ -155,11 +156,13 @@ export function StatusPage() {
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{accountName(f)}</span>
                       <Badge variant="destructive">
-                        {authState(f) === "sign_in"
-                          ? t("auth_files.status_sign_in")
-                          : authState(f) === "cooldown"
-                            ? t("overview.cooldown")
-                            : t("auth_files.status_auth_error")}
+                        {f.disabled && (f.status_message === "tos_violation" || f.tos_appeal_url)
+                          ? t("auth_files.status_tos_violation")
+                          : authState(f) === "sign_in"
+                            ? t("auth_files.status_sign_in")
+                            : authState(f) === "cooldown"
+                              ? t("overview.cooldown")
+                              : t("auth_files.status_auth_error")}
                       </Badge>
                     </div>
                     {f.status_message && (

@@ -34,7 +34,19 @@ import { contentQuery, file } from "./shared";
 export function StatusCell({ file: f }: { file: AuthFile }) {
   const { t } = useI18n();
   const state = authState(f);
-  if (state === "disabled") return <Badge variant="outline">{t("auth_files.status_disabled")}</Badge>;
+  if (state === "disabled") {
+    if (f.status_message === "tos_violation" || f.tos_appeal_url) {
+      return (
+        <span className="grid gap-0.5" title={t("auth_files.tos_violation_hint")}>
+          <Badge variant="destructive" className="w-fit">
+            {t("auth_files.status_tos_violation")}
+          </Badge>
+          <span className="text-xs text-muted-foreground">{t("auth_files.status_disabled")}</span>
+        </span>
+      );
+    }
+    return <Badge variant="outline">{t("auth_files.status_disabled")}</Badge>;
+  }
   if (state === "sign_in") {
     return (
       <Badge variant="outline" className="text-warning" title={t("auth_files.recovery_hint")}>
@@ -386,6 +398,9 @@ export function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: 
   const prefix = text(content.data?.prefix);
   const proxyUrl = text(content.data?.proxy_url ?? content.data?.["proxy-url"]);
   const state = authState(target);
+  const appealUrl = text(target.tos_appeal_url);
+  const safeAppealUrl = /^https?:\/\//i.test(appealUrl) ? appealUrl : "";
+  const isTosViolation = target.status_message === "tos_violation" || Boolean(safeAppealUrl);
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
@@ -426,7 +441,9 @@ export function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: 
               <span className="text-muted-foreground">{t("auth_files.status_label")}</span>
               <p className="font-medium">
                 {state === "disabled"
-                  ? t("auth_files.status_disabled")
+                  ? isTosViolation
+                    ? `${t("auth_files.status_disabled")} (${t("auth_files.status_tos_violation")})`
+                    : t("auth_files.status_disabled")
                   : state === "sign_in"
                     ? t("auth_files.status_sign_in")
                     : state === "cooldown"
@@ -447,6 +464,24 @@ export function DetailsDialog({ target, onClose }: { target: AuthFile; onClose: 
           </div>
 
           <RenewalDetails target={target} />
+
+          {isTosViolation && (
+            <div className="grid gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+              <span className="font-medium text-destructive">{t("auth_files.status_tos_violation")}</span>
+              <p className="text-muted-foreground">{t("auth_files.tos_violation_hint")}</p>
+              {safeAppealUrl && (
+                <a
+                  href={safeAppealUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex w-fit items-center gap-1 font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+                >
+                  {text(target.tos_appeal_url_text) || t("auth_files.tos_appeal_default")}
+                  <ExternalLink className="size-3" />
+                </a>
+              )}
+            </div>
+          )}
 
           {target.provider?.toLowerCase() === "codex" && target.siwc_bind_supported !== undefined && (
             <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">

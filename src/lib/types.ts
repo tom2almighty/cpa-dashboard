@@ -23,6 +23,8 @@ export type AuthFile = {
   // unknown / active / pending / refreshing / error / disabled
   status?: string;
   status_message?: string;
+  tos_appeal_url?: string;
+  tos_appeal_url_text?: string;
   requires_sign_in?: boolean;
   renewal_state?: string;
   recovery_stage?: string;

@@ -173,7 +173,8 @@
       "not_found": "Not Found (404)",
       "model_not_supported": "Model Not Supported",
       "transient_rate_limit": "Transient Rate Limit",
-      "transient_error": "Transient Network Error"
+      "transient_error": "Transient Network Error",
+      "tos_violation": "Terms of Service Violation (TOS_VIOLATION)"
     },
     "models_count": "{{count}} model(s)",
     "saved": "Saved",
@@ -302,7 +303,10 @@
     "verify_hint": "Send a minimal inference request using {{name}} in an isolated session. This consumes a small amount of quota. Success only verifies inference, not automatic renewal, and does not clear existing quota cooldowns.",
     "verify_model": "Model (optional; CPA selects one when empty)",
     "verify_success": "Inference verified; automatic renewal is tracked separately",
-    "verify_incomplete": "The request completed, but inference is not verified for this credential"
+    "verify_incomplete": "The request completed, but inference is not verified for this credential",
+    "status_tos_violation": "TOS Violation",
+    "tos_violation_hint": "CPA disabled this credential after an upstream 403 TOS_VIOLATION response. Re-enable it manually once the appeal is resolved.",
+    "tos_appeal_default": "Open appeal link"
   },
   "oauth": {
     "title": "OAuth Login",
@@ -623,6 +627,8 @@
     "status_running": "Running",
     "status_disabled": "Disabled",
     "status_unloaded": "Not Loaded",
+    "priority_badge": "Priority {{priority}}",
+    "priority_hint": "Runtime scheduling priority of the plugin in the host",
     "th_plugin": "Plugin",
     "th_version": "Version",
     "th_status": "Status",
@@ -769,6 +775,11 @@
       "map_value": "Replace with",
       "map_empty": "No replacements yet",
       "map_invalid_json": "Invalid JSON: expected an object of string key-value pairs",
+      "pattern_add": "Add regex rule",
+      "pattern_regex": "Go RE2 regex pattern",
+      "pattern_replacement": "Replace with (leave empty to delete match)",
+      "pattern_empty": "No regex replacement rules yet",
+      "pattern_invalid_json": "Invalid JSON: expected an array of objects with pattern and replacement fields",
       "auth_add_rule": "Add rule",
       "auth_rule": "Rule {{index}}",
       "auth_empty": "No auth rules yet",
@@ -1095,6 +1106,10 @@
         "label": "Antigravity Credits",
         "hint": "When free quota is exhausted (429/503), allow retrying with credentials that have paid credits"
       },
+      "oauth/providers/antigravity/tos-pause-window": {
+        "label": "Antigravity TOS Pause Window",
+        "hint": "Go duration (e.g. 6h) to protectively pause remaining active Antigravity credentials when any credential is disabled on 403 TOS_VIOLATION; defaults to 0 (disabled)"
+      },
       "oauth/providers/antigravity/signature-cache-enabled": {
         "label": "Antigravity Signature Cache",
         "hint": "Cache and validate thinking block signatures to greatly improve concurrent throughput and stability"
@@ -1359,11 +1374,15 @@
       },
       "oauth/providers/antigravity/sensitive-words": {
         "label": "Antigravity Sensitive Words",
-        "hint": "Words obfuscated with invisible combining characters in system instructions, one per line. Matching is case-insensitive; empty entries are removed on save"
+        "hint": "Words obfuscated with invisible combining characters in system instructions, one per line. Deleting flagged text with an empty regex replacement below is recommended instead"
       },
       "oauth/providers/antigravity/sensitive-words-replace": {
         "label": "Antigravity Sensitive Word Replacements",
         "hint": "Single-pass literal replacements with longest match first, for example mapping a specific system prompt to a generic description. Works alongside sensitive-word obfuscation"
+      },
+      "oauth/providers/antigravity/sensitive-patterns-replace": {
+        "label": "Antigravity Sensitive Regex Replacements",
+        "hint": "Ordered Go RE2 regex replacement rules (e.g. (?i)opencode) applied before literal replacements; leave replacement empty to delete matches. Invalid or blank patterns are ignored"
       },
       "oauth/providers/devin/sensitive-words": {
         "label": "Devin System Prompt Sensitive Words",
@@ -1372,6 +1391,10 @@
       "oauth/providers/devin/sensitive-words-replace": {
         "label": "Devin Sensitive Word Replacements",
         "hint": "Single-pass literal replacements in system prompts with longest match first, for example mapping a specific prompt to a generic description"
+      },
+      "oauth/providers/devin/sensitive-patterns-replace": {
+        "label": "Devin Sensitive Regex Replacements",
+        "hint": "Ordered Go RE2 regex replacement rules applied before literal replacements; leave replacement empty to delete matches. Invalid or blank patterns are ignored"
       },
       "client/codex/enable-apply-patch": {
         "label": "Codex apply_patch Capability",

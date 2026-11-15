@@ -10,6 +10,7 @@ import {
   parseAuthRules,
   parseChannelEntries,
   parseIceServers,
+  parsePatternRules,
   parseStringMap,
   parseValue,
   readPath,
@@ -40,6 +41,11 @@ const SETTINGS_KEYS = [
   "map_value",
   "map_empty",
   "map_invalid_json",
+  "pattern_add",
+  "pattern_regex",
+  "pattern_replacement",
+  "pattern_empty",
+  "pattern_invalid_json",
   "auth_add_rule",
   "auth_rule",
   "auth_empty",
@@ -169,6 +175,22 @@ test("parseStringMap 只接受字符串键值对", () => {
   expect(parseStringMap("{")).toBeNull();
   expect(parseValue("string-map", '{"Claude Code":"Claude"}')).toEqual({ "Claude Code": "Claude" });
   expect(parseValue("string-map", '{"c":1}')).toBeUndefined();
+});
+
+test("parsePatternRules 规范化按序正则替换规则并过滤空白 pattern", () => {
+  expect(parsePatternRules("")).toEqual([]);
+  expect(
+    parsePatternRules('[{"pattern":" (?i)opencode ","replacement":""},{"pattern":"   ","replacement":"x"}]'),
+  ).toEqual([{ pattern: "(?i)opencode", replacement: "" }]);
+  expect(parsePatternRules('[{"pattern":"foo"}]')).toEqual([{ pattern: "foo", replacement: "" }]);
+  expect(parsePatternRules('{"pattern":"foo"}')).toBeNull();
+  expect(parsePatternRules('[{"pattern":1}]')).toBeNull();
+  expect(parsePatternRules('[{"pattern":"foo","replacement":1}]')).toBeNull();
+  expect(parseValue("pattern-rules", '[{"pattern":"(?i)opencode","replacement":""}]')).toEqual([
+    { pattern: "(?i)opencode", replacement: "" },
+  ]);
+  expect(parseValue("pattern-rules", "")).toBeUndefined();
+  expect(parseValue("pattern-rules", '{"pattern":"foo"}')).toBeUndefined();
 });
 
 test("parseIceServers 规范化 URL 并保留凭据", () => {

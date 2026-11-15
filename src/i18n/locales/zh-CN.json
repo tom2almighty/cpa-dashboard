@@ -173,7 +173,8 @@
       "not_found": "资源不存在 (404)",
       "model_not_supported": "模型不受支持",
       "transient_rate_limit": "临时限流",
-      "transient_error": "临时网络错误"
+      "transient_error": "临时网络错误",
+      "tos_violation": "违反服务条款 (TOS_VIOLATION)"
     },
     "models_count": "{{count}} 个模型",
     "saved": "已保存",
@@ -302,7 +303,10 @@
     "verify_hint": "将使用 {{name}} 发送一次独立会话的最小推理请求，会消耗少量额度。成功仅验证推理可用，不代表自动续期正常，也不会清除已有额度冷却。",
     "verify_model": "模型（可选，留空由 CPA 选择）",
     "verify_success": "推理验证通过；自动续期状态单独记录",
-    "verify_incomplete": "请求结束，但凭据尚未通过推理验证"
+    "verify_incomplete": "请求结束，但凭据尚未通过推理验证",
+    "status_tos_violation": "TOS 违规封禁",
+    "tos_violation_hint": "该凭据因上游返回 403 TOS_VIOLATION 被 CPA 自动停用，申诉恢复后可手动重新启用。",
+    "tos_appeal_default": "打开申诉链接"
   },
   "oauth": {
     "title": "OAuth 登录",
@@ -623,6 +627,8 @@
     "status_running": "运行中",
     "status_disabled": "已停用",
     "status_unloaded": "未加载",
+    "priority_badge": "优先级 {{priority}}",
+    "priority_hint": "插件在宿主运行时的调度优先级",
     "th_plugin": "插件",
     "th_version": "版本",
     "th_status": "状态",
@@ -769,6 +775,11 @@
       "map_value": "替换为",
       "map_empty": "暂无替换规则",
       "map_invalid_json": "JSON 格式不正确：需要一个字符串键值对对象",
+      "pattern_add": "添加正则规则",
+      "pattern_regex": "Go RE2 正则表达式",
+      "pattern_replacement": "替换为（留空删除匹配内容）",
+      "pattern_empty": "暂无正则替换规则",
+      "pattern_invalid_json": "JSON 格式不正确：需要包含 pattern 与 replacement 字段的对象数组",
       "auth_add_rule": "添加规则",
       "auth_rule": "规则 {{index}}",
       "auth_empty": "暂无认证规则",
@@ -1095,6 +1106,10 @@
         "label": "Antigravity 超额使用 Credits",
         "hint": "免费额度耗尽（429/503）时，允许使用带有付费积分的凭据重试"
       },
+      "oauth/providers/antigravity/tos-pause-window": {
+        "label": "Antigravity TOS 违规池暂停时长",
+        "hint": "任一凭据触发 403 TOS_VIOLATION 被停用时，将其余活跃 Antigravity 凭据保护性暂停的 Go 时长（如 6h）；默认 0（不暂停其余凭据）"
+      },
       "oauth/providers/antigravity/signature-cache-enabled": {
         "label": "Antigravity 思考签名缓存",
         "hint": "缓存并验证思考块签名以大幅提升多并发吞吐与稳定性"
@@ -1359,11 +1374,15 @@
       },
       "oauth/providers/antigravity/sensitive-words": {
         "label": "Antigravity 敏感词",
-        "hint": "在 system instructions 中用不可见组合字符混淆的词，每行一项；匹配不区分大小写，保存时移除空项"
+        "hint": "在 system instructions 中用不可见组合字符混淆的词，每行一项；建议改用下方正则替换将敏感词替换为空串直接删除"
       },
       "oauth/providers/antigravity/sensitive-words-replace": {
         "label": "Antigravity 敏感词替换",
         "hint": "按最长匹配优先做单次字面替换，如把特定系统提示词换成普通描述；与敏感词混淆可同时生效"
+      },
+      "oauth/providers/antigravity/sensitive-patterns-replace": {
+        "label": "Antigravity 敏感正则替换",
+        "hint": "在字面替换之前按顺序执行的 Go RE2 正则替换规则（如 (?i)opencode），替换值留空即删除命中内容；无效或空白模式会被后端忽略"
       },
       "oauth/providers/devin/sensitive-words": {
         "label": "Devin 系统提示词敏感词",
@@ -1372,6 +1391,10 @@
       "oauth/providers/devin/sensitive-words-replace": {
         "label": "Devin 敏感词替换",
         "hint": "在 system prompts 中按最长匹配优先做单次字面替换，如把特定提示词换成普通描述"
+      },
+      "oauth/providers/devin/sensitive-patterns-replace": {
+        "label": "Devin 敏感正则替换",
+        "hint": "在字面替换之前按顺序执行的 Go RE2 正则替换规则，替换值留空即删除命中内容；无效或空白模式会被后端忽略"
       },
       "client/codex/enable-apply-patch": {
         "label": "Codex apply_patch 能力 (enable-apply-patch)",
