@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import { ArrowLeftRight, ListOrdered, Scale } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,12 @@ import { cn } from "@/lib/utils";
 
 const strategyKey = (strategy: RoutingStrategy) => strategy.replace(/-/g, "_");
 
+const STRATEGY_ICONS: Record<RoutingStrategy, typeof ArrowLeftRight> = {
+  "round-robin": ArrowLeftRight,
+  "weighted-round-robin": Scale,
+  "fill-first": ListOrdered,
+};
+
 export function PolicyPanel({
   settings,
   disabled,
@@ -46,13 +53,16 @@ export function PolicyPanel({
   };
 
   return (
-    <aside className="space-y-5 self-start rounded-lg border bg-card p-4" aria-label={t("routing.policy_title")}>
+    <aside
+      className="space-y-5 self-start rounded-xl bg-card p-4 ring-1 ring-foreground/10 lg:sticky lg:top-6"
+      aria-label={t("routing.policy_title")}
+    >
       <div>
         <h2 className="text-sm font-medium">{t("routing.policy_title")}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{t("routing.policy_desc")}</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("routing.policy_desc")}</p>
       </div>
 
-      <section className="space-y-2">
+      <section className="space-y-2 border-t pt-4">
         <h3 className="text-xs font-medium text-muted-foreground">{t("routing.strategy_label")}</h3>
         <ToggleGroup
           orientation="vertical"
@@ -65,30 +75,34 @@ export function PolicyPanel({
           className="w-full"
           spacing={2}
         >
-          {ROUTING_STRATEGIES.map((strategy) => (
-            <ToggleGroupItem
-              key={strategy}
-              value={strategy}
-              className={cn(
-                "h-auto w-full items-start justify-start rounded-md border border-transparent px-2.5 py-2 text-left hover:bg-muted",
-                "aria-pressed:border-border aria-pressed:bg-muted aria-pressed:text-foreground",
-              )}
-            >
-              <span className="flex flex-col gap-0.5">
-                <span className="text-xs font-medium">{t(`routing.strategy_${strategyKey(strategy)}` as never)}</span>
-                <span className="text-[10px] font-normal text-muted-foreground">
-                  {t(`routing.strategy_${strategyKey(strategy)}_desc` as never)}
+          {ROUTING_STRATEGIES.map((strategy) => {
+            const Icon = STRATEGY_ICONS[strategy];
+            return (
+              <ToggleGroupItem
+                key={strategy}
+                value={strategy}
+                className={cn(
+                  "h-auto w-full min-w-0 shrink items-start justify-start gap-2.5 whitespace-normal rounded-lg border border-transparent px-2.5 py-2.5 text-left hover:bg-muted/50",
+                  "aria-pressed:border-border aria-pressed:bg-muted/60 aria-pressed:text-foreground",
+                )}
+              >
+                <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-xs font-medium">{t(`routing.strategy_${strategyKey(strategy)}` as never)}</span>
+                  <span className="text-[11px] leading-relaxed font-normal text-muted-foreground">
+                    {t(`routing.strategy_${strategyKey(strategy)}_desc` as never)}
+                  </span>
                 </span>
-              </span>
-            </ToggleGroupItem>
-          ))}
+              </ToggleGroupItem>
+            );
+          })}
         </ToggleGroup>
       </section>
 
-      <section className="flex items-start justify-between gap-3">
+      <section className="flex items-start justify-between gap-3 border-t pt-4">
         <div className="min-w-0">
           <h3 className="text-xs font-medium">{t("routing.session_affinity")}</h3>
-          <p className="mt-1 text-[10px] text-muted-foreground">{t("routing.session_affinity_desc")}</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("routing.session_affinity_desc")}</p>
         </div>
         <Switch
           checked={settings.sessionAffinity}
@@ -98,12 +112,14 @@ export function PolicyPanel({
         />
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-3 border-t pt-4">
         <h3 className="text-xs font-medium text-muted-foreground">{t("routing.retry_label")}</h3>
         <label htmlFor="routing-request-retry" className="flex items-center justify-between gap-3">
           <span className="min-w-0">
             <span className="block text-xs">{t("routing.request_retry")}</span>
-            <span className="block text-[10px] text-muted-foreground">{t("routing.request_retry_desc")}</span>
+            <span className="block text-[11px] leading-relaxed text-muted-foreground">
+              {t("routing.request_retry_desc")}
+            </span>
           </span>
           <Input
             id="routing-request-retry"
@@ -114,13 +130,15 @@ export function PolicyPanel({
             disabled={disabled}
             aria-label={t("routing.request_retry")}
             onChange={(event) => update({ requestRetry: Math.min(100, readCount(event.target.value)) })}
-            className="h-7 w-16 shrink-0 text-right text-xs tabular-nums"
+            className="h-8 w-16 shrink-0 text-right text-xs tabular-nums"
           />
         </label>
         <label htmlFor="routing-max-retry-credentials" className="flex items-center justify-between gap-3">
           <span className="min-w-0">
             <span className="block text-xs">{t("routing.max_retry_credentials")}</span>
-            <span className="block text-[10px] text-muted-foreground">{t("routing.max_retry_credentials_desc")}</span>
+            <span className="block text-[11px] leading-relaxed text-muted-foreground">
+              {t("routing.max_retry_credentials_desc")}
+            </span>
           </span>
           <Input
             id="routing-max-retry-credentials"
@@ -131,7 +149,7 @@ export function PolicyPanel({
             disabled={disabled}
             aria-label={t("routing.max_retry_credentials")}
             onChange={(event) => update({ maxRetryCredentials: readCount(event.target.value) })}
-            className="h-7 w-16 shrink-0 text-right text-xs tabular-nums"
+            className="h-8 w-16 shrink-0 text-right text-xs tabular-nums"
           />
         </label>
       </section>

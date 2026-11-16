@@ -1572,6 +1572,7 @@
     "preview_miss_model": "No available member serves {{model}}; the request will fail",
     "preview_miss": "No schedulable members",
     "ladder_label": "Priority tiers",
+    "ladder_desc": "Tried top to bottom; the scheduling policy splits traffic inside a tier.",
     "tier_label": "Tier {{index}}, {{count}} members",
     "tier_heading": "Tier {{index}}",
     "tier_count": "{{count}}",

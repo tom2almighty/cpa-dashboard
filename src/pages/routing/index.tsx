@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { GitBranch, RefreshCw, Search, X } from "lucide-react";
+import { GitBranch, GripVertical, RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -278,40 +278,53 @@ export function RoutingPage() {
     <>
       {header}
 
-      <div className="mb-4 flex flex-col gap-2.5 rounded-lg border bg-muted/20 p-3 xl:flex-row xl:items-center">
-        <div className="flex items-center gap-1.5 text-xs font-medium">
-          <GitBranch className="size-3.5 text-muted-foreground" />
-          {t("routing.preview_label")}
+      <section
+        aria-label={t("routing.preview_label")}
+        className="mb-4 rounded-xl bg-card p-3 ring-1 ring-foreground/10 sm:p-4"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex items-center gap-2.5 lg:w-44 lg:shrink-0">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <GitBranch className="size-4" aria-hidden />
+            </span>
+            <span className="text-sm font-medium">{t("routing.preview_label")}</span>
+          </div>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:max-w-sm">
+            <Search className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            <SuggestInput
+              id="routing-model"
+              value={model}
+              onChange={setModel}
+              options={modelOptions}
+              placeholder={t("routing.model_placeholder")}
+              ariaLabel={t("routing.model_placeholder")}
+            />
+            {model && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={t("routing.clear_model")}
+                title={t("routing.clear_model")}
+                onClick={() => setModel("")}
+              >
+                <X />
+              </Button>
+            )}
+          </div>
+          <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 px-2.5 py-1.5 lg:ml-auto">
+            <span
+              aria-hidden
+              className={cn("size-1.5 shrink-0 rounded-full", preview?.hasActive ? "bg-success" : "bg-warning")}
+            />
+            <p className={cn("min-w-0 text-xs text-muted-foreground", !preview?.hasActive && "text-warning")}>
+              {previewText}
+            </p>
+          </div>
         </div>
-        <div className="flex min-w-0 items-center gap-1.5 xl:w-80">
-          <Search className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          <SuggestInput
-            id="routing-model"
-            value={model}
-            onChange={setModel}
-            options={modelOptions}
-            placeholder={t("routing.model_placeholder")}
-            ariaLabel={t("routing.model_placeholder")}
-          />
-          {model && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={t("routing.clear_model")}
-              title={t("routing.clear_model")}
-              onClick={() => setModel("")}
-            >
-              <X />
-            </Button>
-          )}
-        </div>
-        <p className={cn("min-w-0 text-xs text-muted-foreground xl:ml-auto", !preview?.hasActive && "text-warning")}>
-          {previewText}
-        </p>
-      </div>
+      </section>
 
       {stale && dirty && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-warning/5 px-3 py-2 text-xs ring-1 ring-warning/40">
           <span className="min-w-0 flex-1">{t("routing.stale_notice")}</span>
           <Button variant="outline" size="xs" onClick={requestReload}>
             {t("routing.reload")}
@@ -322,14 +335,26 @@ export function RoutingPage() {
       {planError && (
         <div
           role="alert"
-          className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          className="mb-4 rounded-xl bg-destructive/5 px-3 py-2 text-xs text-destructive ring-1 ring-destructive/40"
         >
           {planError instanceof RoutingPriorityError ? t("routing.priority_error") : errorText(planError)}
         </div>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <div className="min-w-0">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <section className="min-w-0" aria-labelledby="routing-ladder-title">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <h2 id="routing-ladder-title" className="text-sm font-medium">
+                {t("routing.ladder_label")}
+              </h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t("routing.ladder_desc")}</p>
+            </div>
+            <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+              <GripVertical className="size-3.5" aria-hidden />
+              {t("routing.drag_hint")}
+            </span>
+          </div>
           <TierLadder
             board={board}
             draft={draft}
@@ -343,7 +368,7 @@ export function RoutingPage() {
             onStep={(key, direction) => updateDraft({ ...draft, tiers: stepMember(draft.tiers, key, direction) })}
             onEditWeights={(key) => setWeightsKey(key)}
           />
-        </div>
+        </section>
         <PolicyPanel
           settings={draft.settings}
           disabled={save.isPending}
@@ -352,7 +377,7 @@ export function RoutingPage() {
       </div>
 
       {dirty && plan && (
-        <div className="sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-2 rounded-lg border bg-background/95 p-3 shadow-sm backdrop-blur">
+        <div className="sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-card/95 p-3 shadow-sm ring-1 ring-foreground/10 backdrop-blur">
           <span className="text-xs font-medium">{t("routing.unsaved", { count: plan.changes.length })}</span>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={resetDraft} disabled={save.isPending}>

@@ -1572,6 +1572,7 @@
     "preview_miss_model": "没有可用成员能服务 {{model}}，请求会失败",
     "preview_miss": "当前没有可调度成员",
     "ladder_label": "优先级梯队",
+    "ladder_desc": "从上到下依次尝试，同一层内按调度策略分配。",
     "tier_label": "第 {{index}} 层，{{count}} 个成员",
     "tier_heading": "第 {{index}} 层",
     "tier_count": "{{count}} 个",
