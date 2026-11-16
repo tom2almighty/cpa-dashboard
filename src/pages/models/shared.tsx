@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   Combobox,
   ComboboxContent,
@@ -93,16 +94,23 @@ export function SuggestInput({
   ariaLabel?: string;
 }) {
   const { t } = useI18n();
+  const [typing, setTyping] = useState(false);
   return (
     <Combobox
       autoHighlight
       items={options}
       // 默认过滤不去空格，粘贴的模型名常带尾随空格
-      filter={(item: string, query: string) => item.toLowerCase().includes(query.trim().toLowerCase())}
+      filter={(item: string, query: string) => !typing || item.toLowerCase().includes(query.trim().toLowerCase())}
       value={value || null}
       onValueChange={(next) => onChange(typeof next === "string" ? next : "")}
       inputValue={value}
-      onInputValueChange={(next) => onChange(next)}
+      onInputValueChange={(next, details) => {
+        if (!details.isItemPress) setTyping(true);
+        onChange(next);
+      }}
+      onOpenChange={(open) => {
+        if (open) setTyping(false);
+      }}
     >
       <ComboboxInput
         id={id}

@@ -104,7 +104,12 @@
     "load_failed": "Failed to load: {{message}}",
     "unknown_provider": "Unknown",
     "summary_label": "Runtime summary",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "in_flight_label": "In-flight requests",
+    "in_flight": "In-flight requests {{count}}",
+    "in_flight_oldest": "Oldest started {{time}}",
+    "in_flight_by_provider": "By provider: {{list}}",
+    "in_flight_unavailable": "In-flight request data unavailable"
   },
   "auth_files": {
     "title": "Auth Files",

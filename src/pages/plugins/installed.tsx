@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useI18n } from "@/i18n/context";
 import { ApiError, api, configPath, errorText } from "@/lib/api";
-import { fetchPlugins, PLUGINS_KEY, type Plugin, resolvePluginMenuUrl } from "@/lib/plugins";
+import { fetchPlugins, PLUGIN_MUTATION_KEY, PLUGINS_KEY, type Plugin, resolvePluginMenuUrl } from "@/lib/plugins";
 import { ConfigDialog, PluginViewerDialog } from "./plugin-config";
 import { GithubIcon, PluginLogo, refreshPlugins } from "./shared";
 
@@ -38,6 +38,7 @@ export function Installed() {
   });
 
   const toggle = useMutation({
+    mutationKey: PLUGIN_MUTATION_KEY,
     mutationFn: (p: Plugin) =>
       api(configPath("plugins", "configs", p.id, "enabled"), { method: "PUT", body: !p.enabled }),
     onSuccess: (_res, p) =>
@@ -45,6 +46,7 @@ export function Installed() {
   });
 
   const remove = useMutation({
+    mutationKey: PLUGIN_MUTATION_KEY,
     mutationFn: (p: Plugin) => api(`/v8/management/plugins/${encodeURIComponent(p.id)}`, { method: "DELETE" }),
     meta: { quiet: true },
     onSuccess: (_res, p) => {

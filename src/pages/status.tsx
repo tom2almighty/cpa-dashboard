@@ -5,11 +5,17 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n/context";
-import { configQuery } from "@/lib/api";
+import { api, configQuery } from "@/lib/api";
 import { accountName, useCredentials } from "@/lib/credentials";
-import { formatInteger } from "@/lib/format";
+import { formatDateTime, formatInteger } from "@/lib/format";
 import { type Json, KINDS, list } from "@/lib/provider-form";
 import { type AuthFile, authState, authUsable } from "@/lib/types";
+
+type InFlight = {
+  in_flight: number;
+  oldest_started_at?: string;
+  by_provider?: Record<string, number>;
+};
 
 // refreshing、pending 是正常的中间状态,不算需要处理
 function needsAttention(f: AuthFile): boolean {
@@ -44,6 +50,13 @@ export function StatusPage() {
       };
     },
   });
+  const inFlight = useQuery({
+    queryKey: ["cpa", "observability", "requests", "in-flight"],
+    queryFn: () => api<InFlight>("/v8/management/observability/requests/in-flight"),
+    refetchInterval: 15_000,
+    retry: false,
+    staleTime: 0,
+  });
 
   if (isPending || isError) {
     return (
@@ -73,6 +86,8 @@ export function StatusPage() {
     groups.set(key, g);
   }
   const byProvider = [...groups].sort((a, b) => b[1].total - a[1].total);
+  const oldestStartedAt = inFlight.data?.oldest_started_at ? Date.parse(inFlight.data.oldest_started_at) : Number.NaN;
+  const inFlightProviders = Object.entries(inFlight.data?.by_provider ?? {}).sort((a, b) => b[1] - a[1]);
 
   return (
     <>
@@ -105,6 +120,31 @@ export function StatusPage() {
           value={config.data ? formatInteger(config.data.clientKeys) : "—"}
           detail={config.data?.clientKeys === 0 ? t("overview.not_configured") : undefined}
         />
+      </section>
+
+      <section
+        aria-label={t("overview.in_flight_label")}
+        className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b py-3 text-sm"
+      >
+        <span className="font-medium">
+          {inFlight.isError
+            ? t("overview.in_flight_unavailable")
+            : t("overview.in_flight", { count: formatInteger(inFlight.data?.in_flight ?? 0) })}
+        </span>
+        {Number.isFinite(oldestStartedAt) && (
+          <span className="text-muted-foreground">
+            {t("overview.in_flight_oldest", { time: formatDateTime(oldestStartedAt) })}
+          </span>
+        )}
+        {inFlightProviders.length > 0 && (
+          <span className="text-muted-foreground">
+            {t("overview.in_flight_by_provider", {
+              list: inFlightProviders
+                .map(([provider, count]) => `${provider} ${formatInteger(count)}`)
+                .join(t("overview.list_separator")),
+            })}
+          </span>
+        )}
       </section>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-2">

@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/context";
 import { api, configPath, configQuery, errorText } from "@/lib/api";
-import type { ConfigField, Plugin } from "@/lib/plugins";
+import { type ConfigField, PLUGIN_MUTATION_KEY, type Plugin } from "@/lib/plugins";
 import { defaultHint, fieldsOf, fromForm, kindOf, refreshPlugins, toForm } from "./shared";
 
 function FieldControl({
@@ -114,6 +114,7 @@ export function ConfigDialog({ plugin, onClose }: { plugin: Plugin; onClose: () 
   }, [data, plugin]);
 
   const save = useMutation({
+    mutationKey: PLUGIN_MUTATION_KEY,
     mutationFn: () => {
       const value = useForm ? fromForm(fields, values) : (JSON.parse(draft) as unknown);
       if (!value || typeof value !== "object" || Array.isArray(value))

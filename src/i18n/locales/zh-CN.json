@@ -104,7 +104,12 @@
     "load_failed": "读取失败：{{message}}",
     "unknown_provider": "未知",
     "summary_label": "运行概况",
-    "list_separator": "、"
+    "list_separator": "、",
+    "in_flight_label": "进行中请求",
+    "in_flight": "进行中请求 {{count}}",
+    "in_flight_oldest": "最早开始于 {{time}}",
+    "in_flight_by_provider": "按提供商：{{list}}",
+    "in_flight_unavailable": "进行中请求数据不可用"
   },
   "auth_files": {
     "title": "认证文件",

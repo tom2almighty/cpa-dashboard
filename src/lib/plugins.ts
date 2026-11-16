@@ -101,6 +101,7 @@ export function pluginOAuthIdentifiers(plugin: Plugin): string[] {
 }
 
 export const PLUGINS_KEY = ["cpa", "plugins"] as const;
+export const PLUGIN_MUTATION_KEY = ["cpa", "plugins", "mutation"] as const;
 
 // CPA 在输出插件元数据前会做 html.EscapeString，这里只还原一次，避免二次解码
 const PLUGIN_ENTITIES: Record<string, string> = {

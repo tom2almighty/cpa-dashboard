@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, RefreshCw, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/context";
 import { api, errorText } from "@/lib/api";
+import { PLUGIN_MUTATION_KEY } from "@/lib/plugins";
 import {
   formatRepoUrl,
   GithubIcon,
@@ -56,6 +57,7 @@ export function Store() {
   });
 
   const install = useMutation({
+    mutationKey: PLUGIN_MUTATION_KEY,
     mutationFn: ({ plugin: p, version }: { plugin: StorePlugin; version?: string }) => {
       const body = version?.trim() ? { version: version.trim() } : {};
       return api<{ version?: string }>(
@@ -82,6 +84,7 @@ export function Store() {
     onError: (e) => toast.error(errorText(e)),
   });
   const sourceName = (id?: string) => data?.sources?.find((s) => s.id === id)?.name || id;
+  const pluginBusy = useIsMutating({ mutationKey: PLUGIN_MUTATION_KEY }) > 0;
   const plugins = useMemo(() => {
     const list = (data?.plugins ?? [])
       .map((p) => localizeStorePlugin(p, language))
@@ -336,8 +339,9 @@ export function Store() {
                             <Button
                               size="sm"
                               variant={p.update_available ? "default" : "outline"}
-                              disabled={install.isPending}
+                              disabled={pluginBusy}
                               onClick={() => {
+                                if (pluginBusy) return;
                                 setInstallingTarget(p);
                                 setCustomVersion(p.version || "");
                               }}
@@ -415,7 +419,7 @@ export function Store() {
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              disabled={install.isPending}
+              disabled={pluginBusy}
               onClick={() => {
                 if (installingTarget) {
                   install.mutate({ plugin: installingTarget, version: customVersion });
