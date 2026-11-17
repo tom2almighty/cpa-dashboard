@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileCode, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, ChevronUp, FileCode, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,11 +23,28 @@ type PayloadRuleItem = {
   params?: Record<string, unknown> | string[];
 };
 
+// replace 规则:按顺序对最终上游请求中的用户文本做字面替换
+type PayloadReplaceTarget = {
+  role?: string;
+  positions?: number[];
+  all?: boolean;
+};
+
+type PayloadReplaceRuleItem = {
+  models?: ({ name: string; protocol?: string } & Json)[];
+  target?: PayloadReplaceTarget;
+  replacements?: Record<string, string>[];
+};
+
+type RuleModels = { models?: ({ name: string; protocol?: string } & Json)[] };
+
 type Section = "default" | "override" | "filter";
+type PayloadSection = Section | "replace";
 
 type PayloadConfig = {
   default?: PayloadRuleItem[];
   override?: PayloadRuleItem[];
+  replace?: PayloadReplaceRuleItem[];
   filter?: PayloadRuleItem[];
 };
 
@@ -40,23 +57,60 @@ type EditingRule = {
   paramsText: string;
 };
 
+type ReplaceRow = { id: string; from: string; to: string };
+
+type EditingReplaceRule = {
+  index: number | null;
+  original?: PayloadReplaceRuleItem;
+  modelName: string;
+  protocol: string;
+  allUsers: boolean;
+  positionsText: string;
+  rows: ReplaceRow[];
+};
+
 // v8: 按段整体替换 requests.payload.<section>,清空时删除该段
-async function updateSection(section: Section, change: (rules: PayloadRuleItem[]) => void) {
+async function updateSection<T>(section: PayloadSection, change: (rules: T[]) => void) {
   const path = configPath("requests", "payload", section);
-  const rules = (await api<PayloadRuleItem[] | null>(path).catch(orNotFound(null))) ?? [];
+  const rules = (await api<T[] | null>(path).catch(orNotFound(null))) ?? [];
   change(rules);
   if (rules.length > 0) await api(path, { method: "PUT", body: rules });
   else await api(path, { method: "DELETE" }).catch(orNotFound(undefined));
 }
 
+/** 解析从 1 开始的位置列表;格式不合法返回 null。 */
+export function parseReplacePositions(value: string): number[] | null {
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+  const positions = parts.map((part) => Number(part));
+  if (positions.some((position) => !Number.isSafeInteger(position) || position < 1)) return null;
+  return [...new Set(positions)];
+}
+
+let replaceRowSeq = 0;
+const nextReplaceRowId = () => `row-${++replaceRowSeq}`;
+const newReplaceRow = (): ReplaceRow => ({ id: nextReplaceRowId(), from: "", to: "" });
+
 // 表单只展示第一个模型的 name/protocol
 const isEmpty = (v: unknown) => v == null || v === "" || (typeof v === "object" && Object.keys(v).length === 0);
-function hasHiddenFields(rule: PayloadRuleItem | undefined): boolean {
+function hasHiddenFields(rule: RuleModels | undefined): boolean {
   const models = rule?.models ?? [];
   return (
     models.length > 1 ||
     Object.entries(models[0] ?? {}).some(([k, v]) => k !== "name" && k !== "protocol" && !isEmpty(v))
   );
+}
+
+// 合并到原规则上:保留其余模型及 headers、from-protocol、match 等表单未展示的字段
+function mergeRuleModels<T extends RuleModels>(original: T | undefined, modelName: string, protocol: string) {
+  const [first, ...others] = original?.models ?? [];
+  const model = { ...first, name: modelName };
+  if (protocol) model.protocol = protocol;
+  else delete model.protocol;
+  return { ...original, models: [model, ...others] } as T;
 }
 
 function RuleDialog({
@@ -270,7 +324,227 @@ function RuleDialog({
   );
 }
 
-function RuleCard({
+function ReplaceRuleDialog({
+  rule,
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  rule: EditingReplaceRule;
+  onClose: () => void;
+  onSave: (rule: EditingReplaceRule) => void;
+  isSaving: boolean;
+}) {
+  const { t } = useI18n();
+  const editing = rule.index !== null;
+  const [modelName, setModelName] = useState(rule.modelName);
+  const [protocol, setProtocol] = useState(rule.protocol);
+  const [allUsers, setAllUsers] = useState(rule.allUsers);
+  const [positionsText, setPositionsText] = useState(rule.positionsText);
+  const [rows, setRows] = useState<ReplaceRow[]>(rule.rows);
+
+  const updateRow = (id: string, patch: Partial<ReplaceRow>) =>
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  const moveRow = (index: number, direction: -1 | 1) =>
+    setRows((current) => {
+      const next = [...current];
+      const destination = index + direction;
+      if (destination < 0 || destination >= next.length) return current;
+      [next[index], next[destination]] = [next[destination], next[index]];
+      return next;
+    });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      ...rule,
+      modelName: modelName.trim() || "*",
+      protocol: protocol.trim(),
+      allUsers,
+      positionsText: positionsText.trim(),
+      rows,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-2xl">
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{editing ? t("config.payload.dialog_edit") : t("config.payload.dialog_add")}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {hasHiddenFields(rule.original) && (
+              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                {t("config.payload.hidden_fields")}
+              </p>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="replace-model">{t("config.payload.model")}</Label>
+                <Input
+                  id="replace-model"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  placeholder={t("config.payload.model_placeholder")}
+                  className="mt-1 font-mono text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="replace-protocol">{t("config.payload.protocol")}</Label>
+                <Select
+                  items={[
+                    { value: "all", label: t("config.payload.protocol_all") },
+                    { value: "gemini", label: "Gemini" },
+                    { value: "openai", label: "OpenAI" },
+                    { value: "claude", label: "Claude" },
+                    { value: "codex", label: "Codex" },
+                    { value: "antigravity", label: "Antigravity" },
+                    { value: "meta", label: "Meta" },
+                  ]}
+                  value={protocol || "all"}
+                  onValueChange={(v) => setProtocol(v && v !== "all" ? v : "")}
+                >
+                  <SelectTrigger id="replace-protocol" className="mt-1 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("config.payload.protocol_all")}</SelectItem>
+                    <SelectItem value="gemini">Gemini</SelectItem>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="claude">Claude</SelectItem>
+                    <SelectItem value="codex">Codex</SelectItem>
+                    <SelectItem value="antigravity">Antigravity</SelectItem>
+                    <SelectItem value="meta">Meta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="replace-target">{t("config.payload.replace_target")}</Label>
+                <Select
+                  items={[
+                    { value: "all", label: t("config.payload.replace_target_all") },
+                    { value: "positions", label: t("config.payload.replace_positions") },
+                  ]}
+                  value={allUsers ? "all" : "positions"}
+                  onValueChange={(v) => setAllUsers(v === "all")}
+                >
+                  <SelectTrigger id="replace-target" className="mt-1 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("config.payload.replace_target_all")}</SelectItem>
+                    <SelectItem value="positions">{t("config.payload.replace_positions")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {!allUsers && (
+                <div>
+                  <Label htmlFor="replace-positions">{t("config.payload.replace_positions_input")}</Label>
+                  <Input
+                    id="replace-positions"
+                    value={positionsText}
+                    onChange={(e) => setPositionsText(e.target.value)}
+                    placeholder={t("config.payload.replace_positions_placeholder")}
+                    className="mt-1 font-mono text-sm"
+                    required
+                  />
+                </div>
+              )}
+            </div>
+            {!allUsers && <p className="text-xs text-muted-foreground">{t("config.payload.replace_positions_hint")}</p>}
+
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <Label>{t("config.payload.replacements")}</Label>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => setRows((current) => [...current, newReplaceRow()])}
+                >
+                  <Plus className="size-3" />
+                  {t("config.payload.add_replacement")}
+                </Button>
+              </div>
+              <div className="mt-1.5 space-y-1.5">
+                {rows.map((row, index) => (
+                  <div key={row.id} className="flex min-w-0 items-center gap-1.5">
+                    <Input
+                      value={row.from}
+                      onChange={(e) => updateRow(row.id, { from: e.target.value })}
+                      aria-label={`${t("config.payload.replace_from")} ${index + 1}`}
+                      placeholder={t("config.payload.replace_from")}
+                      className="min-w-0 font-mono text-xs"
+                      required
+                    />
+                    <span className="shrink-0 text-muted-foreground">&rarr;</span>
+                    <Input
+                      value={row.to}
+                      onChange={(e) => updateRow(row.id, { to: e.target.value })}
+                      aria-label={`${t("config.payload.replace_to")} ${index + 1}`}
+                      placeholder={t("config.payload.replace_to")}
+                      className="min-w-0 font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={t("config.payload.move_up")}
+                      disabled={index === 0}
+                      onClick={() => moveRow(index, -1)}
+                    >
+                      <ChevronUp />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={t("config.payload.move_down")}
+                      disabled={index === rows.length - 1}
+                      onClick={() => moveRow(index, 1)}
+                    >
+                      <ChevronDown />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={t("config.payload.remove_replacement")}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{t("config.payload.replace_hint")}</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving && <Spinner />}
+              {t("config.payload.save_rule")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RuleCard<T extends RuleModels>({
   title,
   description,
   badge,
@@ -279,15 +553,17 @@ function RuleCard({
   onAdd,
   onEdit,
   onDelete,
+  children,
 }: {
   title: string;
   description: string;
   badge: string;
-  section: Section;
-  rules: PayloadRuleItem[] | undefined;
+  section: PayloadSection;
+  rules: T[] | undefined;
   onAdd: () => void;
-  onEdit: (rule: PayloadRuleItem, index: number) => void;
+  onEdit: (rule: T, index: number) => void;
   onDelete: (index: number) => void;
+  children: (rule: T) => ReactNode;
 }) {
   const { t } = useI18n();
   return (
@@ -351,14 +627,7 @@ function RuleCard({
                   </div>
                 </div>
 
-                {rule.params && (
-                  <div>
-                    <span className="text-muted-foreground font-medium">{t("config.payload.param_rules")}</span>
-                    <pre className="mt-1 overflow-x-auto rounded bg-muted/50 p-2 font-mono text-xs text-foreground">
-                      {Array.isArray(rule.params) ? rule.params.join("\n") : JSON.stringify(rule.params, null, 2)}
-                    </pre>
-                  </div>
-                )}
+                {children(rule)}
               </div>
             );
           })
@@ -368,10 +637,63 @@ function RuleCard({
   );
 }
 
+function ParamsBody({ rule }: { rule: PayloadRuleItem }) {
+  const { t } = useI18n();
+  if (!rule.params) return null;
+  return (
+    <div>
+      <span className="text-muted-foreground font-medium">{t("config.payload.param_rules")}</span>
+      <pre className="mt-1 overflow-x-auto rounded bg-muted/50 p-2 font-mono text-xs text-foreground">
+        {Array.isArray(rule.params) ? rule.params.join("\n") : JSON.stringify(rule.params, null, 2)}
+      </pre>
+    </div>
+  );
+}
+
+function ReplaceBody({ rule }: { rule: PayloadReplaceRuleItem }) {
+  const { t } = useI18n();
+  const target = rule.target;
+  return (
+    <>
+      <div>
+        <span className="text-muted-foreground font-medium">{t("config.payload.replace_target")}: </span>
+        {target?.all
+          ? t("config.payload.replace_target_all")
+          : t("config.payload.replace_target_positions", {
+              positions: (target?.positions ?? []).join(", "),
+            })}
+      </div>
+      {rule.replacements?.length ? (
+        <div>
+          <span className="text-muted-foreground font-medium">{t("config.payload.replacements")}</span>
+          <ul className="mt-1 space-y-1">
+            {rule.replacements.map((entry, entryIndex) => {
+              const [from, to] = Object.entries(entry)[0] ?? ["", ""];
+              return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 只读展示列表,顺序即配置顺序
+                <li key={`${from}-${entryIndex}`} className="flex flex-wrap items-center gap-1.5 font-mono">
+                  <span className="break-all">{from}</span>
+                  <span className="text-muted-foreground">&rarr;</span>
+                  {to ? (
+                    <span className="break-all">{to}</span>
+                  ) : (
+                    <span className="text-muted-foreground italic">{t("config.payload.replace_delete")}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [dialogRule, setDialogRule] = useState<EditingRule | null>(null);
+  const [dialogReplace, setDialogReplace] = useState<EditingReplaceRule | null>(null);
 
   const { data: payload = {}, isPending } = useQuery({
     ...configQuery,
@@ -398,12 +720,8 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
       }
 
       // 合并到原规则上:保留其余模型及 headers、from-protocol、match 等表单未展示的字段
-      const [first, ...others] = rule.original?.models ?? [];
-      const model = { ...first, name: rule.modelName };
-      if (rule.protocol) model.protocol = rule.protocol;
-      else delete model.protocol;
-      const item: PayloadRuleItem = { ...rule.original, models: [model, ...others], params };
-      await updateSection(rule.section, (rules) => {
+      const item = { ...mergeRuleModels(rule.original, rule.modelName, rule.protocol), params };
+      await updateSection<PayloadRuleItem>(rule.section, (rules) => {
         if (rule.index !== null && rule.index < rules.length) rules[rule.index] = item;
         else rules.push(item);
       });
@@ -415,9 +733,50 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
     },
   });
 
+  const saveReplaceMutation = useMutation({
+    mutationFn: async (rule: EditingReplaceRule) => {
+      const positions = rule.allUsers ? [] : parseReplacePositions(rule.positionsText);
+      if (!rule.allUsers && !positions) {
+        throw new Error(t("config.payload.invalid_positions"));
+      }
+      if (rule.rows.length === 0 || rule.rows.some((row) => !row.from)) {
+        throw new Error(t("config.payload.invalid_replacements"));
+      }
+      const target: PayloadReplaceTarget = rule.allUsers
+        ? { role: "user", all: true }
+        : { role: "user", positions: positions ?? [] };
+      const item = {
+        ...mergeRuleModels(rule.original, rule.modelName, rule.protocol),
+        target,
+        replacements: rule.rows.map((row) => ({ [row.from]: row.to })),
+      };
+      await updateSection<PayloadReplaceRuleItem>("replace", (rules) => {
+        if (rule.index !== null && rule.index < rules.length) rules[rule.index] = item;
+        else rules.push(item);
+      });
+    },
+    onSuccess: () => {
+      toast.success(t("config.payload.updated"));
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
+      setDialogReplace(null);
+    },
+  });
+
   const deleteRule = async (section: Section, index: number) => {
     try {
-      await updateSection(section, (rules) => {
+      await updateSection<PayloadRuleItem>(section, (rules) => {
+        rules.splice(index, 1);
+      });
+      toast.success(t("config.payload.deleted"));
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
+    } catch (e) {
+      showErrorToast(t("config.payload.delete_failed", { message: (e as Error).message }));
+    }
+  };
+
+  const deleteReplaceRule = async (index: number) => {
+    try {
+      await updateSection<PayloadReplaceRuleItem>("replace", (rules) => {
         rules.splice(index, 1);
       });
       toast.success(t("config.payload.deleted"));
@@ -487,7 +846,9 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
               })
             }
             onDelete={(index) => deleteRule("default", index)}
-          />
+          >
+            {(rule) => <ParamsBody rule={rule} />}
+          </RuleCard>
 
           <RuleCard
             title={t("config.payload.override_title")}
@@ -515,7 +876,48 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
               })
             }
             onDelete={(index) => deleteRule("override", index)}
-          />
+          >
+            {(rule) => <ParamsBody rule={rule} />}
+          </RuleCard>
+
+          <div className="md:col-span-2">
+            <RuleCard<PayloadReplaceRuleItem>
+              title={t("config.payload.replace_title")}
+              description={t("config.payload.replace_desc")}
+              badge="Replace"
+              section="replace"
+              rules={payload.replace}
+              onAdd={() =>
+                setDialogReplace({
+                  index: null,
+                  modelName: "*",
+                  protocol: "",
+                  allUsers: true,
+                  positionsText: "1",
+                  rows: [newReplaceRow()],
+                })
+              }
+              onEdit={(rule, index) => {
+                const target = rule.target;
+                const rows = (rule.replacements ?? []).flatMap((entry) => {
+                  const [from, to] = Object.entries(entry)[0] ?? ["", ""];
+                  return from ? [{ id: nextReplaceRowId(), from, to }] : [];
+                });
+                setDialogReplace({
+                  index,
+                  original: rule,
+                  modelName: rule.models?.[0]?.name ?? "*",
+                  protocol: rule.models?.[0]?.protocol ?? "",
+                  allUsers: Boolean(target?.all),
+                  positionsText: (target?.positions ?? []).join(", ") || "1",
+                  rows: rows.length > 0 ? rows : [newReplaceRow()],
+                });
+              }}
+              onDelete={(index) => deleteReplaceRule(index)}
+            >
+              {(rule) => <ReplaceBody rule={rule} />}
+            </RuleCard>
+          </div>
 
           <div className="md:col-span-2">
             <RuleCard
@@ -544,7 +946,9 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
                 })
               }
               onDelete={(index) => deleteRule("filter", index)}
-            />
+            >
+              {(rule) => <ParamsBody rule={rule} />}
+            </RuleCard>
           </div>
         </div>
       )}
@@ -555,6 +959,15 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
           onClose={() => setDialogRule(null)}
           onSave={(updated) => saveMutation.mutate(updated)}
           isSaving={saveMutation.isPending}
+        />
+      )}
+
+      {dialogReplace && (
+        <ReplaceRuleDialog
+          rule={dialogReplace}
+          onClose={() => setDialogReplace(null)}
+          onSave={(updated) => saveReplaceMutation.mutate(updated)}
+          isSaving={saveReplaceMutation.isPending}
         />
       )}
     </div>
