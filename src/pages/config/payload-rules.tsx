@@ -23,11 +23,12 @@ type PayloadRuleItem = {
   params?: Record<string, unknown> | string[];
 };
 
-// replace 规则:按顺序对最终上游请求中的用户文本做字面替换
+// replace 规则:按顺序对最终上游请求中已存在的字符串做字面或正则替换
 type PayloadReplaceTarget = {
   role?: string;
   positions?: number[];
   all?: boolean;
+  paths?: string[];
 };
 
 type PayloadReplaceRuleItem = {
@@ -35,6 +36,9 @@ type PayloadReplaceRuleItem = {
   target?: PayloadReplaceTarget;
   replacements?: Record<string, string>[];
 };
+
+type ReplacementKind = "literal" | "regex";
+type TargetMode = "role" | "paths";
 
 type RuleModels = { models?: ({ name: string; protocol?: string } & Json)[] };
 
@@ -57,15 +61,18 @@ type EditingRule = {
   paramsText: string;
 };
 
-type ReplaceRow = { id: string; from: string; to: string };
+type ReplaceRow = { id: string; kind: ReplacementKind; from: string; to: string };
 
 type EditingReplaceRule = {
   index: number | null;
   original?: PayloadReplaceRuleItem;
   modelName: string;
   protocol: string;
-  allUsers: boolean;
+  targetMode: TargetMode;
+  role: string;
+  allTarget: boolean;
   positionsText: string;
+  pathsText: string;
   rows: ReplaceRow[];
 };
 
@@ -90,9 +97,32 @@ export function parseReplacePositions(value: string): number[] | null {
   return [...new Set(positions)];
 }
 
+/** 解析每行一个的 JSON 路径;全部为空返回 null。 */
+export function parseReplacePaths(value: string): string[] | null {
+  const paths = value
+    .split("\n")
+    .map((path) => path.trim())
+    .filter(Boolean);
+  return paths.length > 0 ? paths : null;
+}
+
+/** 把配置条目解析为表单行:单键为字面替换,pattern + replacement 为正则。 */
+export function parseReplaceEntry(
+  entry: Record<string, string>,
+): { kind: ReplacementKind; from: string; to: string } | null {
+  const keys = Object.keys(entry);
+  if (keys.length === 2 && "pattern" in entry && "replacement" in entry) {
+    return { kind: "regex", from: entry.pattern, to: entry.replacement };
+  }
+  if (keys.length === 1) {
+    return { kind: "literal", from: keys[0], to: entry[keys[0]] };
+  }
+  return null;
+}
+
 let replaceRowSeq = 0;
 const nextReplaceRowId = () => `row-${++replaceRowSeq}`;
-const newReplaceRow = (): ReplaceRow => ({ id: nextReplaceRowId(), from: "", to: "" });
+const newReplaceRow = (): ReplaceRow => ({ id: nextReplaceRowId(), kind: "literal", from: "", to: "" });
 
 // 表单只展示第一个模型的 name/protocol
 const isEmpty = (v: unknown) => v == null || v === "" || (typeof v === "object" && Object.keys(v).length === 0);
@@ -339,8 +369,11 @@ function ReplaceRuleDialog({
   const editing = rule.index !== null;
   const [modelName, setModelName] = useState(rule.modelName);
   const [protocol, setProtocol] = useState(rule.protocol);
-  const [allUsers, setAllUsers] = useState(rule.allUsers);
+  const [targetMode, setTargetMode] = useState<TargetMode>(rule.targetMode);
+  const [role, setRole] = useState(rule.role);
+  const [allTarget, setAllTarget] = useState(rule.allTarget);
   const [positionsText, setPositionsText] = useState(rule.positionsText);
+  const [pathsText, setPathsText] = useState(rule.pathsText);
   const [rows, setRows] = useState<ReplaceRow[]>(rule.rows);
 
   const updateRow = (id: string, patch: Partial<ReplaceRow>) =>
@@ -360,8 +393,11 @@ function ReplaceRuleDialog({
       ...rule,
       modelName: modelName.trim() || "*",
       protocol: protocol.trim(),
-      allUsers,
+      targetMode,
+      role,
+      allTarget,
       positionsText: positionsText.trim(),
+      pathsText: pathsText.trim(),
       rows,
     });
   };
@@ -426,39 +462,103 @@ function ReplaceRuleDialog({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="replace-target">{t("config.payload.replace_target")}</Label>
+                <Label htmlFor="replace-target-mode">{t("config.payload.target_mode")}</Label>
                 <Select
                   items={[
-                    { value: "all", label: t("config.payload.replace_target_all") },
-                    { value: "positions", label: t("config.payload.replace_positions") },
+                    { value: "role", label: t("config.payload.target_mode_role") },
+                    { value: "paths", label: t("config.payload.target_mode_paths") },
                   ]}
-                  value={allUsers ? "all" : "positions"}
-                  onValueChange={(v) => setAllUsers(v === "all")}
+                  value={targetMode}
+                  onValueChange={(v) => v && setTargetMode(v as TargetMode)}
                 >
-                  <SelectTrigger id="replace-target" className="mt-1 w-full">
+                  <SelectTrigger id="replace-target-mode" className="mt-1 w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t("config.payload.replace_target_all")}</SelectItem>
-                    <SelectItem value="positions">{t("config.payload.replace_positions")}</SelectItem>
+                    <SelectItem value="role">{t("config.payload.target_mode_role")}</SelectItem>
+                    <SelectItem value="paths">{t("config.payload.target_mode_paths")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              {!allUsers && (
+              {targetMode === "role" && (
                 <div>
-                  <Label htmlFor="replace-positions">{t("config.payload.replace_positions_input")}</Label>
-                  <Input
-                    id="replace-positions"
-                    value={positionsText}
-                    onChange={(e) => setPositionsText(e.target.value)}
-                    placeholder={t("config.payload.replace_positions_placeholder")}
-                    className="mt-1 font-mono text-sm"
-                    required
-                  />
+                  <Label htmlFor="replace-role">{t("config.payload.role")}</Label>
+                  <Select
+                    items={[
+                      { value: "user", label: t("config.payload.role_user") },
+                      { value: "system", label: t("config.payload.role_system") },
+                      { value: "developer", label: t("config.payload.role_developer") },
+                    ]}
+                    value={role}
+                    onValueChange={(v) => v && setRole(v)}
+                  >
+                    <SelectTrigger id="replace-role" className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">{t("config.payload.role_user")}</SelectItem>
+                      <SelectItem value="system">{t("config.payload.role_system")}</SelectItem>
+                      <SelectItem value="developer">{t("config.payload.role_developer")}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>
-            {!allUsers && <p className="text-xs text-muted-foreground">{t("config.payload.replace_positions_hint")}</p>}
+
+            {targetMode === "role" ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="replace-scope">{t("config.payload.replace_scope")}</Label>
+                    <Select
+                      items={[
+                        { value: "all", label: t("config.payload.replace_scope_all") },
+                        { value: "positions", label: t("config.payload.replace_positions") },
+                      ]}
+                      value={allTarget ? "all" : "positions"}
+                      onValueChange={(v) => setAllTarget(v === "all")}
+                    >
+                      <SelectTrigger id="replace-scope" className="mt-1 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("config.payload.replace_scope_all")}</SelectItem>
+                        <SelectItem value="positions">{t("config.payload.replace_positions")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {!allTarget && (
+                    <div>
+                      <Label htmlFor="replace-positions">{t("config.payload.replace_positions_input")}</Label>
+                      <Input
+                        id="replace-positions"
+                        value={positionsText}
+                        onChange={(e) => setPositionsText(e.target.value)}
+                        placeholder={t("config.payload.replace_positions_placeholder")}
+                        className="mt-1 font-mono text-sm"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+                {!allTarget && (
+                  <p className="text-xs text-muted-foreground">{t("config.payload.replace_positions_hint")}</p>
+                )}
+              </>
+            ) : (
+              <div>
+                <Label htmlFor="replace-paths">{t("config.payload.replace_paths")}</Label>
+                <Textarea
+                  id="replace-paths"
+                  value={pathsText}
+                  onChange={(e) => setPathsText(e.target.value)}
+                  placeholder={t("config.payload.replace_paths_placeholder")}
+                  className="mt-1 min-h-24 font-mono text-xs"
+                  required
+                />
+                <p className="mt-1 text-xs text-muted-foreground">{t("config.payload.replace_paths_hint")}</p>
+              </div>
+            )}
 
             <div>
               <div className="flex items-center justify-between gap-2">
@@ -476,11 +576,32 @@ function ReplaceRuleDialog({
               <div className="mt-1.5 space-y-1.5">
                 {rows.map((row, index) => (
                   <div key={row.id} className="flex min-w-0 items-center gap-1.5">
+                    <Select
+                      items={[
+                        { value: "literal", label: t("config.payload.replace_kind_literal") },
+                        { value: "regex", label: t("config.payload.replace_kind_regex") },
+                      ]}
+                      value={row.kind}
+                      onValueChange={(v) => v && updateRow(row.id, { kind: v as ReplacementKind })}
+                    >
+                      <SelectTrigger
+                        aria-label={`${t("config.payload.replace_kind")} ${index + 1}`}
+                        className="w-24 shrink-0"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="literal">{t("config.payload.replace_kind_literal")}</SelectItem>
+                        <SelectItem value="regex">{t("config.payload.replace_kind_regex")}</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Input
                       value={row.from}
                       onChange={(e) => updateRow(row.id, { from: e.target.value })}
                       aria-label={`${t("config.payload.replace_from")} ${index + 1}`}
-                      placeholder={t("config.payload.replace_from")}
+                      placeholder={
+                        row.kind === "regex" ? t("config.payload.replace_from_regex") : t("config.payload.replace_from")
+                      }
                       className="min-w-0 font-mono text-xs"
                       required
                     />
@@ -489,7 +610,9 @@ function ReplaceRuleDialog({
                       value={row.to}
                       onChange={(e) => updateRow(row.id, { to: e.target.value })}
                       aria-label={`${t("config.payload.replace_to")} ${index + 1}`}
-                      placeholder={t("config.payload.replace_to")}
+                      placeholder={
+                        row.kind === "regex" ? t("config.payload.replace_to_regex") : t("config.payload.replace_to")
+                      }
                       className="min-w-0 font-mono text-xs"
                     />
                     <Button
@@ -653,29 +776,44 @@ function ParamsBody({ rule }: { rule: PayloadRuleItem }) {
 function ReplaceBody({ rule }: { rule: PayloadReplaceRuleItem }) {
   const { t } = useI18n();
   const target = rule.target;
+  const roleLabel =
+    target?.role === "system"
+      ? t("config.payload.role_system")
+      : target?.role === "developer"
+        ? t("config.payload.role_developer")
+        : t("config.payload.role_user");
   return (
     <>
       <div>
         <span className="text-muted-foreground font-medium">{t("config.payload.replace_target")}: </span>
-        {target?.all
-          ? t("config.payload.replace_target_all")
-          : t("config.payload.replace_target_positions", {
-              positions: (target?.positions ?? []).join(", "),
-            })}
+        {target?.paths?.length
+          ? t("config.payload.replace_target_paths", { paths: target.paths.join(", ") })
+          : target?.all
+            ? t("config.payload.replace_target_all", { role: roleLabel })
+            : t("config.payload.replace_target_positions", {
+                role: roleLabel,
+                positions: (target?.positions ?? []).join(", "),
+              })}
       </div>
       {rule.replacements?.length ? (
         <div>
           <span className="text-muted-foreground font-medium">{t("config.payload.replacements")}</span>
           <ul className="mt-1 space-y-1">
             {rule.replacements.map((entry, entryIndex) => {
-              const [from, to] = Object.entries(entry)[0] ?? ["", ""];
+              const parsed = parseReplaceEntry(entry);
+              if (!parsed) return null;
               return (
                 // biome-ignore lint/suspicious/noArrayIndexKey: 只读展示列表,顺序即配置顺序
-                <li key={`${from}-${entryIndex}`} className="flex flex-wrap items-center gap-1.5 font-mono">
-                  <span className="break-all">{from}</span>
+                <li key={`${parsed.from}-${entryIndex}`} className="flex flex-wrap items-center gap-1.5 font-mono">
+                  {parsed.kind === "regex" && (
+                    <Badge variant="outline" className="text-xs uppercase">
+                      {t("config.payload.replace_kind_regex")}
+                    </Badge>
+                  )}
+                  <span className="break-all">{parsed.from}</span>
                   <span className="text-muted-foreground">&rarr;</span>
-                  {to ? (
-                    <span className="break-all">{to}</span>
+                  {parsed.to ? (
+                    <span className="break-all">{parsed.to}</span>
                   ) : (
                     <span className="text-muted-foreground italic">{t("config.payload.replace_delete")}</span>
                   )}
@@ -735,20 +873,27 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
 
   const saveReplaceMutation = useMutation({
     mutationFn: async (rule: EditingReplaceRule) => {
-      const positions = rule.allUsers ? [] : parseReplacePositions(rule.positionsText);
-      if (!rule.allUsers && !positions) {
-        throw new Error(t("config.payload.invalid_positions"));
+      let target: PayloadReplaceTarget;
+      if (rule.targetMode === "paths") {
+        const paths = parseReplacePaths(rule.pathsText);
+        if (!paths) throw new Error(t("config.payload.invalid_paths"));
+        target = { paths };
+      } else {
+        const positions = rule.allTarget ? null : parseReplacePositions(rule.positionsText);
+        if (!rule.allTarget && !positions) {
+          throw new Error(t("config.payload.invalid_positions"));
+        }
+        target = rule.allTarget ? { role: rule.role, all: true } : { role: rule.role, positions: positions ?? [] };
       }
-      if (rule.rows.length === 0 || rule.rows.some((row) => !row.from)) {
+      if (rule.rows.length === 0 || rule.rows.some((row) => !row.from.trim())) {
         throw new Error(t("config.payload.invalid_replacements"));
       }
-      const target: PayloadReplaceTarget = rule.allUsers
-        ? { role: "user", all: true }
-        : { role: "user", positions: positions ?? [] };
       const item = {
         ...mergeRuleModels(rule.original, rule.modelName, rule.protocol),
         target,
-        replacements: rule.rows.map((row) => ({ [row.from]: row.to })),
+        replacements: rule.rows.map((row) =>
+          row.kind === "regex" ? { pattern: row.from, replacement: row.to } : { [row.from]: row.to },
+        ),
       };
       await updateSection<PayloadReplaceRuleItem>("replace", (rules) => {
         if (rule.index !== null && rule.index < rules.length) rules[rule.index] = item;
@@ -892,24 +1037,30 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
                   index: null,
                   modelName: "*",
                   protocol: "",
-                  allUsers: true,
+                  targetMode: "role",
+                  role: "user",
+                  allTarget: true,
                   positionsText: "1",
+                  pathsText: "",
                   rows: [newReplaceRow()],
                 })
               }
               onEdit={(rule, index) => {
                 const target = rule.target;
                 const rows = (rule.replacements ?? []).flatMap((entry) => {
-                  const [from, to] = Object.entries(entry)[0] ?? ["", ""];
-                  return from ? [{ id: nextReplaceRowId(), from, to }] : [];
+                  const parsed = parseReplaceEntry(entry);
+                  return parsed?.from ? [{ id: nextReplaceRowId(), ...parsed }] : [];
                 });
                 setDialogReplace({
                   index,
                   original: rule,
                   modelName: rule.models?.[0]?.name ?? "*",
                   protocol: rule.models?.[0]?.protocol ?? "",
-                  allUsers: Boolean(target?.all),
+                  targetMode: target?.paths?.length ? "paths" : "role",
+                  role: target?.role || "user",
+                  allTarget: Boolean(target?.all),
                   positionsText: (target?.positions ?? []).join(", ") || "1",
+                  pathsText: (target?.paths ?? []).join("\n"),
                   rows: rows.length > 0 ? rows : [newReplaceRow()],
                 });
               }}
