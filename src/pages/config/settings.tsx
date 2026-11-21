@@ -361,6 +361,10 @@ export const GROUPS: ConfigGroup[] = [
         items: [{ endpoint: "oauth/providers/aistudio/ws-auth", type: "bool", fallback: true }],
       },
       {
+        id: "claude",
+        items: [{ endpoint: "oauth/providers/claude/oauth-include-create-api-key", type: "bool", fallback: true }],
+      },
+      {
         id: "codex",
         items: [
           { endpoint: "oauth/providers/codex/signin-with-chatgpt-identifier", type: "text", fallback: "CLIProxyAPI" },
@@ -518,6 +522,7 @@ const ENDPOINT_ALIASES: Record<string, string[]> = {
   "upstream/claude/header-defaults/inject-diagnostics": ["oauth/providers/claude/header-defaults/inject-diagnostics"],
   "upstream/claude/header-defaults/client-request-id": ["oauth/providers/claude/header-defaults/client-request-id"],
   "upstream/claude/session-date-pin-days": ["claude/session-date-pin-days"],
+  "oauth/providers/claude/oauth-include-create-api-key": ["claude/oauth-include-create-api-key"],
   "upstream/xai/inject-x-search": ["oauth/providers/xai/inject-x-search"],
   "client/codex/optimize-multi-agent-v2": [
     "oauth/providers/codex/optimize-multi-agent-v2",

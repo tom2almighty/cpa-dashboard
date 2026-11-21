@@ -41,6 +41,7 @@ import { useI18n } from "@/i18n/context";
 import { api, CONFIG_KEY, configPath, configQuery, errorText, orNotFound } from "@/lib/api";
 import {
   CLOAK_MODES,
+  type FetchedModel,
   type Form,
   fetchProviderModels,
   formatModelRows,
@@ -117,7 +118,7 @@ function ModelMappingEditor({
   update: (patch: Partial<Form>) => void;
 }) {
   const { t } = useI18n();
-  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [fetchedModels, setFetchedModels] = useState<FetchedModel[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [textMode, setTextMode] = useState(false);
   const [query, setQuery] = useState("");
@@ -151,8 +152,10 @@ function ModelMappingEditor({
   };
 
   // 已添加的模型在下拉里打勾;输入的名字不在列表里时追加为一项,选中即作为自定义模型添加
+  const displayNames = new Map(fetchedModels.filter((m) => m.displayName).map((m) => [m.id, m.displayName as string]));
+  const fetchedIds = fetchedModels.map((m) => m.id);
   const selected = [...new Set(rows.map((r) => r.name))];
-  const known = [...new Set([...fetchedModels, ...selected])];
+  const known = [...new Set([...fetchedIds, ...selected])];
   const typed = query.trim();
   const creatable = typed && !known.includes(typed) ? typed : "";
   const items = creatable ? [...known, creatable] : known;
@@ -163,7 +166,7 @@ function ModelMappingEditor({
   };
 
   const handleAddAll = () => {
-    const toAdd = fetchedModels.filter((m) => !selected.includes(m));
+    const toAdd = fetchedIds.filter((m) => !selected.includes(m));
     select([...selected, ...toAdd]);
     toast.success(t("providers.models_added", { count: toAdd.length }));
   };
@@ -229,8 +232,14 @@ function ModelMappingEditor({
               multiple
               autoHighlight
               items={items}
-              // 默认过滤不去空格,粘贴的模型名常带尾随空格
-              filter={(m: string, q) => m.toLowerCase().includes(q.trim().toLowerCase())}
+              // 默认过滤不去空格,粘贴的模型名常带尾随空格;同时按显示名匹配
+              filter={(m: string, q) => {
+                const needle = q.trim().toLowerCase();
+                if (!needle) return true;
+                return (
+                  m.toLowerCase().includes(needle) || (displayNames.get(m)?.toLowerCase().includes(needle) ?? false)
+                );
+              }}
               value={selected}
               onValueChange={select}
               inputValue={query}
@@ -256,18 +265,26 @@ function ModelMappingEditor({
               <ComboboxContent>
                 <ComboboxEmpty>{t("providers.combobox_empty")}</ComboboxEmpty>
                 <ComboboxList>
-                  {(m: string) => (
-                    <ComboboxItem key={m} value={m} className="font-mono text-xs">
-                      {m === creatable ? (
-                        <>
-                          <Plus className="size-3.5" />
-                          {t("providers.add_custom", { name: m })}
-                        </>
-                      ) : (
-                        m
-                      )}
-                    </ComboboxItem>
-                  )}
+                  {(m: string) => {
+                    const displayName = displayNames.get(m);
+                    return (
+                      <ComboboxItem key={m} value={m} className="font-mono text-xs">
+                        {m === creatable ? (
+                          <>
+                            <Plus className="size-3.5" />
+                            {t("providers.add_custom", { name: m })}
+                          </>
+                        ) : (
+                          <span className="flex min-w-0 items-baseline gap-1.5">
+                            <span className="truncate">{m}</span>
+                            {displayName && (
+                              <span className="truncate font-sans text-muted-foreground">{displayName}</span>
+                            )}
+                          </span>
+                        )}
+                      </ComboboxItem>
+                    );
+                  }}
                 </ComboboxList>
               </ComboboxContent>
             </Combobox>
@@ -276,7 +293,7 @@ function ModelMappingEditor({
                 type="button"
                 variant="outline"
                 onClick={handleAddAll}
-                disabled={fetchedModels.every((m) => selected.includes(m))}
+                disabled={fetchedIds.every((m) => selected.includes(m))}
                 className="shrink-0"
               >
                 {t("providers.add_all")}

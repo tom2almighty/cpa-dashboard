@@ -12,7 +12,8 @@ import { useCopiedState } from "@/hooks/use-copied-state";
 import { useI18n } from "@/i18n/context";
 import { api, configQuery, errorText } from "@/lib/api";
 
-type V1Model = { id: string };
+type V1Model = { id: string; display_name?: string; displayName?: string };
+type AvailableModel = { id: string; displayName?: string };
 
 const byName = new Intl.Collator(undefined, { numeric: true }).compare;
 
@@ -27,11 +28,11 @@ export function AvailableModels() {
     ...configQuery,
     select: (c) => (c.access as { "api-keys"?: string[] } | undefined)?.["api-keys"]?.[0] ?? "",
   });
-  // /v1/models 按模型 ID 去重,owned_by 只是其中一个提供方,所以只列模型名
+  // /v1/models 按模型 ID 去重,owned_by 只是其中一个提供方,这里展示模型 ID 与可选的显示名
   const { data, isPending, isError, error, isRefetching } = useQuery({
     queryKey: ["cpa", "v1-models", clientKey.data],
     enabled: !clientKey.isPending,
-    queryFn: async () => {
+    queryFn: async (): Promise<AvailableModel[]> => {
       const res = await api<{ data?: V1Model[]; models?: V1Model[] } | V1Model[]>("/v1/models", {
         headers: clientKey.data ? { Authorization: `Bearer ${clientKey.data}` } : undefined,
       });
@@ -42,14 +43,24 @@ export function AvailableModels() {
           : Array.isArray(res?.models)
             ? res.models
             : [];
-      return list.map((m) => m.id).sort(byName);
+      return list
+        .filter((m) => typeof m.id === "string" && m.id.trim())
+        .map((m) => {
+          const id = m.id.trim();
+          const rawDisplay = (m.display_name ?? m.displayName ?? "").trim();
+          return rawDisplay && rawDisplay !== id ? { id, displayName: rawDisplay } : { id };
+        })
+        .sort((a, b) => byName(a.id, b.id));
     },
     staleTime: 60_000,
   });
 
   const models = useMemo(() => {
     const term = search.toLowerCase().trim();
-    return term ? (data ?? []).filter((id) => id.toLowerCase().includes(term)) : (data ?? []);
+    if (!term) return data ?? [];
+    return (data ?? []).filter(
+      (m) => m.id.toLowerCase().includes(term) || (m.displayName?.toLowerCase().includes(term) ?? false),
+    );
   }, [data, search]);
 
   const copy = (id: string) => {
@@ -124,20 +135,25 @@ export function AvailableModels() {
         </p>
       ) : (
         <ul className="columns-xs gap-x-6">
-          {models.map((id) => (
+          {models.map(({ id, displayName }) => (
             <li key={id} className="break-inside-avoid">
               <Button
                 variant="ghost"
-                title={id}
+                title={displayName ? `${id} — ${displayName}` : id}
                 aria-label={t("models.copy_aria", { id })}
                 onClick={() => copy(id)}
-                className="w-full justify-between font-mono font-normal"
+                className="w-full justify-between gap-2 font-mono font-normal"
               >
-                <span className="truncate">{id}</span>
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="truncate">{id}</span>
+                  {displayName && (
+                    <span className="truncate font-sans text-xs text-muted-foreground">{displayName}</span>
+                  )}
+                </span>
                 {copied === id ? (
-                  <Check className="size-3.5 text-primary" />
+                  <Check className="size-3.5 shrink-0 text-primary" />
                 ) : (
-                  <Copy className="size-3.5 text-muted-foreground opacity-0 group-hover/button:opacity-100 group-focus-visible/button:opacity-100" />
+                  <Copy className="size-3.5 shrink-0 text-muted-foreground opacity-0 group-hover/button:opacity-100 group-focus-visible/button:opacity-100" />
                 )}
               </Button>
             </li>

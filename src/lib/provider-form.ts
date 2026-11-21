@@ -189,8 +189,24 @@ const KIND_CHANNEL_MAP: Record<string, string[]> = {
   meta: ["meta"],
 };
 
+export type FetchedModel = { id: string; displayName?: string };
+
+function addFetchedModel(models: Map<string, FetchedModel>, rawId: unknown, rawDisplayName: unknown) {
+  if (typeof rawId !== "string") return;
+  const id = rawId.trim();
+  if (!id) return;
+  const displayName = typeof rawDisplayName === "string" ? rawDisplayName.trim() : "";
+  const resolvedDisplayName = displayName && displayName !== id ? displayName : undefined;
+  const existing = models.get(id);
+  if (!existing) {
+    models.set(id, resolvedDisplayName ? { id, displayName: resolvedDisplayName } : { id });
+  } else if (!existing.displayName && resolvedDisplayName) {
+    existing.displayName = resolvedDisplayName;
+  }
+}
+
 // 上游模型列表格式不一(数组、{data: [...]}、{models: [...]});非 JSON 内容返回空数组
-function upstreamModelIds(payload: unknown): string[] {
+function upstreamModels(payload: unknown): FetchedModel[] {
   let entries: unknown[] = [];
   if (Array.isArray(payload)) {
     entries = payload;
@@ -201,13 +217,16 @@ function upstreamModelIds(payload: unknown): string[] {
     else if (Array.isArray(models)) entries = models;
   }
 
-  const ids: string[] = [];
+  const models = new Map<string, FetchedModel>();
   for (const item of entries) {
     if (!item || typeof item !== "object") continue;
     const id = ("id" in item ? item.id : undefined) ?? ("name" in item ? item.name : undefined);
-    if (typeof id === "string" && id) ids.push(id);
+    const displayName =
+      ("display_name" in item ? item.display_name : undefined) ??
+      ("displayName" in item ? item.displayName : undefined);
+    addFetchedModel(models, id, displayName);
   }
-  return ids;
+  return Array.from(models.values());
 }
 
 export async function fetchProviderModels(
@@ -215,8 +234,8 @@ export async function fetchProviderModels(
   baseUrl: string,
   apiKey: string,
   headersText = "",
-): Promise<string[]> {
-  const models = new Set<string>();
+): Promise<FetchedModel[]> {
+  const models = new Map<string, FetchedModel>();
   const cleanBase = baseUrl.trim().replace(/\/+$/, "");
 
   if (cleanBase) {
@@ -270,21 +289,21 @@ export async function fetchProviderModels(
         }
       }
 
-      for (const id of upstreamModelIds(payload)) models.add(id);
-      if (models.size > 0) return Array.from(models).sort();
+      for (const item of upstreamModels(payload)) addFetchedModel(models, item.id, item.displayName);
+      if (models.size > 0) return Array.from(models.values()).sort((a, b) => a.id.localeCompare(b.id));
     }
     if (models.size === 0) throw new Error(lastError);
   }
 
   for (const ch of KIND_CHANNEL_MAP[kind.endpoint] ?? []) {
-    const res = await api<{ models?: { id: string }[] }>(
+    const res = await api<{ models?: { id: string; display_name?: string; displayName?: string }[] }>(
       `/v8/management/routing/model-definitions/${encodeURIComponent(ch)}`,
     );
     for (const m of res.models ?? []) {
-      if (m.id) models.add(m.id);
+      addFetchedModel(models, m.id, m.display_name ?? m.displayName);
     }
   }
-  return Array.from(models).sort();
+  return Array.from(models.values()).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export function mask(key: string): string {

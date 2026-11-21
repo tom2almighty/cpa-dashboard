@@ -976,6 +976,7 @@
       "oauth": {
         "oauth": "凭据存储与错误规则",
         "aistudio": "AI Studio",
+        "claude": "Claude",
         "codex": "Codex",
         "antigravity": "Antigravity",
         "devin": "Devin"
@@ -1141,6 +1142,10 @@
       "oauth/providers/aistudio/ws-auth": {
         "label": "AI Studio /ws 路由鉴权",
         "hint": "为 /v1/ws 路由强制要求客户端携带有效密钥"
+      },
+      "oauth/providers/claude/oauth-include-create-api-key": {
+        "label": "登录请求 org:create_api_key 权限",
+        "hint": "新的 Claude OAuth 登录时附带 org:create_api_key scope，默认开启；关闭后仅请求五个 user:* scope（注意 claude.ai 可能仍要求该权限），不影响已有令牌刷新"
       },
       "upstream/claude/disable-claude-cloak-mode": {
         "label": "禁用 Claude 伪装",

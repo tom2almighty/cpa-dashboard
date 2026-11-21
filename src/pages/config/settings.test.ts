@@ -253,12 +253,23 @@ test("readPath 支持新版 canonical 路径以及历史别名回退", () => {
         "optimize-multi-agent-v2": true,
       },
     },
+    oauth: {
+      providers: {
+        claude: {
+          "oauth-include-create-api-key": false,
+        },
+      },
+    },
   };
   expect(readPath(canonicalConfig, "upstream/codex/disable-codex-cloaking")).toBe(true);
   expect(readPath(canonicalConfig, "upstream/claude/disable-claude-cloak-mode")).toBe(true);
   expect(readPath(canonicalConfig, "client/codex/optimize-multi-agent-v2")).toBe(true);
+  expect(readPath(canonicalConfig, "oauth/providers/claude/oauth-include-create-api-key")).toBe(false);
 
   const legacyConfig = {
+    claude: {
+      "oauth-include-create-api-key": false,
+    },
     oauth: {
       providers: {
         codex: {
@@ -274,6 +285,7 @@ test("readPath 支持新版 canonical 路径以及历史别名回退", () => {
   expect(readPath(legacyConfig, "upstream/codex/disable-codex-cloaking")).toBe(true);
   expect(readPath(legacyConfig, "upstream/claude/disable-claude-cloak-mode")).toBe(true);
   expect(readPath(legacyConfig, "client/codex/optimize-multi-agent-v2")).toBe(true);
+  expect(readPath(legacyConfig, "oauth/providers/claude/oauth-include-create-api-key")).toBe(false);
 });
 
 test("只有管理密钥字段会替换本地管理密钥", () => {

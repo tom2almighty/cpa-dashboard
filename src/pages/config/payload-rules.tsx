@@ -885,7 +885,7 @@ export function PayloadRules({ onGoYaml }: { onGoYaml: () => void }) {
         }
         target = rule.allTarget ? { role: rule.role, all: true } : { role: rule.role, positions: positions ?? [] };
       }
-      if (rule.rows.length === 0 || rule.rows.some((row) => !row.from.trim())) {
+      if (rule.rows.length === 0 || rule.rows.some((row) => !row.from)) {
         throw new Error(t("config.payload.invalid_replacements"));
       }
       const item = {

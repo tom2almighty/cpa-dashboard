@@ -273,14 +273,23 @@ async function withApiCall(
 }
 
 test("fetchProviderModels 填写 Base URL 时经 /api-call 拉上游模型并带 Claude 专属 Header", () =>
-  withApiCall(200, { data: [{ id: "custom-claude-3-7-sonnet" }] }, async (calls) => {
-    const list = await fetchProviderModels(claude, "https://custom.api.com", "sk-ant-test");
-    expect(list).toEqual(["custom-claude-3-7-sonnet"]);
-    expect(calls[0].url).toBe("https://custom.api.com/models");
-    expect(calls[0].header["x-api-key"]).toBe("sk-ant-test");
-    expect(calls[0].header["anthropic-version"]).toBe("2023-06-01");
-    expect(calls[0].header.Authorization).toBe("Bearer sk-ant-test");
-  }));
+  withApiCall(
+    200,
+    {
+      data: [
+        { id: "custom-claude-3-7-sonnet", display_name: "Claude 3.7 Sonnet" },
+        { id: "same-name", display_name: "same-name" },
+      ],
+    },
+    async (calls) => {
+      const list = await fetchProviderModels(claude, "https://custom.api.com", "sk-ant-test");
+      expect(list).toEqual([{ id: "custom-claude-3-7-sonnet", displayName: "Claude 3.7 Sonnet" }, { id: "same-name" }]);
+      expect(calls[0].url).toBe("https://custom.api.com/models");
+      expect(calls[0].header["x-api-key"]).toBe("sk-ant-test");
+      expect(calls[0].header["anthropic-version"]).toBe("2023-06-01");
+      expect(calls[0].header.Authorization).toBe("Bearer sk-ant-test");
+    },
+  ));
 
 test("fetchProviderModels 上游失败时直接报出状态码", () =>
   withApiCall(401, "Unauthorized", async () => {
@@ -292,7 +301,7 @@ test("fetchProviderModels 上游失败时直接报出状态码", () =>
 test("fetchProviderModels 自定义 Base URL 若以 /models 结尾不重复追加", () =>
   withApiCall(200, [{ id: "m1" }], async (calls) => {
     const list = await fetchProviderModels(claude, "https://custom.api.com/v1/models", "k");
-    expect(list).toEqual(["m1"]);
+    expect(list).toEqual([{ id: "m1" }]);
     expect(calls.map((c) => c.url)).toEqual(["https://custom.api.com/v1/models"]);
   }));
 
@@ -314,7 +323,7 @@ async function withRoutes(routes: Record<string, string>, run: (urls: string[]) 
 
 test("fetchProviderModels 上游 /models 返回 HTML 时继续试 /v1/models", () =>
   withRoutes({ "https://relay.example.com/v1/models": JSON.stringify({ data: [{ id: "m1" }] }) }, async (urls) => {
-    expect(await fetchProviderModels(openai, "https://relay.example.com", "sk-test")).toEqual(["m1"]);
+    expect(await fetchProviderModels(openai, "https://relay.example.com", "sk-test")).toEqual([{ id: "m1" }]);
     expect(urls).toEqual(["https://relay.example.com/models", "https://relay.example.com/v1/models"]);
   }));
 

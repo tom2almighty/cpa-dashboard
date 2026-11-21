@@ -976,6 +976,7 @@
       "oauth": {
         "oauth": "Credential store & error rules",
         "aistudio": "AI Studio",
+        "claude": "Claude",
         "codex": "Codex",
         "antigravity": "Antigravity",
         "devin": "Devin"
@@ -1141,6 +1142,10 @@
       "oauth/providers/aistudio/ws-auth": {
         "label": "AI Studio /ws Auth",
         "hint": "Require clients to send a valid key on the /v1/ws route"
+      },
+      "oauth/providers/claude/oauth-include-create-api-key": {
+        "label": "Include org:create_api_key Scope",
+        "hint": "Request the org:create_api_key scope during new Claude OAuth logins (default: enabled). When off, only the five user:* scopes are requested (claude.ai may still require org:create_api_key); token refresh scopes are unchanged"
       },
       "upstream/claude/disable-claude-cloak-mode": {
         "label": "Disable Claude Cloak Mode",
