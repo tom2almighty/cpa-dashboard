@@ -366,6 +366,7 @@
     "store_installed_source_unknown": "Cannot confirm which source the plugin was installed from",
     "store_rate_limited": "Plugin store is rate limited, try again later",
     "precondition_failed": "Configuration was changed by another session; refresh and try again",
+    "config_changed": "Configuration changed while saving; refresh and try again",
     "request_body_too_large": "Request body exceeds CPA's server.max-request-body-bytes limit; trim the config or raise the value"
   },
   "providers": {
@@ -994,6 +995,10 @@
       "plugins": "Plugin installation, config and store live on the Plugins page"
     },
     "fields": {
+      "server/server-id": {
+        "label": "Server ID",
+        "hint": "Deployment UUID (nonzero hyphenated, lowercased on save). Generated and persisted on the first valid startup; clearing and saving rotates to a fresh UUIDv4. Read-only configs without an explicit ID use an ephemeral process-local ID"
+      },
       "server/host": {
         "label": "Host",
         "hint": "Bind address. Empty or 0.0.0.0 listens on all interfaces; 127.0.0.1 is local only"
@@ -1323,7 +1328,7 @@
       },
       "oauth/providers/antigravity/connection-pool/max-idle-conns-per-host": {
         "label": "Antigravity Max Idle Connections per Host",
-        "hint": "Maximum idle connections kept per credential per host"
+        "hint": "Maximum idle connections kept per credential per host; defaults to 2, <= 0 disables idle pooling (short-lived connections)"
       },
       "plugins/store-sources": {
         "label": "Plugin Store Sources",
@@ -1557,7 +1562,10 @@
     "cpa_desc": "CPA proxy gateway core",
     "cpa_upgrade_to": "CPA can be upgraded to {{version}}!",
     "cpa_release": "CPA official Release",
-    "check_failed": "Check failed"
+    "check_failed": "Check failed",
+    "server_id": "Server ID:",
+    "copy_server_id": "Copy server ID",
+    "copied_server_id": "Server ID copied"
   },
   "time": {
     "never": "Never",

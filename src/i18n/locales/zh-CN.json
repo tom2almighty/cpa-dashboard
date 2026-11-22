@@ -366,6 +366,7 @@
     "store_installed_source_unknown": "无法确认插件当前的安装来源",
     "store_rate_limited": "插件商店请求过于频繁，请稍后重试",
     "precondition_failed": "配置已被其它会话修改，请刷新后重试",
+    "config_changed": "配置在写入期间已被修改，请刷新后重试",
     "request_body_too_large": "请求体超过 CPA 的 server.max-request-body-bytes 限制，请裁剪配置或调大该值"
   },
   "providers": {
@@ -994,6 +995,10 @@
       "plugins": "插件安装、配置与商店在「插件」页面维护"
     },
     "fields": {
+      "server/server-id": {
+        "label": "实例标识 (Server ID)",
+        "hint": "部署 UUID（非零带连字符，保存时自动转为小写）。首次有效启动时自动生成并持久化；清空后保存会轮换为新的 UUIDv4。只读配置未显式设置时仅在当前进程内临时生成"
+      },
       "server/host": {
         "label": "监听主机 (Host)",
         "hint": "绑定地址，空值或 0.0.0.0 监听所有接口，127.0.0.1 仅限本机"
@@ -1323,7 +1328,7 @@
       },
       "oauth/providers/antigravity/connection-pool/max-idle-conns-per-host": {
         "label": "Antigravity 每主机最大空闲连接",
-        "hint": "每个凭据对每个主机保留的最大空闲连接数"
+        "hint": "每个凭据对每个主机保留的最大空闲连接数，默认 2；<= 0 时关闭空闲复用（短连接模式）"
       },
       "plugins/store-sources": {
         "label": "插件商店源",
@@ -1557,7 +1562,10 @@
     "cpa_desc": "CPA 代理核心网关引擎",
     "cpa_upgrade_to": "CPA 可升级至 {{version}}！",
     "cpa_release": "CPA 官方 Release",
-    "check_failed": "检查失败"
+    "check_failed": "检查失败",
+    "server_id": "实例标识:",
+    "copy_server_id": "复制实例标识",
+    "copied_server_id": "已复制实例标识"
   },
   "time": {
     "never": "从未",

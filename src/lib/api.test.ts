@@ -27,6 +27,7 @@ test("CPA 错误码映射为文案", () => {
   expect(errorText(new ApiError(412, "precondition_failed", "precondition_failed"))).toBe(
     "配置已被其它会话修改，请刷新后重试",
   );
+  expect(errorText(new ApiError(409, "config_changed", "config_changed"))).toBe("配置在写入期间已被修改，请刷新后重试");
 });
 
 test("未覆盖的错误码与非 ApiError 直接用原文", () => {

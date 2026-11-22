@@ -1,6 +1,16 @@
 import { SiGithub } from "@icons-pack/react-simple-icons";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpCircle, CheckCircle2, Download, ExternalLink, Info, RefreshCw, Sparkles } from "lucide-react";
+import {
+  ArrowUpCircle,
+  Check,
+  CheckCircle2,
+  Copy,
+  Download,
+  ExternalLink,
+  Info,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import { useState } from "react";
 import { Trans } from "react-i18next";
 import { toast } from "sonner";
@@ -9,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { useCopiedState } from "@/hooks/use-copied-state";
 import i18n from "@/i18n";
 import { useI18n } from "@/i18n/context";
 import { ApiError, request } from "@/lib/api";
@@ -54,10 +65,11 @@ export function useVersionData() {
         error?: string;
         message?: string;
       };
-      // 管理接口的响应头都带运行版本,GitHub 查不到(502)时也要显示当前版本,所以查询失败放进 error;401 照常抛出走登出
+      // 管理接口的响应头都带运行版本与服务端标识,GitHub 查不到(502)时也要显示当前版本,所以查询失败放进 error;401 照常抛出走登出
       if (res.status === 401) throw new ApiError(401, body.message || body.error || "", body.error);
       return {
         current: res.headers.get("x-cpa-version") || "",
+        serverId: res.headers.get("x-cpa-server-id") || "",
         latest: res.ok ? (body["latest-version"] ?? "") : "",
         error: res.ok
           ? ""
@@ -82,6 +94,7 @@ export function useVersionData() {
   });
 
   const cpaCurrent = cpaQuery.data?.current || "";
+  const cpaServerId = cpaQuery.data?.serverId || "";
   const cpaLatest = cpaQuery.data?.latest || "";
   const cpaHasUpdate = newer(cpaLatest, cpaCurrent);
   const cpaUpToDate = comparable(cpaLatest, cpaCurrent) && !cpaHasUpdate;
@@ -99,6 +112,7 @@ export function useVersionData() {
     cpaQuery,
     panelReleaseQuery,
     cpaCurrent,
+    cpaServerId,
     cpaLatest,
     cpaHasUpdate,
     cpaUpToDate,
@@ -115,10 +129,12 @@ export function useVersionData() {
 function VersionCardContent() {
   const { t } = useI18n();
   const [checking, setChecking] = useState(false);
+  const { copied, mark } = useCopiedState();
   const {
     cpaQuery,
     panelReleaseQuery,
     cpaCurrent,
+    cpaServerId,
     cpaLatest,
     cpaHasUpdate,
     cpaUpToDate,
@@ -285,6 +301,35 @@ function VersionCardContent() {
                 {cpaLatest || (cpaError ? t("version.check_failed") : t("version.checking"))}
               </span>
             </div>
+            {cpaServerId && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">{t("version.server_id")}</span>
+                <span className="flex min-w-0 items-center gap-1">
+                  <span className="truncate font-mono font-medium" title={cpaServerId}>
+                    {cpaServerId}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
+                    title={t("version.copy_server_id")}
+                    aria-label={t("version.copy_server_id")}
+                    onClick={() => {
+                      navigator.clipboard.writeText(cpaServerId).then(
+                        () => {
+                          mark(cpaServerId);
+                          toast.success(t("version.copied_server_id"));
+                        },
+                        () => toast.error(t("common.copy_failed")),
+                      );
+                    }}
+                  >
+                    {copied ? <Check className="size-3 text-primary" /> : <Copy className="size-3" />}
+                  </Button>
+                </span>
+              </div>
+            )}
             {cpaError && <p className="wrap-break-word text-destructive">{cpaError}</p>}
 
             {cpaHasUpdate && (

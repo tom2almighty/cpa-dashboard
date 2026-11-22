@@ -123,7 +123,7 @@ export async function request(path: string, { body, raw, headers, ...init }: Ini
     headers: h,
     body: isJson ? JSON.stringify(body) : (body as BodyInit | undefined),
   });
-  // 读取和写入都会返回最新的配置 ETag,写失败(412)时也带当前值,便于重试;
+  // 读取和写入都会返回最新的配置 ETag,写失败(412/409)时也带当前值,便于重试;
   // 反代去掉 ETag 时同步清空,避免继续拿旧值发 If-Match 而一直 412
   if (isConfigPath(url)) configEtag = res.headers.get("etag");
   return res;
@@ -179,6 +179,7 @@ const ERROR_KEYS: Record<string, string> = {
   plugin_store_installed_source_unknown: "api_error.store_installed_source_unknown",
   plugin_store_rate_limited: "api_error.store_rate_limited",
   precondition_failed: "api_error.precondition_failed",
+  config_changed: "api_error.config_changed",
   request_body_too_large: "api_error.request_body_too_large",
 };
 

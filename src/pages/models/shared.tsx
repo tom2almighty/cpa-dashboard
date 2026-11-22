@@ -27,6 +27,7 @@ export const CHANNELS = [
   "xai",
   "devin",
   "meta",
+  "copilot",
 ];
 // OAuth 别名/排除的渠道:与 CPA 的 OAuthModelAliasChannel 一致,gemini 系列只走 API Key,
 // kimi-ai 凭据的渠道是 kimi-ai 而不是 kimi;插件 OAuth 提供商用其 provider key,故允许自由输入
@@ -41,6 +42,7 @@ export const ALIAS_CHANNELS = [
   "xai",
   "meta",
   "devin",
+  "copilot",
 ];
 export type OAuthConfig = { "model-alias"?: Record<string, Alias[]>; "excluded-models"?: Record<string, string[]> };
 export const oauthOf = (c: Record<string, unknown>) => (c.oauth ?? {}) as OAuthConfig;

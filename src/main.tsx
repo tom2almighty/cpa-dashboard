@@ -14,8 +14,8 @@ import "./index.css";
 // 登录失效时把会话标记为未登录,App 会切回登录页
 function onError(error: Error) {
   if (isUnauthorized(error)) queryClient.setQueryData(["session"], false);
-  // 配置被其它会话改过:缓存已经不可信,刷新后再让用户重试
-  if (error instanceof ApiError && error.code === "precondition_failed") {
+  // 配置被其它会话改过(412/409):缓存已经不可信,刷新后再让用户重试
+  if (error instanceof ApiError && (error.code === "precondition_failed" || error.code === "config_changed")) {
     void queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
   }
 }

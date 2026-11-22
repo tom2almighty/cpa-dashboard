@@ -124,6 +124,7 @@ export const GROUPS: ConfigGroup[] = [
       {
         id: "listening",
         items: [
+          { endpoint: "server/server-id", type: "text" },
           { endpoint: "server/host", type: "text", fallback: "" },
           { endpoint: "server/port", type: "int", fallback: "8317" },
           { endpoint: "server/max-request-body-bytes", type: "int", fallback: "0" },
