@@ -337,6 +337,7 @@
       "antigravity": "Login with Google account",
       "xai": "Login with Grok account",
       "devin": "Sign in with a Devin account, complete authorization within 5 minutes",
+      "copilot": "Login with GitHub Copilot account (device code)",
       "kimi": "Login with Kimi China account (kimi.com, device code)",
       "kimi-ai": "Login with Kimi International account (kimi.ai, device code)",
       "meta": "Device code login"

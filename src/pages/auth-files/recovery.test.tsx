@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import i18n from "@/i18n";
 import type { AuthFile } from "@/lib/types";
+import { builtInProvider } from "../oauth";
 import { StatusCell } from "./dialogs";
 import { RenewalDetails } from "./recovery";
 
@@ -41,4 +42,12 @@ test("does not conflate successful inference with verified renewal", async () =>
   expect(details).toContain("Awaiting first automatic renewal");
   expect(details).not.toContain("Automatic renewal verified");
   expect(renderToStaticMarkup(<RenewalDetails target={{ id: "b", name: "b.json" }} />)).toBe("");
+});
+
+test("resolves GitHub Copilot as a built-in OAuth provider for targeted recovery", () => {
+  expect(builtInProvider("copilot")).toMatchObject({
+    id: "copilot",
+    name: "GitHub Copilot",
+    hintKey: "oauth.hints.copilot",
+  });
 });

@@ -337,6 +337,7 @@
       "antigravity": "使用 Google 账号登录",
       "xai": "使用 Grok 账号登录",
       "devin": "使用 Devin 账号登录，请在 5 分钟内完成授权",
+      "copilot": "使用 GitHub Copilot 账号登录（设备码）",
       "kimi": "使用 Kimi 国内账号登录（kimi.com，设备码）",
       "kimi-ai": "使用 Kimi 国际账号登录（kimi.ai，设备码）",
       "meta": "设备码登录"

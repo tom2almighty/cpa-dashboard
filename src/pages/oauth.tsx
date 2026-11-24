@@ -21,7 +21,17 @@ type Provider = { id: string; name: string; hintKey: string; logo?: string; plug
 const WEBUI_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin"]);
 
 // 这些提供方支持登录会话代理；其余内置与插件提供方都按会话代理处理
-const PROXY_SUPPORTED = new Set(["codex", "claude", "antigravity", "xai", "devin", "kimi", "kimi-ai", "meta"]);
+const PROXY_SUPPORTED = new Set([
+  "codex",
+  "claude",
+  "antigravity",
+  "xai",
+  "devin",
+  "copilot",
+  "kimi",
+  "kimi-ai",
+  "meta",
+]);
 
 // 回调还是设备码流程由 auth-url 返回的 flow 决定
 const PROVIDERS: Provider[] = [
@@ -30,6 +40,7 @@ const PROVIDERS: Provider[] = [
   { id: "antigravity", name: "Antigravity", hintKey: "oauth.hints.antigravity" },
   { id: "xai", name: "xAI Grok", hintKey: "oauth.hints.xai" },
   { id: "devin", name: "Devin", hintKey: "oauth.hints.devin" },
+  { id: "copilot", name: "GitHub Copilot", hintKey: "oauth.hints.copilot" },
   { id: "kimi", name: "Kimi", hintKey: "oauth.hints.kimi" },
   { id: "kimi-ai", name: "Kimi.ai", hintKey: "oauth.hints.kimi-ai" },
   { id: "meta", name: "Muse (Meta)", hintKey: "oauth.hints.meta" },
